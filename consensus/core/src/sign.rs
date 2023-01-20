@@ -8,7 +8,6 @@ use crate::{
 use std::collections::BTreeMap;
 
 /// Sign a transaction using schnorr
-/// Sign a transaction using schnorr
 pub fn sign(mut mutable_tx: MutableTransaction, privkeys: Vec<[u8; 32]>) -> MutableTransaction {
     let mut map = BTreeMap::new();
     for privkey in privkeys {
