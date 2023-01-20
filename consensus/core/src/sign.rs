@@ -5,17 +5,27 @@ use crate::{
     },
     tx::MutableTransaction,
 };
+use std::collections::BTreeMap;
 
 /// Sign a transaction using schnorr
-pub fn sign(mut mutable_tx: MutableTransaction, privkey: [u8; 32]) -> MutableTransaction {
-    let schnorr_key = secp256k1::KeyPair::from_seckey_slice(secp256k1::SECP256K1, &privkey).unwrap();
+/// Sign a transaction using schnorr
+pub fn sign(mut mutable_tx: MutableTransaction, privkeys: Vec<[u8; 32]>) -> MutableTransaction {
+    let mut map = BTreeMap::new();
+    for privkey in privkeys {
+        let schnorr_key = secp256k1::KeyPair::from_seckey_slice(secp256k1::SECP256K1, &privkey).unwrap();
+        map.insert(schnorr_key.public_key().serialize(), schnorr_key);
+    }
+
     let mut reused_values = SigHashReusedValues::new();
     for i in 0..mutable_tx.tx.inputs.len() {
-        let sig_hash = calc_schnorr_signature_hash(&mutable_tx.as_verifiable(), i, SIG_HASH_ALL, &mut reused_values);
-        let msg = secp256k1::Message::from_slice(sig_hash.as_bytes().as_slice()).unwrap();
-        let sig: [u8; 64] = *schnorr_key.sign_schnorr(msg).as_ref();
-        // This represents OP_DATA_65 <SIGNATURE+SIGHASH_TYPE> (since signature length is 64 bytes and SIGHASH_TYPE is one byte)
-        mutable_tx.tx.inputs[i].signature_script = std::iter::once(65u8).chain(sig).chain([SIG_HASH_ALL.to_u8()]).collect();
+        let script = mutable_tx.entries[i].as_ref().unwrap().script_public_key.script();
+        if let Some(schnorr_key) = map.get(script) {
+            let sig_hash = calc_schnorr_signature_hash(&mutable_tx.as_verifiable(), i, SIG_HASH_ALL, &mut reused_values);
+            let msg = secp256k1::Message::from_slice(sig_hash.as_bytes().as_slice()).unwrap();
+            let sig: [u8; 64] = *schnorr_key.sign_schnorr(msg).as_ref();
+            // This represents OP_DATA_65 <SIGNATURE+SIGHASH_TYPE> (since signature length is 64 bytes and SIGHASH_TYPE is one byte)
+            mutable_tx.tx.inputs[i].signature_script = std::iter::once(65u8).chain(sig).chain([SIG_HASH_ALL.to_u8()]).collect();
+        }
         // TODO: update sig_op_counts
     }
     mutable_tx
@@ -31,6 +41,9 @@ mod tests {
     fn verify(tx: &impl VerifiableTransaction) -> Result<(), secp256k1::Error> {
         let mut reused_values = SigHashReusedValues::new();
         for (i, (input, entry)) in tx.populated_inputs().enumerate() {
+            if input.signature_script.is_empty() {
+                return Err(secp256k1::Error::InvalidSignature);
+            }
             let pk = &entry.script_public_key.script()[1..33];
             let pk = secp256k1::XOnlyPublicKey::from_slice(pk).unwrap();
             let sig = secp256k1::schnorr::Signature::from_slice(&input.signature_script[1..65]).unwrap();
@@ -47,6 +60,9 @@ mod tests {
         let secp = Secp256k1::new();
         let (secret_key, public_key) = secp.generate_keypair(&mut rand::thread_rng());
         let script_pub_key = ScriptVec::from_slice(&public_key.serialize());
+
+        let (secret_key2, public_key2) = secp.generate_keypair(&mut rand::thread_rng());
+        let script_pub_key2 = ScriptVec::from_slice(&public_key2.serialize());
 
         let prev_tx_id = TransactionId::from_str("880eb9819a31821d9d2399e2f35e2433b72637e393d71ecc9b8d0250f49153c3").unwrap();
         let unsigned_tx = Transaction::new(
@@ -90,18 +106,19 @@ mod tests {
             },
             UtxoEntry {
                 amount: 200,
-                script_public_key: ScriptPublicKey::new(0, script_pub_key.clone()),
+                script_public_key: ScriptPublicKey::new(0, script_pub_key),
                 block_daa_score: 0,
                 is_coinbase: false,
             },
             UtxoEntry {
                 amount: 300,
-                script_public_key: ScriptPublicKey::new(0, script_pub_key),
+                script_public_key: ScriptPublicKey::new(0, script_pub_key2),
                 block_daa_score: 0,
                 is_coinbase: false,
             },
         ];
-        let signed_tx = sign(MutableTransaction::with_entries(unsigned_tx, entries), secret_key.secret_bytes());
+        let signed_tx =
+            sign(MutableTransaction::with_entries(unsigned_tx, entries), vec![secret_key.secret_bytes(), secret_key2.secret_bytes()]);
         assert!(verify(&signed_tx.as_verifiable()).is_ok());
     }
 }
