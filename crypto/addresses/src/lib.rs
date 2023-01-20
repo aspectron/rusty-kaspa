@@ -110,6 +110,13 @@ impl TryFrom<String> for Address {
     }
 }
 
+impl Display for Address {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let address: String = self.into();
+        f.write_str(&address)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::*;
