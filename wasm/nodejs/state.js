@@ -1,9 +1,6 @@
 let kaspa = require('./kaspa/kaspa_wasm');
 kaspa.init_console_panic_hook();
 
-// let v = 0n.toString();
-// console.log("v=",v);
-
 const {
     Header, State, Hash
 } = kaspa;
