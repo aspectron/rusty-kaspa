@@ -6,12 +6,19 @@ authors.workspace = true
 include.workspace = true
 license.workspace = true
 
+[features]
+default = []
+profile = []
+
 [dependencies]
 async-channel.workspace = true
 uuid.workspace = true
 serde.workspace = true
 borsh.workspace = true
 itertools.workspace = true
+cfg-if.workspace = true
+dashmap.workspace = true
+kaspa-utils-macros.workspace = true
 
 triggered = "0.1"
 event-listener = "2.5.3"

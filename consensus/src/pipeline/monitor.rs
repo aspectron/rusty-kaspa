@@ -7,6 +7,7 @@ use kaspa_core::{
     },
     trace,
 };
+use kaspa_utils::profiler::Profiler;
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -60,6 +61,10 @@ impl ConsensusMonitor {
                 if delta.body_counts != 0 { delta.txs_counts as f64 / delta.body_counts as f64 } else{ 0f64 },
                 if delta.body_counts != 0 { delta.mass_counts / delta.body_counts } else{ 0 },
             );
+
+            Profiler::get().report(true).iter().for_each(|line| {
+                info!("{}", line);
+            });
 
             last_snapshot = snapshot;
             last_log_time = now;

@@ -1,0 +1,19 @@
+[package]
+name = "kaspa-utils-macros"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+categories = []
+description = """
+Macros for the kaspa-utils crate
+"""
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro-error = { version = "1", default-features = false }
+proc-macro2 = { version = "1.0.43" }
+quote = "1.0.21"
+syn = {version="1.0.99",features=["full","fold","extra-traits","parsing","proc-macro"]}

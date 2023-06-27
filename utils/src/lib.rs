@@ -6,6 +6,7 @@ pub mod hashmap;
 pub mod iter;
 pub mod networking;
 pub mod option;
+pub mod profiler;
 pub mod refs;
 pub mod sim;
 pub mod sync;

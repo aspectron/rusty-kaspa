@@ -15,7 +15,7 @@ use kaspa_consensus_core::{
     tx::{Transaction, TransactionOutpoint, UtxoEntry},
     BlockHashSet, ChainPath, Hash,
 };
-use kaspa_utils::sync::rwlock::*;
+use kaspa_utils::{profiler::sample, sync::rwlock::*};
 use std::{ops::Deref, sync::Arc};
 
 pub use tokio::task::spawn_blocking;
@@ -147,7 +147,9 @@ impl ConsensusSessionOwned {
     }
 
     pub fn validate_and_insert_trusted_block(&self, tb: TrustedBlock) -> BlockValidationFuture {
-        self.consensus.validate_and_insert_trusted_block(tb)
+        sample! {"validate_and_insert_trusted_block" , {
+            self.consensus.validate_and_insert_trusted_block(tb)
+        }}
     }
 
     pub fn calculate_transaction_mass(&self, transaction: &Transaction) -> u64 {
@@ -192,15 +194,21 @@ impl ConsensusSessionOwned {
     ///
     /// This info is used to determine if it's ok to use a block template from this node for mining purposes.
     pub async fn async_is_nearly_synced(&self) -> bool {
-        self.clone().spawn_blocking(|c| c.is_nearly_synced()).await
+        sample! {"async_is_nearly_synced" , {
+            self.clone().spawn_blocking(|c| c.is_nearly_synced()).await
+        }}
     }
 
     pub async fn async_get_virtual_chain_from_block(&self, hash: Hash) -> ConsensusResult<ChainPath> {
-        self.clone().spawn_blocking(move |c| c.get_virtual_chain_from_block(hash)).await
+        sample! {"async_get_virtual_chain_from_block" , {
+            self.clone().spawn_blocking(move |c| c.get_virtual_chain_from_block(hash)).await
+        }}
     }
 
     pub async fn async_get_virtual_parents(&self) -> BlockHashSet {
-        self.clone().spawn_blocking(|c| c.get_virtual_parents()).await
+        sample! {"async_get_virtual_parents" , {
+            self.clone().spawn_blocking(|c| c.get_virtual_parents()).await
+        }}
     }
 
     pub async fn async_get_virtual_utxos(

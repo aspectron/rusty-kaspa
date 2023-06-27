@@ -7,6 +7,12 @@ authors.workspace = true
 include.workspace = true
 license.workspace = true
 
+[features]
+# TODO: disable this by default
+# default = []
+default = ["profile"]
+profile = ["kaspa-utils/profile"]
+
 [dependencies]
 kaspa-hashes.workspace = true
 kaspa-utils.workspace = true

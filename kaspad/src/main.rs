@@ -20,6 +20,7 @@ use kaspa_mining::manager::{MiningManager, MiningManagerProxy};
 use kaspa_p2p_flows::flow_context::FlowContext;
 use kaspa_rpc_service::service::RpcCoreService;
 use kaspa_utils::networking::ContextualNetAddress;
+use kaspa_utils::profiler::Profiler;
 use kaspa_utxoindex::api::UtxoIndexProxy;
 
 use std::fs;
@@ -127,6 +128,25 @@ pub fn main() {
         println!("{}", err);
         exit(1);
     }
+
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // ___  ____ ____ ____ _ _    ____ ____
+    // |__] |__/ |  | |___ | |    |___ |__/
+    // |    |  \ |__| |    | |___ |___ |  \
+    //
+    // ~~
+    //
+    // TODO: introduce `--profile` command line flag
+
+    let enable_profiling = true; // temporary stub
+    if enable_profiling {
+        // panics if "profile" feature is not enabled
+        Profiler::check();
+    }
+
+    Profiler::init(Some(128));
+
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // TODO: Refactor all this quick-and-dirty code
     let app_dir = args

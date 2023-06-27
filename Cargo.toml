@@ -44,6 +44,8 @@ members = [
     "crypto/txscript/errors",
     "testing/integration",
     "rothschild",
+    "utils",
+    "utils/macros",
 ]
 
 [workspace.package]
@@ -88,6 +90,7 @@ kaspa-rpc-macros = { version = "0.1.1", path = "rpc/macros" }
 kaspa-txscript = { version = "0.1.1", path = "crypto/txscript" }
 kaspa-txscript-errors = { version = "0.1.1", path = "crypto/txscript/errors" }
 kaspa-utils = { version = "0.1.1", path = "utils" }
+kaspa-utils-macros = { version = "0.1.1", path = "utils/macros" }
 kaspa-wallet-core = { version = "0.1.1", path = "wallet/core" }
 kaspa-wasm = { version = "0.1.1", path = "wasm" }
 kaspa-wrpc-client = { version = "0.1.1", path = "rpc/wrpc/client" }
@@ -146,6 +149,7 @@ wasm-bindgen-futures = "0.4.33"
 js-sys = "0.3.56"
 getrandom = { version = "0.2.8", features = ["js"] }
 uuid = { version = "1.2.2", features = ["v4", "fast-rng", "serde"] }
+dashmap = "5.4.0"
 
 # bip32 dependencies
 rand_core = { version = "0.6", features = ["std"] }
