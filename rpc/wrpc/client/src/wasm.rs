@@ -1,9 +1,10 @@
+use super::result::Result;
 use crate::imports::*;
+use js_sys::Array;
+use kaspa_addresses::Address;
 use kaspa_notify::notification::Notification as NotificationT;
 pub use kaspa_rpc_macros::{build_wrpc_wasm_bindgen_interface, build_wrpc_wasm_bindgen_subscriptions};
 pub use serde_wasm_bindgen::*;
-
-type JsResult<T> = std::result::Result<T, JsError>;
 
 struct NotificationSink(Function);
 unsafe impl Send for NotificationSink {}
@@ -13,13 +14,19 @@ impl From<NotificationSink> for Function {
     }
 }
 
-/// Kaspa RPC client
-#[wasm_bindgen]
-pub struct RpcClient {
-    client: KaspaRpcClient,
+pub struct Inner {
     notification_task: AtomicBool,
     notification_ctl: DuplexChannel,
     notification_callback: Arc<Mutex<Option<NotificationSink>>>,
+}
+
+/// Kaspa RPC client
+#[wasm_bindgen(inspectable)]
+#[derive(Clone)]
+pub struct RpcClient {
+    #[wasm_bindgen(skip)]
+    pub client: Arc<KaspaRpcClient>,
+    pub(crate) inner: Arc<Inner>,
 }
 
 #[wasm_bindgen]
@@ -28,49 +35,63 @@ impl RpcClient {
     #[wasm_bindgen(constructor)]
     pub fn new(encoding: Encoding, url: &str) -> RpcClient {
         RpcClient {
-            client: KaspaRpcClient::new(encoding, url).unwrap_or_else(|err| panic!("{err}")),
-            notification_task: AtomicBool::new(false),
-            notification_ctl: DuplexChannel::oneshot(),
-            notification_callback: Arc::new(Mutex::new(None)),
+            client: Arc::new(KaspaRpcClient::new(encoding, url).unwrap_or_else(|err| panic!("{err}"))),
+            inner: Arc::new(Inner {
+                notification_task: AtomicBool::new(false),
+                notification_ctl: DuplexChannel::oneshot(),
+                notification_callback: Arc::new(Mutex::new(None)),
+            }),
         }
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn url(&self) -> String {
+        self.client.url()
+    }
+
+    #[wasm_bindgen(getter, js_name = "open")]
+    pub fn is_open(&self) -> bool {
+        self.client.is_open()
     }
 
     /// Connect to the Kaspa RPC server. This function starts a background
     /// task that connects and reconnects to the server if the connection
     /// is terminated.  Use [`disconnect()`] to terminate the connection.
-    pub async fn connect(&self) -> JsResult<()> {
-        self.notification_task()?;
-        self.client.start().await?;
-        self.client.connect(true).await?; //.unwrap();
+    pub async fn connect(&self, args: JsValue) -> Result<()> {
+        let options: ConnectOptions = args.try_into()?;
+
+        self.start_notification_task()?;
+        // self.client.start().await?;
+        self.client.connect(options).await?; //.unwrap();
         Ok(())
     }
 
     /// Disconnect from the Kaspa RPC server.
-    pub async fn disconnect(&self) -> JsResult<()> {
+    pub async fn disconnect(&self) -> Result<()> {
         self.clear_notification_callback();
         self.stop_notification_task().await?;
-        self.client.stop().await?;
+        // self.client.stop().await?;
         self.client.shutdown().await?;
         Ok(())
     }
 
-    async fn stop_notification_task(&self) -> JsResult<()> {
-        if self.notification_task.load(Ordering::SeqCst) {
-            self.notification_task.store(false, Ordering::SeqCst);
-            self.notification_ctl.signal(()).await.map_err(|err| JsError::new(&err.to_string()))?;
+    async fn stop_notification_task(&self) -> Result<()> {
+        if self.inner.notification_task.load(Ordering::SeqCst) {
+            self.inner.notification_task.store(false, Ordering::SeqCst);
+            self.inner.notification_ctl.signal(()).await.map_err(|err| JsError::new(&err.to_string()))?;
         }
         Ok(())
     }
 
     fn clear_notification_callback(&self) {
-        *self.notification_callback.lock().unwrap() = None;
+        *self.inner.notification_callback.lock().unwrap() = None;
     }
 
     /// Register a notification callback.
-    pub async fn notify(&self, callback: JsValue) -> JsResult<()> {
+    pub async fn notify(&self, callback: JsValue) -> Result<()> {
         if callback.is_function() {
             let fn_callback: Function = callback.into();
-            self.notification_callback.lock().unwrap().replace(NotificationSink(fn_callback));
+            self.inner.notification_callback.lock().unwrap().replace(NotificationSink(fn_callback));
         } else {
             self.stop_notification_task().await?;
             self.clear_notification_callback();
@@ -80,13 +101,28 @@ impl RpcClient {
 }
 
 impl RpcClient {
+    pub fn new_with_rpc_client(client: Arc<KaspaRpcClient>) -> RpcClient {
+        RpcClient {
+            client,
+            inner: Arc::new(Inner {
+                notification_task: AtomicBool::new(false),
+                notification_ctl: DuplexChannel::oneshot(),
+                notification_callback: Arc::new(Mutex::new(None)),
+            }),
+        }
+    }
+
+    pub fn client(&self) -> &Arc<KaspaRpcClient> {
+        &self.client
+    }
+
     /// Notification task receives notifications and executes them on the
     /// user-supplied callback function.
-    fn notification_task(&self) -> JsResult<()> {
-        let ctl_receiver = self.notification_ctl.request.receiver.clone();
-        let ctl_sender = self.notification_ctl.response.sender.clone();
+    fn start_notification_task(&self) -> Result<()> {
+        let ctl_receiver = self.inner.notification_ctl.request.receiver.clone();
+        let ctl_sender = self.inner.notification_ctl.response.sender.clone();
         let notification_receiver = self.client.notification_channel_receiver();
-        let notification_callback = self.notification_callback.clone();
+        let notification_callback = self.inner.notification_callback.clone();
 
         spawn(async move {
             loop {
@@ -130,22 +166,46 @@ impl RpcClient {
 
     /// Subscription to DAA Score (test)
     #[wasm_bindgen(js_name = subscribeDaaScore)]
-    pub async fn subscribe_daa_score(&self) -> JsResult<()> {
+    pub async fn subscribe_daa_score(&self) -> Result<()> {
         self.client.start_notify(ListenerId::default(), Scope::VirtualDaaScoreChanged(VirtualDaaScoreChangedScope {})).await?;
         Ok(())
     }
 
     /// Unsubscribe from DAA Score (test)
     #[wasm_bindgen(js_name = unsubscribeDaaScore)]
-    pub async fn unsubscribe_daa_score(&self) -> JsResult<()> {
+    pub async fn unsubscribe_daa_score(&self) -> Result<()> {
         self.client.stop_notify(ListenerId::default(), Scope::VirtualDaaScoreChanged(VirtualDaaScoreChangedScope {})).await?;
+        Ok(())
+    }
+
+    /// Subscription to UTXOs Changed notifications
+    #[wasm_bindgen(js_name = subscribeUtxosChanged)]
+    pub async fn subscribe_utxos_changed(&self, addresses: &JsValue) -> Result<()> {
+        let addresses = Array::from(addresses)
+            .to_vec()
+            .into_iter()
+            .map(|jsv| from_value(jsv).map_err(|err| JsError::new(&err.to_string())))
+            .collect::<std::result::Result<Vec<Address>, JsError>>()?;
+        self.client.start_notify(ListenerId::default(), Scope::UtxosChanged(UtxosChangedScope { addresses })).await?;
+        Ok(())
+    }
+
+    /// Unsubscribe from DAA Score (test)
+    #[wasm_bindgen(js_name = unsubscribeUtxosChanged)]
+    pub async fn unsubscribe_utxos_changed(&self, addresses: &JsValue) -> Result<()> {
+        let addresses = Array::from(addresses)
+            .to_vec()
+            .into_iter()
+            .map(|jsv| from_value(jsv).map_err(|err| JsError::new(&err.to_string())))
+            .collect::<std::result::Result<Vec<Address>, JsError>>()?;
+        self.client.stop_notify(ListenerId::default(), Scope::UtxosChanged(UtxosChangedScope { addresses })).await?;
         Ok(())
     }
 
     // scope variant with field functions
 
     #[wasm_bindgen(js_name = subscribeVirtualChainChanged)]
-    pub async fn subscribe_virtual_chain_changed(&self, include_accepted_transaction_ids: bool) -> JsResult<()> {
+    pub async fn subscribe_virtual_chain_changed(&self, include_accepted_transaction_ids: bool) -> Result<()> {
         self.client
             .start_notify(
                 ListenerId::default(),
@@ -155,7 +215,7 @@ impl RpcClient {
         Ok(())
     }
     #[wasm_bindgen(js_name = unsubscribeVirtualChainChanged)]
-    pub async fn unsubscribe_virtual_chain_changed(&self, include_accepted_transaction_ids: bool) -> JsResult<()> {
+    pub async fn unsubscribe_virtual_chain_changed(&self, include_accepted_transaction_ids: bool) -> Result<()> {
         self.client
             .stop_notify(
                 ListenerId::default(),
@@ -176,9 +236,6 @@ impl RpcClient {
     //     Ok(())
     // }
 }
-
-#[wasm_bindgen]
-struct RpcClient1 {}
 
 // Build subscribe functions
 build_wrpc_wasm_bindgen_subscriptions!([
@@ -207,7 +264,7 @@ build_wrpc_wasm_bindgen_interface!(
         GetConnectedPeerInfo,
         GetInfo,
         GetPeerAddresses,
-        GetProcessMetrics,
+        GetMetrics,
         GetSelectedTipHash,
         GetSinkBlueScore,
         Ping,
@@ -229,11 +286,42 @@ build_wrpc_wasm_bindgen_interface!(
         GetMempoolEntriesByAddresses,
         GetMempoolEntry,
         GetSubnetwork,
-        GetUtxosByAddresses,
+        // GetUtxosByAddresses,
         GetVirtualChainFromBlock,
         ResolveFinalityConflict,
         SubmitBlock,
-        SubmitTransaction,
+        // SubmitTransaction,
         Unban,
     ]
 );
+
+#[wasm_bindgen]
+impl RpcClient {
+    #[wasm_bindgen(js_name = submitTransaction)]
+    pub async fn js_submit_transaction(&self, request: JsValue) -> Result<JsValue> {
+        log_info!("submit_transaction req: {:?}", request);
+        let response =
+            self.submit_transaction(from_value(request)?).await.map_err(|err| wasm_bindgen::JsError::new(&err.to_string()))?;
+        to_value(&response).map_err(|err| err.into())
+    }
+
+    #[wasm_bindgen(js_name = getUtxosByAddresses)]
+    pub async fn get_utxos_by_addresses(&self, request: JsValue) -> Result<JsValue> {
+        log_info!("get_utxos_by_addresses req: {:?}", request);
+        let request: GetUtxosByAddressesRequest = from_value(request)?;
+        //log_info!("get_utxos_by_addresses request: {:?}", request);
+        let result: RpcResult<GetUtxosByAddressesResponse> = self.client.get_utxos_by_addresses_call(request).await;
+        //log_info!("get_utxos_by_addresses result: {:?}", result);
+        let response: GetUtxosByAddressesResponse = result.map_err(|err| wasm_bindgen::JsError::new(&err.to_string()))?;
+        //log_info!("get_utxos_by_addresses resp: {:?}", response);
+        to_value(&response).map_err(|err| err.into())
+    }
+}
+
+impl RpcClient {
+    pub async fn submit_transaction(&self, request: SubmitTransactionRequest) -> Result<SubmitTransactionResponse> {
+        let result: RpcResult<SubmitTransactionResponse> = self.client.submit_transaction_call(request).await;
+        let response: SubmitTransactionResponse = result?;
+        Ok(response)
+    }
+}

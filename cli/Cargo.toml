@@ -1,0 +1,40 @@
+[package]
+name = "kaspa-cli"
+description = "Kaspa CLI library"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+include.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+async-trait.workspace = true
+cfg-if.workspace = true
+convert_case.workspace = true
+futures.workspace = true
+kaspa-wallet-core.workspace = true
+kaspa-wrpc-client.workspace = true
+pad.workspace = true
+thiserror.workspace = true
+workflow-core.workspace = true
+workflow-store.workspace = true
+workflow-dom.workspace = true
+workflow-log.workspace = true
+workflow-terminal.workspace = true
+workflow-node.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+kaspa-consensus-core.workspace = true
+textwrap.workspace = true
+kaspa-core.workspace = true
+separator.workspace = true
+kaspa-addresses.workspace = true
+downcast.workspace = true
+nw-sys.workspace = true
+kaspa-daemon.workspace = true
+wasm-bindgen.workspace = true
+regex.workspace = true
+js-sys.workspace = true

@@ -7,6 +7,7 @@ use std::{
     fmt::{Display, Formatter},
     sync::Arc,
 };
+// use wasm_bindgen::prelude::*;
 
 pub type RpcExtraData = Vec<u8>;
 
@@ -542,7 +543,9 @@ impl GetSinkBlueScoreResponse {
 
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, BorshSchema)]
 #[serde(rename_all = "camelCase")]
+// #[wasm_bindgen]
 pub struct GetUtxosByAddressesRequest {
+    // #[wasm_bindgen(getter_with_clone)]
     pub addresses: Vec<RpcAddress>,
 }
 
@@ -675,31 +678,54 @@ pub struct PingResponse {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, BorshSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct GetProcessMetricsRequest {}
+pub struct GetMetricsRequest {
+    pub process_metrics: bool,
+    pub consensus_metrics: bool,
+}
+
+#[derive(Default, Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, BorshSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessMetrics {
+    // pub uptime: u64,
+    // pub memory_used: u64,
+    // pub storage_used: u64,
+    // pub grpc_connections: u32,
+    // pub wrpc_connections: u32,
+    pub borsh_live_connections: u64,
+    pub borsh_connection_attempts: u64,
+    pub borsh_handshake_failures: u64,
+    pub json_live_connections: u64,
+    pub json_connection_attempts: u64,
+    pub json_handshake_failures: u64,
+}
+
+#[derive(Default, Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, BorshSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ConsensusMetrics {
+    pub blocks_submitted: u64,
+    pub header_counts: u64,
+    pub dep_counts: u64,
+    pub body_counts: u64,
+    pub txs_counts: u64,
+    pub chain_block_counts: u64,
+    pub mass_counts: u64,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, BorshSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct GetProcessMetricsResponse {
-    pub uptime: u64,
-    pub memory_used: Vec<u64>,
-    pub storage_used: Vec<u64>,
-    pub grpc_connections: Vec<u64>,
-    pub wrpc_connections: Vec<u64>,
+pub struct GetMetricsResponse {
+    pub server_time: u128,
+    pub process_metrics: Option<ProcessMetrics>,
+    pub consensus_metrics: Option<ConsensusMetrics>,
     // TBD:
     //  - approx bandwidth consumption
     //  - other connection metrics
     //  - cpu usage
 }
 
-impl GetProcessMetricsResponse {
-    pub fn new(
-        uptime: u64,
-        memory_used: Vec<u64>,
-        storage_used: Vec<u64>,
-        grpc_connections: Vec<u64>,
-        wrpc_connections: Vec<u64>,
-    ) -> Self {
-        Self { uptime, memory_used, storage_used, grpc_connections, wrpc_connections }
+impl GetMetricsResponse {
+    pub fn new(server_time: u128, process_metrics: Option<ProcessMetrics>, consensus_metrics: Option<ConsensusMetrics>) -> Self {
+        Self { process_metrics, consensus_metrics, server_time }
     }
 }
 

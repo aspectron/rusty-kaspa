@@ -1,8 +1,13 @@
+use crate::error::Error;
 use crate::imports::*;
+use kaspa_consensus_core::networktype::NetworkType;
 use kaspa_rpc_core::notify::collector::{RpcCoreCollector, RpcCoreConverter};
 pub use kaspa_rpc_macros::build_wrpc_client_interface;
 use std::fmt::Debug;
+use workflow_core::{channel::Multiplexer, runtime as application_runtime};
+use workflow_dom::utils::window;
 use workflow_rpc::client::Ctl;
+pub use workflow_rpc::client::{ConnectOptions, ConnectResult, ConnectStrategy, WebSocketConfig};
 
 // /// [`NotificationMode`] controls notification delivery process
 // #[wasm_bindgen]
@@ -22,17 +27,16 @@ struct Inner {
     rpc: Arc<RpcClient<RpcApiOps>>,
     notification_channel: Channel<Notification>,
     encoding: Encoding,
-    ctl_channel: Channel<Ctl>,
+    ctl_multiplexer: Multiplexer<Ctl>,
+    background_services_running: Arc<AtomicBool>,
 }
 
 impl Inner {
     pub fn new(encoding: Encoding, url: &str) -> Result<Inner> {
-        let re = Regex::new(r"^wrpc").unwrap();
-        let url = re.replace(url, "ws").to_string();
         // log_trace!("Kaspa wRPC::{encoding} connecting to: {url}");
-        let ctl_channel = Channel::<Ctl>::unbounded();
+        let ctl_multiplexer = Multiplexer::<Ctl>::new();
 
-        let options = RpcClientOptions { url: &url, ctl_channel: Some(ctl_channel.clone()), ..RpcClientOptions::default() };
+        let options = RpcClientOptions { url, ctl_multiplexer: Some(ctl_multiplexer.clone()), ..RpcClientOptions::default() };
 
         let notification_channel = Channel::unbounded();
 
@@ -63,7 +67,7 @@ impl Inner {
                         // log_info!("notification receivers: {}", notification_sender.receiver_count());
                         // log_trace!("notification {:?}", notification);
                         if notification_sender.receiver_count() > 1 {
-                            // log_info!("notification: posting to channel");
+                            // log_info!("notification: posting to channel: {notification:?}");
                             notification_sender.send(notification).await?;
                         } else {
                             log_warning!("WARNING: Kaspa RPC notification is not consumed by user: {:?}", notification);
@@ -73,15 +77,31 @@ impl Inner {
                 }),
             );
         });
-        let rpc = Arc::new(RpcClient::new_with_encoding(encoding, interface.into(), options)?);
 
-        let client = Self { rpc, notification_channel, encoding, ctl_channel };
+        let ws_config = WebSocketConfig {
+            max_send_queue: None,
+            max_message_size: Some(1024 * 1024 * 1024), // 1Gb message size limit on native platforms
+            max_frame_size: None,
+            accept_unmasked_frames: false,
+        };
 
+        let rpc = Arc::new(RpcClient::new_with_encoding(encoding, interface.into(), options, Some(ws_config))?);
+        let client = Self {
+            rpc,
+            notification_channel,
+            encoding,
+            ctl_multiplexer,
+            background_services_running: Arc::new(AtomicBool::new(false)),
+        };
         Ok(client)
     }
 
     pub fn notification_channel_receiver(&self) -> Receiver<Notification> {
         self.notification_channel.receiver.clone()
+    }
+
+    pub fn shutdown_notification_channel(&self) -> bool {
+        self.notification_channel.receiver.close()
     }
 
     /// Start sending notifications of some type to the client.
@@ -164,27 +184,47 @@ impl KaspaRpcClient {
         Ok(client)
     }
 
+    pub fn url(&self) -> String {
+        self.inner.rpc.url()
+    }
+
+    pub fn set_url(&self, url: &str) -> Result<()> {
+        self.inner.rpc.set_url(url)?;
+        Ok(())
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.inner.rpc.is_open()
+    }
+
+    pub fn rpc(&self) -> &Arc<RpcClient<RpcApiOps>> {
+        &self.inner.rpc
+    }
+
     /// Starts RPC services.
     pub async fn start(&self) -> Result<()> {
-        match &self.notification_mode {
-            NotificationMode::MultiListeners => {
-                self.notifier.clone().unwrap().start();
+        if !self.inner.background_services_running.load(Ordering::SeqCst) {
+            match &self.notification_mode {
+                NotificationMode::MultiListeners => {
+                    self.notifier.clone().unwrap().start();
+                }
+                NotificationMode::Direct => {}
             }
-            NotificationMode::Direct => {}
         }
         Ok(())
     }
 
     /// Stops background services.
     pub async fn stop(&self) -> Result<()> {
-        match &self.notification_mode {
-            NotificationMode::MultiListeners => {
-                // log_info!("stop notifier...");
-                self.notifier.as_ref().unwrap().join().await?;
-            }
-            NotificationMode::Direct => {
-                // log_info!("stop direct...");
-                // self.notification_ctl.signal(()).await?;
+        if self.inner.background_services_running.load(Ordering::SeqCst) {
+            match &self.notification_mode {
+                NotificationMode::MultiListeners => {
+                    self.inner.shutdown_notification_channel();
+                    self.notifier.as_ref().unwrap().join().await?;
+                }
+                NotificationMode::Direct => {
+                    // self.notification_ctl.signal(()).await?;
+                }
             }
         }
         Ok(())
@@ -194,8 +234,16 @@ impl KaspaRpcClient {
     /// to the wRPC server.  If the supplied `block` call is `true`
     /// this function will block until the first successful
     /// connection.
-    pub async fn connect(&self, block: bool) -> Result<Option<Listener>> {
-        Ok(self.inner.rpc.connect(block).await?)
+    // pub async fn connect(&self, options: ConnectOptions) -> ConnectResult {
+    pub async fn connect(&self, options: ConnectOptions) -> ConnectResult<Error> {
+        self.start().await?;
+        Ok(self.inner.rpc.connect(options).await?)
+    }
+
+    pub async fn disconnect(&self) -> Result<()> {
+        self.inner.rpc.shutdown().await?;
+        self.stop().await?;
+        Ok(())
     }
 
     /// Stop and shutdown RPC disconnecting existing connections
@@ -209,7 +257,7 @@ impl KaspaRpcClient {
     pub fn connect_as_task(&self) -> Result<()> {
         let self_ = self.clone();
         workflow_core::task::spawn(async move {
-            self_.inner.rpc.connect(false).await.ok();
+            self_.inner.rpc.connect(ConnectOptions::default()).await.ok();
         });
         Ok(())
     }
@@ -226,8 +274,43 @@ impl KaspaRpcClient {
         self.notification_mode
     }
 
-    pub fn ctl_channel_receiver(&self) -> Receiver<Ctl> {
-        self.inner.ctl_channel.receiver.clone()
+    pub fn ctl_multiplexer(&self) -> &Multiplexer<Ctl> {
+        &self.inner.ctl_multiplexer
+    }
+
+    pub fn parse_url(&self, url: Option<String>, network_type: NetworkType) -> Result<Option<String>> {
+        // let url = url.unwrap_or("ws://127.0.0.1".to_string());
+
+        let url = if let Some(url) = url {
+            if url.starts_with("ws://") || url.starts_with("wss://") || url.starts_with("wrpc://") || url.starts_with("wrpcs://") {
+                Some(url)
+            } else if application_runtime::is_web() {
+                let location = window().location();
+                let protocol = location
+                    .protocol()
+                    .map_err(|_| Error::AddressError("Unable to obtain window location protocol".to_string()))?
+                    .replace("http", "ws");
+                Some(format!("{protocol}//{url}"))
+            } else {
+                Some(format!("ws://{url}"))
+            }
+        } else {
+            None
+        };
+
+        let url = url.map(|url| {
+            if url.split(':').collect::<Vec<_>>().len() < 3 {
+                let port = match self.inner.encoding {
+                    WrpcEncoding::Borsh => network_type.default_borsh_rpc_port(),
+                    WrpcEncoding::SerdeJson => network_type.default_json_rpc_port(),
+                };
+                format!("{url}:{port}")
+            } else {
+                url
+            }
+        });
+
+        Ok(url)
     }
 }
 
@@ -264,7 +347,7 @@ impl RpcApi for KaspaRpcClient {
             GetMempoolEntriesByAddresses,
             GetMempoolEntry,
             GetPeerAddresses,
-            GetProcessMetrics,
+            GetMetrics,
             GetSelectedTipHash,
             GetSubnetwork,
             GetUtxosByAddresses,

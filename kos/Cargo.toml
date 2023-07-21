@@ -1,0 +1,51 @@
+
+[package]
+name = "kaspa-os"
+description = "Kaspa Desktop Node Manager & Wallet"
+# please keep this version detached from the workspace
+version = "0.0.1"
+edition.workspace = true
+authors.workspace = true
+include.workspace = true
+license.workspace = true
+repository = "https://github.com/kaspanet/rusty-kaspa"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+js-sys.workspace = true
+kaspa-cli.workspace = true
+nw-sys.workspace = true
+wasm-bindgen.workspace = true
+workflow-core.workspace = true
+workflow-dom.workspace = true
+workflow-log.workspace = true
+workflow-nw.workspace = true
+workflow-wasm.workspace = true
+workflow-terminal.workspace = true
+wasm-bindgen-futures.workspace = true
+thiserror.workspace = true
+cfg-if.workspace = true
+borsh.workspace = true
+serde.workspace = true
+async-trait.workspace = true
+kaspa-core.workspace = true
+kaspa-daemon.workspace = true
+kaspa-consensus-core.workspace = true
+futures.workspace = true
+downcast.workspace = true
+kaspa-wallet-core.workspace = true
+regex.workspace = true
+
+[dependencies.web-sys]
+workspace = true
+features = [
+    'console',
+    'Document',
+    'Window',
+    'HtmlElement',
+    'CustomEvent',
+    'MouseEvent'
+]
+

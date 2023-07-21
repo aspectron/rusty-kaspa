@@ -1,3 +1,6 @@
+extern crate alloc;
+extern crate self as consensus_core;
+
 use std::collections::{HashMap, HashSet};
 use std::hash::{BuildHasher, Hasher};
 

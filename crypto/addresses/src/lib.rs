@@ -1,12 +1,18 @@
 use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use smallvec::SmallVec;
+// use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
+// use wasm_bindgen::convert::FromWasmAbi;
+use js_sys::Object;
+use wasm_bindgen::prelude::*;
+use workflow_wasm::object::*;
 
 mod bech32;
 
 #[derive(Error, PartialEq, Eq, Debug, Clone)]
+// #[derive(Error, Debug)]
 pub enum AddressError {
     #[error("Invalid prefix {0}")]
     InvalidPrefix(String),
@@ -17,20 +23,40 @@ pub enum AddressError {
     #[error("Invalid version {0}")]
     InvalidVersion(u8),
 
+    #[error("Invalid version {0}")]
+    InvalidVersionString(String),
+
     #[error("Invalid character {0}")]
     DecodingError(char),
 
     #[error("Checksum is invalid")]
     BadChecksum,
+
+    #[error("Invalid address")]
+    InvalidAddress,
+
+    #[error("{0}")]
+    WASM(String),
+}
+
+impl From<workflow_wasm::error::Error> for AddressError {
+    fn from(e: workflow_wasm::error::Error) -> Self {
+        AddressError::WASM(e.to_string())
+    }
 }
 
 #[derive(
     PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, Hash, Serialize, Deserialize, BorshSerialize, BorshDeserialize, BorshSchema,
 )]
+// #[wasm_bindgen]
 pub enum Prefix {
+    #[serde(rename = "kaspa")]
     Mainnet,
+    #[serde(rename = "kaspatest")]
     Testnet,
+    #[serde(rename = "kaspasim")]
     Simnet,
+    #[serde(rename = "kaspadev")]
     Devnet,
     #[cfg(test)]
     A,
@@ -85,10 +111,14 @@ impl TryFrom<&str> for Prefix {
     }
 }
 
+///
+///  Kaspa `Address` version (`PubKey`, `PubKey ECDSA`, `ScriptHash`)
+///
 #[derive(
     PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, Hash, Serialize, Deserialize, BorshSerialize, BorshDeserialize, BorshSchema,
 )]
 #[repr(u8)]
+#[wasm_bindgen(js_name = "AddressVersion")]
 pub enum Version {
     /// PubKey addresses always have the version byte set to 0
     PubKey = 0,
@@ -121,6 +151,17 @@ impl TryFrom<u8> for Version {
     }
 }
 
+impl ToString for Version {
+    fn to_string(&self) -> String {
+        match self {
+            Version::PubKey => "PubKey",
+            Version::PubKeyECDSA => "PubKeyECDSA",
+            Version::ScriptHash => "ScriptHash",
+        }
+        .to_string()
+    }
+}
+
 /// Size of the payload vector of an address.
 ///
 /// This size is the smallest SmallVec supported backing store size greater or equal to the largest
@@ -130,10 +171,15 @@ pub const PAYLOAD_VECTOR_SIZE: usize = 36;
 /// Used as the underlying type for address payload, optimized for the largest version length (33).
 pub type PayloadVec = SmallVec<[u8; PAYLOAD_VECTOR_SIZE]>;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug, Hash, Serialize, Deserialize)]
+/// Kaspa `Address` struct that serializes to and from an address format string: `kaspa:qz0s...t8cv`.
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug, Hash)]
+#[wasm_bindgen(inspectable)]
 pub struct Address {
+    #[wasm_bindgen(skip)]
     pub prefix: Prefix,
+    #[wasm_bindgen(skip)]
     pub version: Version,
+    #[wasm_bindgen(skip)]
     pub payload: PayloadVec,
 }
 
@@ -143,6 +189,68 @@ impl Address {
             assert_eq!(payload.len(), version.public_key_len());
         }
         Self { prefix, payload: PayloadVec::from_slice(payload), version }
+    }
+}
+
+#[wasm_bindgen]
+impl Address {
+    #[wasm_bindgen(constructor)]
+    pub fn constructor(address: &str) -> Address {
+        address.try_into().unwrap_or_else(|err| panic!("Address::constructor() - address error `{}`: {err}", address))
+    }
+
+    /// Convert an address to a string.
+    #[wasm_bindgen(js_name = toString)]
+    pub fn to_str(&self) -> String {
+        self.into()
+    }
+
+    // /// Convert an address to a string.
+    // #[wasm_bindgen(js_name = toJSON1)]
+    // pub fn to_json(&self) -> String {
+    //     self.to_string()
+    // }
+
+    #[wasm_bindgen(getter)]
+    pub fn version(&self) -> String {
+        self.version.to_string()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn prefix(&self) -> String {
+        self.prefix.to_string()
+    }
+
+    // #[wasm_bindgen(getter, js_name = "networkType")]
+    // pub fn network_type(&self) -> NetworkType {
+    //     self.prefix.into()
+    // }
+
+    // #[wasm_bindgen(setter, js_name = "networkType")]
+    // pub fn set_network_type(&mut self, network_type : NetworkType) {
+    //     self.prefix = network_type.into();
+    // }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_prefix(&mut self, prefix: &str) {
+        self.prefix = Prefix::try_from(prefix).unwrap_or_else(|err| panic!("Address::prefix() - invalid prefix `{prefix}`: {err}"));
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn payload(&self) -> String {
+        self.encode_payload()
+    }
+
+    pub fn short(&self, n: usize) -> String {
+        let payload = self.encode_payload();
+        let n = std::cmp::min(n, payload.len() / 4);
+        format!("{}:{}....{}", self.prefix, &payload[0..n], &payload[payload.len() - n..])
+    }
+}
+
+impl Display for Address {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_str())
     }
 }
 
@@ -209,10 +317,7 @@ impl TryFrom<String> for Address {
     type Error = AddressError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        match value.split_once(':') {
-            Some((prefix, payload)) => Self::decode_payload(prefix.try_into()?, payload),
-            None => Err(AddressError::MissingPrefix),
-        }
+        value.as_str().try_into()
     }
 }
 
@@ -223,6 +328,40 @@ impl TryFrom<&str> for Address {
         match value.split_once(':') {
             Some((prefix, payload)) => Self::decode_payload(prefix.try_into()?, payload),
             None => Err(AddressError::MissingPrefix),
+        }
+    }
+}
+
+impl Serialize for Address {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for Address {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = <std::string::String as Deserialize>::deserialize(deserializer)?;
+        s.try_into().map_err(serde::de::Error::custom)
+    }
+}
+
+impl TryFrom<JsValue> for Address {
+    type Error = AddressError;
+    fn try_from(js_value: JsValue) -> Result<Self, Self::Error> {
+        if let Some(string) = js_value.as_string() {
+            Address::try_from(string)
+        } else if let Some(object) = Object::try_from(&js_value) {
+            let prefix: Prefix = object.get_string("prefix")?.as_str().try_into()?;
+            let payload = object.get_string("payload")?; //.as_str();
+            Self::decode_payload(prefix, &payload)
+        } else {
+            Err(AddressError::InvalidAddress)
         }
     }
 }

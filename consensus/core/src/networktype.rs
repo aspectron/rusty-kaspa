@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 use std::str::FromStr;
+use wasm_bindgen::prelude::*;
+use workflow_core::enums::u8_try_from;
 
 #[derive(thiserror::Error, PartialEq, Eq, Debug, Clone)]
 pub enum NetworkTypeError {
@@ -11,13 +13,16 @@ pub enum NetworkTypeError {
     InvalidNetworkType(String),
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, BorshSchema, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum NetworkType {
-    Mainnet,
-    Testnet,
-    Devnet,
-    Simnet,
+u8_try_from! {
+    #[derive(Clone, Copy, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, BorshSchema, PartialEq, Eq)]
+    #[serde(rename_all = "lowercase")]
+    #[wasm_bindgen]
+    pub enum NetworkType {
+        Mainnet,
+        Testnet,
+        Devnet,
+        Simnet,
+    }
 }
 
 impl NetworkType {
@@ -30,12 +35,38 @@ impl NetworkType {
         }
     }
 
+    pub fn default_borsh_rpc_port(&self) -> u16 {
+        match self {
+            NetworkType::Mainnet => 17110,
+            NetworkType::Testnet => 17210,
+            NetworkType::Simnet => 17510,
+            NetworkType::Devnet => 17610,
+        }
+    }
+
+    pub fn default_json_rpc_port(&self) -> u16 {
+        match self {
+            NetworkType::Mainnet => 18110,
+            NetworkType::Testnet => 18210,
+            NetworkType::Simnet => 18510,
+            NetworkType::Devnet => 18610,
+        }
+    }
+
     pub fn iter() -> impl Iterator<Item = Self> {
         static NETWORK_TYPES: [NetworkType; 4] =
             [NetworkType::Mainnet, NetworkType::Testnet, NetworkType::Devnet, NetworkType::Simnet];
         NETWORK_TYPES.iter().copied()
     }
 }
+
+// #[wasm_bindgen]
+// impl NetworkType {
+//     pub fn as_address_prefix_str(&self) -> String {
+//         let prefix : Prefix = self.clone().into();
+//         prefix.to_string()
+//     }
+// }
 
 impl TryFrom<Prefix> for NetworkType {
     type Error = NetworkTypeError;
@@ -66,12 +97,15 @@ impl From<NetworkType> for Prefix {
 impl FromStr for NetworkType {
     type Err = NetworkTypeError;
     fn from_str(network_type: &str) -> Result<Self, Self::Err> {
-        match network_type {
+        // println!("NetworkType::from_str(\"{}\")\n", network_type);
+        // temporary `to_lowercase()` patch for proxy
+        match network_type.to_lowercase().as_str() {
             "mainnet" => Ok(NetworkType::Mainnet),
             "testnet" => Ok(NetworkType::Testnet),
             "simnet" => Ok(NetworkType::Simnet),
             "devnet" => Ok(NetworkType::Devnet),
             _ => Err(NetworkTypeError::InvalidNetworkType(network_type.to_string())),
+            // _ => Err(NetworkTypeError::InvalidNetworkType(format!("{}",network_type.to_string()))),
         }
     }
 }

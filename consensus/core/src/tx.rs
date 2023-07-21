@@ -1,7 +1,10 @@
 use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
+use kaspa_utils::hex::*;
 use serde::{Deserialize, Deserializer, Serialize};
 use smallvec::SmallVec;
 use std::{collections::HashSet, fmt::Display, ops::Range};
+use wasm_bindgen::prelude::*;
+use workflow_wasm::jsvalue::JsValueTrait;
 
 use crate::{
     hashing,
@@ -32,8 +35,9 @@ pub type ScriptPublicKeys = HashSet<ScriptPublicKey>;
 /// Represents a Kaspad ScriptPublicKey
 #[derive(Default, Debug, PartialEq, Eq, Serialize, Clone, Hash)]
 #[serde(rename_all = "camelCase")]
+#[wasm_bindgen(inspectable)]
 pub struct ScriptPublicKey {
-    version: ScriptPublicKeyVersion,
+    pub version: ScriptPublicKeyVersion,
     script: ScriptVec, // Kept private to preserve read-only semantics
 }
 
@@ -69,6 +73,20 @@ impl ScriptPublicKey {
 
     pub fn script(&self) -> &[u8] {
         &self.script
+    }
+}
+
+#[wasm_bindgen]
+impl ScriptPublicKey {
+    #[wasm_bindgen(constructor)]
+    pub fn constructor(version: u16, script: JsValue) -> Result<ScriptPublicKey, JsError> {
+        let script = script.try_as_vec_u8()?;
+        Ok(ScriptPublicKey::new(version, script.into()))
+    }
+
+    #[wasm_bindgen(getter = script)]
+    pub fn script_as_hex(&self) -> String {
+        self.script.to_hex()
     }
 }
 
@@ -119,10 +137,14 @@ impl BorshSchema for ScriptPublicKey {
 /// much it pays.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize, BorshSchema)]
 #[serde(rename_all = "camelCase")]
+#[wasm_bindgen(inspectable, js_name = TxUtxoEntry)]
 pub struct UtxoEntry {
     pub amount: u64,
+    #[wasm_bindgen(js_name = scriptPublicKey, getter_with_clone)]
     pub script_public_key: ScriptPublicKey,
+    #[wasm_bindgen(js_name = blockDaaScore)]
     pub block_daa_score: u64,
+    #[wasm_bindgen(js_name = isCoinbase)]
     pub is_coinbase: bool,
 }
 
@@ -226,7 +248,9 @@ impl Transaction {
         tx.finalize();
         tx
     }
+}
 
+impl Transaction {
     /// Determines whether or not a transaction is a coinbase transaction. A coinbase
     /// transaction is a special transaction created by miners that distributes fees and block subsidy
     /// to the previous blocks' miners, and specifies the script_pub_key that will be used to pay the current
