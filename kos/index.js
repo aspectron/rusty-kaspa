@@ -4,6 +4,7 @@ true && process.versions["nw-flavor"] === "sdk" && chrome.developerPrivate.openD
 	extensionId: chrome.runtime.id,
 });
 
+window.open("/app/d3.html");
 (async()=>{
     window.kaspa = await import('/app/wasm/kaspa.js');
     const wasm = await window.kaspa.default('/app/wasm/kaspa_bg.wasm');
