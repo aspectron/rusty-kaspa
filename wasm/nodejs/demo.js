@@ -7,6 +7,8 @@ const {
     RpcClient,
     Encoding,
     NetworkType,
+    createTransaction,
+    signTransaction,
     init_console_panic_hook
 } = require('./kaspa/kaspa_wasm');
 
@@ -14,7 +16,7 @@ init_console_panic_hook();
 
 async function runDemo() {
     // From BIP0340
-    const sk = new PrivateKey('B7E151628AED2A6ABF7158809CF4F3C762E7160F38B4DA56A784D9045190CFEF');
+    const sk = new PrivateKey('b99d75736a0fd0ae2da658959813d680474f5a740a9c970a7da867141596178f');
 
     const kaspaAddress = sk.toKeypair().toAddress(NetworkType.Mainnet).toString();
     // Full kaspa address: kaspa:qr0lr4ml9fn3chekrqmjdkergxl93l4wrk3dankcgvjq776s9wn9jkdskewva
@@ -31,9 +33,46 @@ async function runDemo() {
 
     await rpc.connect();
 
-    let utxos_by_address = await rpc.getUtxosByAddresses({ addresses: [addr.toString()] });
+    try {
+        const utxos = await rpc.getUtxosByAddresses({ addresses: [addr.toString()] });
 
-    console.info(utxos_by_address);
+        console.info(utxos);
+
+        if (utxos.length === 0) {
+            console.info('Send some kaspa to', kaspaAddress, 'before proceeding with the demo');
+            return;
+        }
+
+        
+        let total = utxos.reduce((agg, curr) => {
+            return curr.utxoEntry.amount + agg;
+        }, 0n);
+
+        console.info('Amount sending', total - BigInt(utxos.length) * 2000n)
+
+        const outputs = [{
+            address: addr.toString(),
+            amount: total - BigInt(utxos.length) * 2000n,
+        }];
+
+        const changeAddress = new Address(kaspaAddress);
+        console.info(changeAddress);
+        const tx = createTransaction(utxos, outputs, changeAddress, 0n, 0, 1, 1);
+
+        console.info(tx)
+
+        let transaction = signTransaction(tx, [sk], true);
+
+        let rpcTransaction = transaction.toRpcTransaction();
+
+        console.info(JSON.stringify(rpcTransaction, null, 4));
+
+        let result = await rpc.submitTransaction({transaction: rpcTransaction, allowOrphan:false});
+
+        console.info(result);
+    } finally {
+        await rpc.disconnect();
+    }
 }
 
 runDemo();

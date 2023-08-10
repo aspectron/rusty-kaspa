@@ -76,8 +76,9 @@ impl<'de: 'a, 'a> Deserialize<'de> for ScriptPublicKey {
         D: Deserializer<'de>,
     {
         if deserializer.is_human_readable() {
-            let s = <&str as Deserialize>::deserialize(deserializer)?;
-            FromStr::from_str(s).map_err(serde::de::Error::custom)
+            // let s = <&str as Deserialize>::deserialize(deserializer)?;
+            let s = <String as Deserialize>::deserialize(deserializer)?;
+            FromStr::from_str(&s).map_err(serde::de::Error::custom)
         } else {
             ScriptPublicKeyInternal::deserialize(deserializer)
                 .map(|ScriptPublicKeyInternal { script, version }| Self { version, script: SmallVec::from_slice(script) })
