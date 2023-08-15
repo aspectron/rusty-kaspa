@@ -10,7 +10,9 @@ pub use serde_wasm_bindgen::from_value;
 pub use workflow_wasm::tovalue::to_value;
 
 struct NotificationSink(Function);
+
 unsafe impl Send for NotificationSink {}
+
 impl From<NotificationSink> for Function {
     fn from(f: NotificationSink) -> Self {
         f.0
@@ -334,8 +336,9 @@ impl RpcClient {
     #[wasm_bindgen(js_name = submitTransaction)]
     pub async fn js_submit_transaction(&self, request: JsValue) -> Result<JsValue> {
         // log_info!("submit_transaction req: {:?}", request);
+        let submit_transaction_request = from_value::<SubmitTransactionRequest>(request)?;
         let response =
-            self.submit_transaction(from_value(request)?).await.map_err(|err| wasm_bindgen::JsError::new(&err.to_string()))?;
+            self.submit_transaction(submit_transaction_request).await.map_err(|err| wasm_bindgen::JsError::new(&err.to_string()))?;
         to_value(&response).map_err(|err| err.into())
     }
 
