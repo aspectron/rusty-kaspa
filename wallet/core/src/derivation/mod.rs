@@ -197,25 +197,20 @@ impl AddressDerivationManager {
         // receive_index: Option<u32>,
         // change_index: Option<u32>,
     ) -> Result<Arc<AddressDerivationManager>> {
-        // let keys = &pub_key_data.keys;
         if keys.is_empty() {
             return Err("Invalid keys: keys are required for address derivation".to_string().into());
         }
 
-        // let cosigner_index = pub_key_data.cosigner_index;
         let mut receive_pubkey_managers = vec![];
         let mut change_pubkey_managers = vec![];
-        for xpub in keys {
+        for key in keys {
             let derivator: Arc<dyn WalletDerivationManagerTrait> = match account_kind {
-                AccountKind::Legacy => {
-                    // TODO! WalletAccountV0::from_extended_public_key is not yet implemented
-                    Arc::new(gen0::WalletDerivationManagerV0::from_extended_public_key_str(xpub, cosigner_index)?)
-                }
+                AccountKind::Legacy => Arc::new(gen0::WalletDerivationManagerV0::from_master_xprv(key, false, account_index, None)?),
                 AccountKind::MultiSig => {
                     let cosigner_index = cosigner_index.ok_or(Error::InvalidAccountKind)?;
-                    Arc::new(gen1::WalletDerivationManager::from_extended_public_key_str(xpub, Some(cosigner_index))?)
+                    Arc::new(gen1::WalletDerivationManager::from_extended_public_key_str(key, Some(cosigner_index))?)
                 }
-                _ => Arc::new(gen1::WalletDerivationManager::from_extended_public_key_str(xpub, cosigner_index)?),
+                _ => Arc::new(gen1::WalletDerivationManager::from_extended_public_key_str(key, cosigner_index)?),
             };
 
             receive_pubkey_managers.push(derivator.receive_pubkey_manager());

@@ -60,6 +60,8 @@ pub async fn try_from_storage(
     wallet: &Arc<Wallet>,
     stored_account: Arc<storage::Account>,
     meta: Option<Arc<storage::Metadata>>,
+    wallet_secret: Secret,
+    payment_secret: Option<&Secret>,
 ) -> Result<Arc<dyn Account>> {
     let stored_account = (*stored_account).clone();
 
@@ -67,9 +69,18 @@ pub async fn try_from_storage(
         AccountData::Bip32(bip32) => {
             Ok(Arc::new(Bip32::try_new(wallet, stored_account.prv_key_data_id, stored_account.settings, bip32, meta).await?))
         }
-        AccountData::Legacy(legacy) => {
-            Ok(Arc::new(Legacy::try_new(wallet, stored_account.prv_key_data_id, stored_account.settings, legacy, meta).await?))
-        }
+        AccountData::Legacy(legacy) => Ok(Arc::new(
+            Legacy::try_new(
+                wallet,
+                stored_account.prv_key_data_id,
+                wallet_secret,
+                payment_secret,
+                stored_account.settings,
+                legacy,
+                meta,
+            )
+            .await?,
+        )),
         AccountData::MultiSig(multisig) => {
             Ok(Arc::new(MultiSig::try_new(wallet, stored_account.prv_key_data_id, stored_account.settings, multisig, meta).await?))
         }
