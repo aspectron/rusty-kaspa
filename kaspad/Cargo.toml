@@ -7,6 +7,9 @@ authors.workspace = true
 include.workspace = true
 license.workspace = true
 
+[lib]
+crate-type = ["cdylib", "lib"]
+
 [dependencies]
 kaspa-hashes.workspace = true
 kaspa-utils.workspace = true
