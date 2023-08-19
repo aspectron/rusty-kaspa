@@ -20,8 +20,15 @@ use kaspa_rpc_core::{
 use std::collections::HashMap;
 
 pub struct Inner {
+    /// UTXOs pending maturity (confirmation)
     pending: DashMap<UtxoEntryId, PendingUtxoEntryReference>,
+    /// Address to UtxoContext map (maps all addresses used by
+    /// all UtxoContexts to their respective UtxoContexts)
     address_to_utxo_context_map: DashMap<Arc<Address>, UtxoContext>,
+    /// UtxoContexts that have recoverable UTXOs (UTXOs used in
+    /// outgoing transactions, that have not yet been confirmed)
+    recoverable_contexts: DashSet<UtxoContext>,
+    // ---
     current_daa_score: Arc<AtomicU64>,
     network_id: Arc<Mutex<Option<NetworkId>>>,
     rpc: Arc<DynRpcApi>,
@@ -38,6 +45,7 @@ impl Inner {
         Self {
             pending: DashMap::new(),
             address_to_utxo_context_map: DashMap::new(),
+            recoverable_contexts: DashSet::new(),
             current_daa_score: Arc::new(AtomicU64::new(0)),
             network_id: Arc::new(Mutex::new(network_id)),
             rpc: rpc.clone(),
@@ -52,13 +60,9 @@ impl Inner {
 }
 
 #[derive(Clone)]
-#[wasm_bindgen]
 pub struct UtxoProcessor {
     inner: Arc<Inner>,
 }
-
-#[wasm_bindgen]
-impl UtxoProcessor {}
 
 impl UtxoProcessor {
     pub fn new(rpc: &Arc<DynRpcApi>, network_id: Option<NetworkId>, multiplexer: &Multiplexer<Events>) -> Self {
@@ -164,6 +168,7 @@ impl UtxoProcessor {
         self.inner.current_daa_score.store(current_daa_score, Ordering::SeqCst);
         self.notify(Events::DAAScoreChange(current_daa_score)).await?;
         self.handle_pending(current_daa_score).await?;
+        self.handle_recoverable(current_daa_score).await?;
         Ok(())
     }
 
@@ -197,6 +202,16 @@ impl UtxoProcessor {
         }
 
         Ok(())
+    }
+
+    async fn handle_recoverable(&self, current_daa_score: u64) -> Result<()> {
+        self.inner.recoverable_contexts.retain(|context| context.recover(current_daa_score, None));
+
+        Ok(())
+    }
+
+    pub fn register_recoverable_context(&self, context: &UtxoContext) {
+        self.inner.recoverable_contexts.insert(context.clone());
     }
 
     pub async fn handle_utxo_changed(&self, utxos: UtxosChangedNotification) -> Result<()> {
@@ -436,6 +451,3 @@ impl UtxoProcessor {
         Ok(())
     }
 }
-
-#[wasm_bindgen]
-impl UtxoProcessor {}
