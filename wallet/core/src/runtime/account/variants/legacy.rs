@@ -142,7 +142,7 @@ impl Account for Legacy {
 
         let legacy = storage::Legacy { xpub_keys: Arc::new(vec![]) };
 
-        let account = storage::Account::new(*self.id(), self.prv_key_data_id, settings, storage::AccountData::Legacy(legacy));
+        let account = storage::Account::new(*self.id(), Some(self.prv_key_data_id), settings, storage::AccountData::Legacy(legacy));
 
         Ok(account)
     }
