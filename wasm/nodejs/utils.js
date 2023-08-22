@@ -5,7 +5,7 @@ const {parseArgs: nodeParseArgs} = nodeUtil;
 const {
     Address,
     Encoding,
-    NetworkType,
+    NetworkId,
 } = require('./kaspa/kaspa_wasm');
 
 /**
@@ -50,16 +50,18 @@ function parseArgs(options = {
     const address = addressArg === null ? null : new Address(addressArg);
 
     let networkType = addressArg?.startsWith('kaspa:') ? NetworkType.Mainnet : NetworkType.Testnet;
-    const networkArg = values.network ?? positionals.find((positional) => positional === 'mainnet' || positional === 'testnet') ?? null;
+    // const networkArg = values.network ?? positionals.find((positional) => positional === 'mainnet' || positional === 'testnet') ?? null;
+    const networkArg = values.network ?? positionals.find((positional) => positional.match(/mainnet|testnet-\d+/i)) ?? null;
     if (networkArg !== null) {
-        networkType = networkArg === 'mainnet' ? NetworkType.Mainnet : NetworkType.Testnet;
+        networkId = new NetworkId(networkArg);
+        // networkType = networkArg === 'mainnet' ? NetworkType.Mainnet : NetworkType.Testnet;
     }
 
     const encoding = values.json ? Encoding.SerdeJson : Encoding.Borsh;
 
     return {
         address,
-        networkType,
+        networkId,
         encoding,
         tokens,
     };

@@ -36,6 +36,22 @@ pub enum Error {
     // SerdeWasmBindgen(String),
     #[error(transparent)]
     AddressError(#[from] kaspa_addresses::AddressError),
+
+    #[error(transparent)]
+    NetworkTypeError(#[from] kaspa_consensus_core::networktype::NetworkTypeError),
+
+    #[error("Network suffix is required for network '{0}'")]
+    MissingNetworkSuffix(String),
+
+    #[error("Unexpected extra network suffix '{0}'")]
+    UnexpectedExtraSuffixToken(String),
+
+    #[error("Invalid network suffix '{0}'")]
+    InvalidNetworkSuffix(String),
+
+    #[error("Invalid or unsupported network id: {0}")]
+    InvalidNetworkId(String),
+
 }
 
 // unsafe impl Send for Error {}

@@ -1,4 +1,5 @@
 use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
+use js_sys::Object;
 use kaspa_addresses::Prefix;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Display, Formatter};
@@ -6,6 +7,7 @@ use std::ops::Deref;
 use std::str::FromStr;
 use wasm_bindgen::prelude::*;
 use workflow_core::enums::u8_try_from;
+use workflow_wasm::abi::ref_from_abi;
 
 #[derive(thiserror::Error, PartialEq, Eq, Debug, Clone)]
 pub enum NetworkTypeError {
@@ -126,6 +128,11 @@ impl Display for NetworkType {
 impl TryFrom<JsValue> for NetworkType {
     type Error = NetworkTypeError;
     fn try_from(js_value: JsValue) -> Result<Self, Self::Error> {
+
+        if let Some(object) = Object::try_from(&js_value) {
+            
+        } else
+
         if let Some(network_type) = js_value.as_string() {
             Self::from_str(&network_type)
         } else if let Some(v) = js_value.as_f64() {
@@ -136,8 +143,13 @@ impl TryFrom<JsValue> for NetworkType {
     }
 }
 
+
+
 #[derive(thiserror::Error, PartialEq, Eq, Debug, Clone)]
 pub enum NetworkIdError {
+    #[error("{0}")]
+    Custom(String),
+
     #[error("Invalid network name prefix: {0}. The expected prefix is 'kaspa'.")]
     InvalidPrefix(String),
 
@@ -153,8 +165,11 @@ pub enum NetworkIdError {
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, BorshSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+#[wasm_bindgen(inspectable)]
 pub struct NetworkId {
+    #[wasm_bindgen(getter_with_clone, js_name = "type")]
     pub network_type: NetworkType,
+    #[wasm_bindgen(getter_with_clone)]
     pub suffix: Option<u32>,
 }
 
@@ -257,6 +272,25 @@ impl Display for NetworkId {
             write!(f, "kaspa-{}-{}", self.network_type, suffix)
         } else {
             write!(f, "kaspa-{}", self.network_type)
+        }
+    }
+}
+
+#[wasm_bindgen]
+impl NetworkId {
+    #[wasm_bindgen(constructor)]
+    pub fn ctor(string : String) -> std::result::Result<NetworkId,String> {
+        Ok(NetworkId::from_str(&string).map_err(|err|err.to_string())?)
+    }
+}
+
+impl TryFrom<JsValue> for NetworkId {
+    type Error = NetworkIdError;
+    fn try_from(js_value: JsValue) -> Result<Self, Self::Error> {
+        if let Some(network_id) = js_value.as_string() {
+            Self::from_str(&network_id)
+        } else {
+            Ok(ref_from_abi!(NetworkId, &js_value).map_err(|err| NetworkIdError::Custom(err.to_string()))?)
         }
     }
 }

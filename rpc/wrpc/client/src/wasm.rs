@@ -3,7 +3,7 @@ use crate::imports::*;
 use crate::result::Result;
 use js_sys::Array;
 use kaspa_addresses::{Address, AddressList};
-use kaspa_consensus_core::networktype::NetworkType;
+use kaspa_consensus_core::networktype::{NetworkType, NetworkId};
 use kaspa_consensus_wasm::Transaction;
 use kaspa_notify::notification::Notification as NotificationT;
 pub use kaspa_rpc_macros::{build_wrpc_wasm_bindgen_interface, build_wrpc_wasm_bindgen_subscriptions};
@@ -38,8 +38,8 @@ pub struct RpcClient {
 impl RpcClient {
     /// Create a new RPC client with [`Encoding`] and a `url`.
     #[wasm_bindgen(constructor)]
-    pub fn new(encoding: Encoding, url: &str, network_type: Option<NetworkType>) -> Result<RpcClient> {
-        let url = if let Some(network_type) = network_type { Self::parse_url(url, encoding, network_type)? } else { url.to_string() };
+    pub fn new(encoding: Encoding, url: &str, network_id: Option<NetworkId>) -> Result<RpcClient> {
+        let url = if let Some(network_id) = network_id { Self::parse_url(url, encoding, network_id)? } else { url.to_string() };
 
         let rpc_client = RpcClient {
             client: Arc::new(KaspaRpcClient::new(encoding, url.as_str()).unwrap_or_else(|err| panic!("{err}"))),
@@ -58,7 +58,7 @@ impl RpcClient {
         self.client.url()
     }
 
-    #[wasm_bindgen(getter, js_name = "open")]
+    #[wasm_bindgen(getter, js_name = "isOpen")]
     pub fn is_open(&self) -> bool {
         self.client.is_open()
     }
@@ -170,7 +170,8 @@ impl RpcClient {
 #[wasm_bindgen]
 impl RpcClient {
     #[wasm_bindgen(js_name = "defaultPort")]
-    pub fn default_port(encoding: WrpcEncoding, network_type: NetworkType) -> Result<u16> {
+    pub fn default_port(encoding: WrpcEncoding, network_id: NetworkId) -> Result<u16> {
+        let network_type = NetworkType::from(network_id);
         match encoding {
             WrpcEncoding::Borsh => Ok(network_type.default_borsh_rpc_port()),
             WrpcEncoding::SerdeJson => Ok(network_type.default_json_rpc_port()),
@@ -187,8 +188,8 @@ impl RpcClient {
     /// * `network_type` - Network type
     ///
     #[wasm_bindgen(js_name = parseUrl)]
-    pub fn parse_url(url: &str, encoding: Encoding, network_type: NetworkType) -> Result<String> {
-        let url_ = KaspaRpcClient::parse_url(Some(url.to_string()), encoding, network_type)?;
+    pub fn parse_url(url: &str, encoding: Encoding, network_id: NetworkId) -> Result<String> {
+        let url_ = KaspaRpcClient::parse_url(Some(url.to_string()), encoding, network_id.into())?;
         let url_ = url_.ok_or(Error::custom(format!("received a malformed URL: {url}")))?;
         Ok(url_)
     }

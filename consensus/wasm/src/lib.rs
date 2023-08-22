@@ -11,6 +11,7 @@ pub mod transaction;
 pub mod txscript;
 pub mod utils;
 pub mod utxo;
+pub mod network;
 
 pub use input::*;
 pub use keypair::*;
@@ -22,3 +23,4 @@ pub use transaction::*;
 pub use txscript::*;
 pub use utils::*;
 pub use utxo::*;
+pub use network::*;

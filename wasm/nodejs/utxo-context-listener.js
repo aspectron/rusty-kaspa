@@ -1,14 +1,10 @@
-// Run with: node demo.js
 globalThis.WebSocket = require("websocket").w3cwebsocket;
 
 const {
     PrivateKey,
-    Address,
     RpcClient,
     UtxoProcessor,
     UtxoContext,
-    kaspaToSompi,
-    createTransactions,
     initConsolePanicHook
 } = require('./kaspa/kaspa_wasm');
 const { parseArgs } = require('./utils');
@@ -19,14 +15,14 @@ initConsolePanicHook();
 
     let {
         address: destinationAddress,
-        networkType,
+        networkId,
         encoding,
     } = parseArgs();
     destinationAddress = destinationAddress ?? "kaspatest:qqkl0ct62rv6dz74pff2kx5sfyasl4z28uekevau23g877r5gt6userwyrmtt";
     console.log("using destination address:", destinationAddress);
 
     const privateKey = new PrivateKey('b99d75736a0fd0ae2da658959813d680474f5a740a9c970a7da867141596178f');
-    const kaspaAddress = privateKey.toKeypair().toAddress(networkType);
+    const kaspaAddress = privateKey.toKeypair().toAddress(networkId);
 
     // 1) Initialize RPC
     const rpc = new RpcClient(encoding, "127.0.0.1", networkType);

@@ -13,6 +13,8 @@ pub struct UtxoProcessor {
     pub rpc: RpcClient,
     #[wasm_bindgen(getter_with_clone)]
     pub events: EventDispatcher,
+    #[wasm_bindgen(getter_with_clone, js_name = "networkId")]
+    pub network_id: String,
 }
 
 impl UtxoProcessor {
@@ -32,7 +34,7 @@ impl UtxoProcessor {
 
         inner.start().await?;
 
-        Ok(UtxoProcessor { inner, rpc, events })
+        Ok(UtxoProcessor { inner, rpc, events, network_id: network_id.to_string() })
     }
 
     // pub async fn start(&self) -> Result<()> {

@@ -23,6 +23,7 @@ js-sys.workspace = true
 secp256k1.workspace = true
 faster-hex.workspace = true
 rand.workspace = true
+borsh.workspace = true
 
 workflow-wasm.workspace = true
 workflow-log.workspace = true

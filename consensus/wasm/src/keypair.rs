@@ -21,7 +21,7 @@ use crate::error::Error;
 use crate::result::Result;
 use js_sys::{Array, Uint8Array};
 use kaspa_addresses::{Address, Version as AddressVersion};
-use kaspa_consensus_core::networktype::NetworkType;
+use kaspa_consensus_core::networktype::{NetworkType, NetworkId};
 use secp256k1::{Secp256k1, XOnlyPublicKey};
 use serde_wasm_bindgen::to_value;
 use std::str::FromStr;
@@ -65,9 +65,9 @@ impl Keypair {
     /// Receives a [`NetworkType`] to determine the prefix of the address.
     /// JavaScript: `let address = keypair.toAddress(NetworkType.MAINNET);`.
     #[wasm_bindgen(js_name = toAddress)]
-    pub fn to_address(&self, network_type: NetworkType) -> Result<Address> {
+    pub fn to_address(&self, network_id_or_type: JsValue) -> Result<Address> {
         let pk = PublicKey { xonly_public_key: self.xonly_public_key, source: self.public_key.to_string() };
-        let address = pk.to_address(network_type).unwrap();
+        let address = pk.to_address(network_id_or_type).unwrap();
         Ok(address)
     }
 
@@ -75,9 +75,9 @@ impl Keypair {
     /// Receives a [`NetworkType`] to determine the prefix of the address.
     /// JavaScript: `let address = keypair.toAddress(NetworkType.MAINNET);`.
     #[wasm_bindgen(js_name = toAddressECDSA)]
-    pub fn to_address_ecdsa(&self, network_type: NetworkType) -> Result<Address> {
+    pub fn to_address_ecdsa(&self, network_id_or_type: JsValue) -> Result<Address> {
         let pk = PublicKey { xonly_public_key: self.xonly_public_key, source: self.public_key.to_string() };
-        let address = pk.to_address_ecdsa(network_type).unwrap();
+        let address = pk.to_address_ecdsa(network_id_or_type).unwrap();
         Ok(address)
     }
 
@@ -207,17 +207,31 @@ impl PublicKey {
     /// Receives a [`NetworkType`] to determine the prefix of the address.
     /// JavaScript: `let address = keypair.toAddress(NetworkType.MAINNET);`.
     #[wasm_bindgen(js_name = toAddress)]
-    pub fn to_address(&self, network_type: NetworkType) -> Result<Address> {
+    pub fn to_address(&self, network_id_or_type: JsValue) -> Result<Address> {
+        // - TODO
+        // - TODO
+        // - TODO
+        let network_type = NetworkId::try_from(network_id_or_type)?;
+        // - TODO
+        // - TODO
+        // - TODO
         let payload = &self.xonly_public_key.serialize();
         let address = Address::new(network_type.into(), AddressVersion::PubKey, payload);
         Ok(address)
     }
-
+    
     /// Get `ECDSA` [`Address`] of this PublicKey.
     /// Receives a [`NetworkType`] to determine the prefix of the address.
     /// JavaScript: `let address = keypair.toAddress(NetworkType.MAINNET);`.
     #[wasm_bindgen(js_name = toAddressECDSA)]
-    pub fn to_address_ecdsa(&self, network_type: NetworkType) -> Result<Address> {
+    pub fn to_address_ecdsa(&self, network_id_or_type: JsValue) -> Result<Address> {
+        // - TODO
+        // - TODO
+        // - TODO
+        let network_type = NetworkType::try_from(network_id_or_type)?;
+        // - TODO
+        // - TODO
+        // - TODO
         let payload = &self.xonly_public_key.serialize();
         let address = Address::new(network_type.into(), AddressVersion::PubKeyECDSA, payload);
         Ok(address)
