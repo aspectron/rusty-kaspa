@@ -1,6 +1,7 @@
 use crate::protowire;
 use crate::{from, try_from};
-use kaspa_rpc_core::{FromRpcHex, RpcError, RpcHash, RpcResult, ToRpcHex};
+use kaspa_rpc_core::{RpcError, RpcHash, RpcResult};
+use kaspa_utils::hex::*;
 use std::str::FromStr;
 
 // ----------------------------------------------------------------------------
@@ -18,7 +19,7 @@ from!(item: &kaspa_rpc_core::RpcHeader, protowire::RpcBlockHeader, {
         bits: item.bits,
         nonce: item.nonce,
         daa_score: item.daa_score,
-        blue_work: item.blue_work.to_rpc_hex(),
+        blue_work: item.blue_work.to_hex(),
         blue_score: item.blue_score,
         pruning_point: item.pruning_point.to_string(),
     }
@@ -42,7 +43,7 @@ try_from!(item: &protowire::RpcBlockHeader, kaspa_rpc_core::RpcHeader, {
         item.bits,
         item.nonce,
         item.daa_score,
-        kaspa_rpc_core::RpcBlueWorkType::from_rpc_hex(&item.blue_work)?,
+        kaspa_rpc_core::RpcBlueWorkType::from_hex(&item.blue_work)?,
         item.blue_score,
         RpcHash::from_str(&item.pruning_point)?,
     )

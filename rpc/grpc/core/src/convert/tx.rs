@@ -1,6 +1,7 @@
 use crate::protowire;
 use crate::{from, try_from};
-use kaspa_rpc_core::{FromRpcHex, RpcError, RpcHash, RpcResult, RpcScriptVec, ToRpcHex};
+use kaspa_rpc_core::{RpcError, RpcHash, RpcResult, RpcScriptVec};
+use kaspa_utils::hex::*;
 use std::str::FromStr;
 
 // ----------------------------------------------------------------------------
@@ -15,7 +16,7 @@ from!(item: &kaspa_rpc_core::RpcTransaction, protowire::RpcTransaction, {
         lock_time: item.lock_time,
         subnetwork_id: item.subnetwork_id.to_string(),
         gas: item.gas,
-        payload: item.payload.to_rpc_hex(),
+        payload: item.payload.to_hex(),
         verbose_data: item.verbose_data.as_ref().map(|x| x.into()),
     }
 });
@@ -23,7 +24,7 @@ from!(item: &kaspa_rpc_core::RpcTransaction, protowire::RpcTransaction, {
 from!(item: &kaspa_rpc_core::RpcTransactionInput, protowire::RpcTransactionInput, {
     Self {
         previous_outpoint: Some((&item.previous_outpoint).into()),
-        signature_script: item.signature_script.to_rpc_hex(),
+        signature_script: item.signature_script.to_hex(),
         sequence: item.sequence,
         sig_op_count: item.sig_op_count.into(),
         verbose_data: item.verbose_data.as_ref().map(|x| x.into()),
@@ -52,7 +53,7 @@ from!(item: &kaspa_rpc_core::RpcUtxoEntry, protowire::RpcUtxoEntry, {
 });
 
 from!(item: &kaspa_rpc_core::RpcScriptPublicKey, protowire::RpcScriptPublicKey, {
-    Self { version: item.version().into(), script_public_key: item.script().to_rpc_hex() }
+    Self { version: item.version().into(), script_public_key: item.script().to_hex() }
 });
 
 from!(item: &kaspa_rpc_core::RpcTransactionVerboseData, protowire::RpcTransactionVerboseData, {
@@ -109,7 +110,7 @@ try_from!(item: &protowire::RpcTransaction, kaspa_rpc_core::RpcTransaction, {
         lock_time: item.lock_time,
         subnetwork_id: kaspa_rpc_core::RpcSubnetworkId::from_str(&item.subnetwork_id)?,
         gas: item.gas,
-        payload: Vec::from_rpc_hex(&item.payload)?,
+        payload: Vec::from_hex(&item.payload)?,
         verbose_data: item.verbose_data.as_ref().map(kaspa_rpc_core::RpcTransactionVerboseData::try_from).transpose()?,
     }
 });
@@ -121,7 +122,7 @@ try_from!(item: &protowire::RpcTransactionInput, kaspa_rpc_core::RpcTransactionI
             .as_ref()
             .ok_or_else(|| RpcError::MissingRpcFieldError("RpcTransactionInput".to_string(), "previous_outpoint".to_string()))?
             .try_into()?,
-        signature_script: Vec::from_rpc_hex(&item.signature_script)?,
+        signature_script: Vec::from_hex(&item.signature_script)?,
         sequence: item.sequence,
         sig_op_count: item.sig_op_count.try_into()?,
         verbose_data: item.verbose_data.as_ref().map(kaspa_rpc_core::RpcTransactionInputVerboseData::try_from).transpose()?,
@@ -158,7 +159,7 @@ try_from!(item: &protowire::RpcUtxoEntry, kaspa_rpc_core::RpcUtxoEntry, {
 });
 
 try_from!(item: &protowire::RpcScriptPublicKey, kaspa_rpc_core::RpcScriptPublicKey, {
-    Self::new(u16::try_from(item.version)?, RpcScriptVec::from_rpc_hex(item.script_public_key.as_str())?)
+    Self::new(u16::try_from(item.version)?, RpcScriptVec::from_hex(item.script_public_key.as_str())?)
 });
 
 try_from!(item: &protowire::RpcTransactionVerboseData, kaspa_rpc_core::RpcTransactionVerboseData, {
