@@ -6,7 +6,6 @@ use crate::{imports::*, notifier::Notification};
 use application_runtime::{is_nw, is_wasm};
 use workflow_core::task::dispatch;
 use workflow_dom::{clipboard, link};
-use workflow_wasm::jserror::*;
 
 pub fn register_link_matchers(cli: &Arc<KaspaCli>) -> Result<()> {
     if !is_wasm() {
@@ -103,7 +102,7 @@ fn write_to_clipboard(cli: &Arc<KaspaCli>, text: &str) {
         let text = text.to_owned();
         dispatch(async move {
             if let Err(err) = clipboard::write_text(&text).await {
-                log_error!("{:?}", JsErrorData::from(err));
+                log_error!("{err:?}");
             } else {
                 cli.notifier().notify(Notification::Clipboard);
             }
