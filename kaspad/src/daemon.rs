@@ -84,6 +84,9 @@ fn get_user_approval_or_exit(message: &str, approve: bool) {
 #[derive(Default)]
 pub struct Runtime {
     log_dir: Option<String>,
+    core : Option<Arc<Core>>,
+    async_runtime : Option<Arc<AsyncRuntime>>,
+
 }
 
 fn get_app_dir_from_args(args: &Args) -> PathBuf {
@@ -115,16 +118,16 @@ impl Runtime {
         // Initialize the logger
         kaspa_core::log::init_logger(log_dir, &args.log_level);
 
-        Self { log_dir: log_dir.map(|log_dir| log_dir.to_owned()) }
+        Self { log_dir: log_dir.map(|log_dir| log_dir.to_owned()), core : None, async_runtime : None }
     }
 }
 
-pub fn create_core(args: Args) -> Arc<Core> {
+pub fn create_core(args: Args) -> (Arc<Core>,Arc<RpcCoreService>) {
     let rt = Runtime::from_args(&args);
     create_core_with_runtime(&rt, &args)
 }
 
-pub fn create_core_with_runtime(runtime: &Runtime, args: &Args) -> Arc<Core> {
+pub fn create_core_with_runtime(runtime: &Runtime, args: &Args) -> (Arc<Core>,Arc<RpcCoreService>) {
     let network = args.network();
 
     let config = Arc::new(
@@ -211,7 +214,7 @@ do you confirm? (answer y/n or pass --yes to the Kaspad command line to confirm 
 
     let grpc_server_addr = args.rpclisten.unwrap_or(ContextualNetAddress::unspecified()).normalize(config.default_rpc_port());
 
-    let core = Arc::new(Core::new());
+    let core = runtime.core.clone().unwrap_or_else(||Arc::new(Core::new()));
 
     // ---
 
@@ -300,7 +303,7 @@ do you confirm? (answer y/n or pass --yes to the Kaspad command line to confirm 
     let grpc_service = Arc::new(GrpcService::new(grpc_server_addr, rpc_core_service.clone(), args.rpc_max_clients));
 
     // Create an async runtime and register the top-level async services
-    let async_runtime = Arc::new(AsyncRuntime::new(args.async_threads));
+    let async_runtime = runtime.async_runtime.clone().unwrap_or_else(||Arc::new(AsyncRuntime::new(args.async_threads)));
     async_runtime.register(tick_service);
     async_runtime.register(notify_service);
     if let Some(index_service) = index_service {
@@ -339,5 +342,5 @@ do you confirm? (answer y/n or pass --yes to the Kaspad command line to confirm 
     core.bind(consensus_manager);
     core.bind(async_runtime);
 
-    core
+    (core,rpc_core_service)
 }

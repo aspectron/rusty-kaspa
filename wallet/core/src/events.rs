@@ -1,3 +1,5 @@
+use runtime::AccountId;
+
 use crate::imports::*;
 use crate::runtime::Balance;
 use crate::storage::Hint;
@@ -73,10 +75,14 @@ pub enum Events {
     WalletHint { hint: Option<Hint> },
     /// Wallet has opened
     WalletOpen,
+    /// Wallet open failure
+    WalletError { message : String },
     /// Wallet reload initiated (development only)
     WalletReload,
     /// Wallet has been closed
     WalletClose,
+    /// Account selection change (`None` if no account is selected)
+    AccountSelection { id: Option<AccountId> },
     /// Emitted after successful RPC connection
     /// after the initial state negotiation.
     ServerStatus {
