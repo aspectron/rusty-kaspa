@@ -69,7 +69,7 @@ pub enum Events {
     UtxoIndexNotEnabled,
     /// [`SyncState`] notification posted
     /// when the node sync state changes
-    SyncState(SyncState),
+    SyncState { sync_state : SyncState },
     /// Emitted after the wallet has loaded and
     /// contains anti-phishing 'hint' set by the user.
     WalletHint { hint: Option<Hint> },
@@ -105,9 +105,9 @@ pub enum Events {
     UtxoProcStop,
     /// Occurs when UtxoProcessor has failed to connect to the node
     /// for an unknown reason. (general error trap)
-    UtxoProcError(String),
+    UtxoProcError { message : String },
     /// DAA score change
-    DAAScoreChange(u64),
+    DAAScoreChange { daa_score : u64 },
     /// New incoming pending UTXO/transaction
     Pending {
         record: TransactionRecord,
