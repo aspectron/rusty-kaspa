@@ -13,8 +13,11 @@ const IDB_TRANSACTION_METADATA_INDEX: &str = "metadata";
 
 pub struct Inner {
     known_databases: HashMap<String, HashSet<String>>,
-    databases: HashMap<String, Mutex<idb::Database>>,
+    databases: HashMap<String, Arc<Mutex<Sendable<idb::Database>>>>,
 }
+
+unsafe impl Sync for Inner {}
+unsafe impl Send for Inner {}
 
 pub struct TransactionStore {
     inner: Arc<Mutex<Inner>>,
@@ -75,24 +78,32 @@ impl TransactionStore {
         Ok(())
     }
 
-    async fn init_or_get_db(&self, binding: &Binding, network_id: &NetworkId) -> Result<MutexGuard<idb::Database>> {
+    async fn init_or_get_db(&self, binding: &Binding, network_id: &NetworkId) -> Result<Arc<Mutex<Sendable<idb::Database>>>> {
         let db_name = self.make_db_name(binding, network_id);
+
         {
             let inner = &mut self.inner();
 
-            if let Some(db_mutex) = inner.databases.get_mut(&db_name) {
-                let db = db_mutex.lock().unwrap();
-                return Ok(db);
+            if let Some(db_mutex) = inner.databases.get(&db_name) {
+                return Ok(db_mutex.clone());
             }
+            // inner.databases.get(&db_name).map(|db_mutex| db_mutex.lock().unwrap());
+
+            // // if let Some(db_mutex) = inner.databases.get_mut(&db_name) {
+            // if let Some(db_mutex) = inner.databases.get(&db_name) {
+            //     return Ok(db_mutex.lock().unwrap());
+            // }
         }
 
         // Get a factory instance from global scope
-        let factory = idb::Factory::new().map_err(|err| format!("Error creating indexed db factory: {}", err))?;
 
         // Create an open request for the database
+        let db_name_ = db_name.clone();
         let (tx, rx) = oneshot();
         dispatch(async move {
-            let mut open_request = factory.open(&db_name, Some(1)).unwrap();
+            let factory =
+                idb::Factory::new().map_err(|err| format!("Error creating indexed db factory: {}", err)).expect("factory failure");
+            let mut open_request = factory.open(&db_name_, Some(1)).unwrap();
 
             // Add an upgrade handler for database
             open_request.on_upgrade_needed(|event| {
@@ -115,20 +126,25 @@ impl TransactionStore {
                     .unwrap();
             });
 
-            let db_result = open_request.await;
-            tx.send(db_result).await.expect("Error sending database result oneshot channel");
+            // let db_result = open_request.await.map_err(|err|err.to_string());
+            let db_result = open_request.await.map(Sendable::new).map_err(|err| format!("Error opening database: {}", err));
+            tx.send(Sendable(db_result)).await.expect("Error sending database result oneshot channel");
+            // tx.send(Sendable(db_result)).await.expect("Error sending database result oneshot channel");
         });
-        let db = rx
+        let db_result = rx
             .recv()
             .await
             .map_err(|err| Error::Custom(format!("Error opening database recv error oneshot channel: {}", err)))?
+            .unwrap()
+            // .unwrap()
             .map_err(|err| Error::Custom(format!("Error opening database: {}", err)))?;
 
         let inner = &mut self.inner();
-        inner.databases.insert(db_name, Mutex::new(db));
-
-        let db_mutex = inner.databases.get(&db_name).expect("Error getting database from inner databases hashmap");
-        let db = db_mutex.lock().unwrap();
+        let db = Arc::new(Mutex::new(db_result));
+        inner.databases.insert(db_name, db.clone());
+        // Sendable
+        // let db_mutex = inner.databases.get(&db_name).expect("Error getting database from inner databases hashmap");
+        // let db = db_mutex.lock().unwrap();
         Ok(db)
     }
 }
@@ -144,7 +160,9 @@ impl TransactionRecordStore for TransactionStore {
     // }
 
     async fn load_single(&self, binding: &Binding, network_id: &NetworkId, _id: &TransactionId) -> Result<Arc<TransactionRecord>> {
-        let db = self.init_or_get_db(binding, network_id).await?;
+        let _db = self.init_or_get_db(binding, network_id).await?;
+
+        // let local_db_mutex = db.lock().unwrap();
 
         Err(Error::NotImplemented)
     }

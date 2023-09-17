@@ -216,6 +216,9 @@ pub enum Error {
 
     #[error("Requested transaction is too heavy")]
     GeneratorTransactionIsTooHeavy,
+
+    #[error("{0}")]
+    IdbError(String),
 }
 
 impl From<Aborted> for Error {
@@ -227,6 +230,12 @@ impl From<Aborted> for Error {
 impl Error {
     pub fn custom<T: Into<String>>(msg: T) -> Self {
         Error::Custom(msg.into())
+    }
+}
+
+impl From<idb::Error> for Error {
+    fn from(e: idb::Error) -> Self {
+        Error::IdbError(e.to_string())
     }
 }
 
