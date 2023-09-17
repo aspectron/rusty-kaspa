@@ -3,7 +3,9 @@ use crate::result::Result;
 use crate::storage::interface::StorageStream;
 use crate::storage::{Binding, TransactionRecordStore};
 use crate::storage::{TransactionMetadata, TransactionRecord};
+use idb::TransactionMode;
 
+const IDB_TRANSACTIONS_STORE: &str = "transactions";
 const IDB_ID_INDEX: &str = "id";
 const IDB_VERSION_INDEX: &str = "version";
 const IDB_TIMESTAMP_INDEX: &str = "timestamp";
@@ -80,24 +82,14 @@ impl TransactionStore {
 
     async fn init_or_get_db(&self, binding: &Binding, network_id: &NetworkId) -> Result<Arc<Mutex<Sendable<idb::Database>>>> {
         let db_name = self.make_db_name(binding, network_id);
-
         {
             let inner = &mut self.inner();
 
             if let Some(db_mutex) = inner.databases.get(&db_name) {
                 return Ok(db_mutex.clone());
             }
-            // inner.databases.get(&db_name).map(|db_mutex| db_mutex.lock().unwrap());
-
-            // // if let Some(db_mutex) = inner.databases.get_mut(&db_name) {
-            // if let Some(db_mutex) = inner.databases.get(&db_name) {
-            //     return Ok(db_mutex.lock().unwrap());
-            // }
         }
 
-        // Get a factory instance from global scope
-
-        // Create an open request for the database
         let db_name_ = db_name.clone();
         let (tx, rx) = oneshot();
         dispatch(async move {
@@ -115,7 +107,7 @@ impl TransactionStore {
                 store_params.key_path(Some(idb::KeyPath::new_single(IDB_ID_INDEX)));
 
                 // Create object store
-                let store = database.create_object_store("transactions", store_params).unwrap();
+                let store = database.create_object_store(IDB_TRANSACTIONS_STORE, store_params).unwrap();
 
                 store.create_index(IDB_VERSION_INDEX, idb::KeyPath::new_single(IDB_VERSION_INDEX), None).unwrap();
                 store.create_index(IDB_TIMESTAMP_INDEX, idb::KeyPath::new_single(IDB_TIMESTAMP_INDEX), None).unwrap();
@@ -126,25 +118,20 @@ impl TransactionStore {
                     .unwrap();
             });
 
-            // let db_result = open_request.await.map_err(|err|err.to_string());
             let db_result = open_request.await.map(Sendable::new).map_err(|err| format!("Error opening database: {}", err));
             tx.send(Sendable(db_result)).await.expect("Error sending database result oneshot channel");
-            // tx.send(Sendable(db_result)).await.expect("Error sending database result oneshot channel");
         });
         let db_result = rx
             .recv()
             .await
             .map_err(|err| Error::Custom(format!("Error opening database recv error oneshot channel: {}", err)))?
             .unwrap()
-            // .unwrap()
             .map_err(|err| Error::Custom(format!("Error opening database: {}", err)))?;
 
         let inner = &mut self.inner();
         let db = Arc::new(Mutex::new(db_result));
         inner.databases.insert(db_name, db.clone());
-        // Sendable
-        // let db_mutex = inner.databases.get(&db_name).expect("Error getting database from inner databases hashmap");
-        // let db = db_mutex.lock().unwrap();
+
         Ok(db)
     }
 }
@@ -159,12 +146,57 @@ impl TransactionRecordStore for TransactionStore {
     //     Ok(Box::pin(TransactionRecordStream::try_new(&self.transactions, binding, network_id).await?))
     // }
 
-    async fn load_single(&self, binding: &Binding, network_id: &NetworkId, _id: &TransactionId) -> Result<Arc<TransactionRecord>> {
-        let _db = self.init_or_get_db(binding, network_id).await?;
+    async fn load_single(&self, binding: &Binding, network_id: &NetworkId, id: &TransactionId) -> Result<Arc<TransactionRecord>> {
+        let db_mutex = self.init_or_get_db(binding, network_id).await?;
+        let hex_id = id.to_hex();
 
-        // let local_db_mutex = db.lock().unwrap();
+        let (tx, rx) = oneshot::<Result<Arc<TransactionRecord>>>();
+        dispatch(async move {
+            let db = match db_mutex.lock() {
+                Ok(db) => db,
+                Err(err) => {
+                    tx.send(Err(Error::Custom(format!("Error locking database mutex: {}", err)))).await.unwrap();
+                    return;
+                }
+            };
+            let transaction = match db.transaction(&[IDB_TRANSACTIONS_STORE], TransactionMode::ReadOnly) {
+                Ok(transaction) => transaction,
+                Err(err) => {
+                    tx.send(Err(Error::IdbError(err.to_string()))).await.unwrap();
+                    return;
+                }
+            };
+            let object_store = match transaction.object_store(IDB_TRANSACTIONS_STORE) {
+                Ok(object_store) => object_store,
+                Err(err) => {
+                    tx.send(Err(Error::IdbError(err.to_string()))).await.unwrap();
+                    return;
+                }
+            };
 
-        Err(Error::NotImplemented)
+            let id_js_value = JsValue::from_str(&hex_id);
+            let value_opt = match object_store.get(id_js_value).await {
+                Ok(value_opt) => value_opt,
+                Err(err) => {
+                    tx.send(Err(Error::IdbError(err.to_string()))).await.unwrap();
+                    return;
+                }
+            };
+
+            let value = match value_opt {
+                Some(value) => value,
+                None => {
+                    tx.send(Err(Error::Custom(format!("Transaction not found: {}", hex_id)))).await.unwrap();
+                    return;
+                }
+            };
+
+            println!("value: {:?}", value);
+
+            tx.send(Err(Error::NotImplemented)).await.unwrap();
+        });
+
+        rx.recv().await.map_err(|err| Error::Custom(format!("Error opening database recv error oneshot channel: {}", err)))?
     }
 
     async fn load_multiple(
