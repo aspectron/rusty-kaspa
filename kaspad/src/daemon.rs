@@ -355,3 +355,35 @@ do you confirm? (answer y/n or pass --yes to the Kaspad command line to confirm 
 
     core
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::{create_core_with_runtime, Runtime};
+    use kaspa_core::signals::Shutdown;
+
+    fn test_core(runtime: &Runtime) {
+        let mut args = crate::args::Args::default();
+        args.rpclisten = None;
+        args.rpclisten_borsh = None;
+        args.testnet = true;
+        println!("| creating core...");
+        let core = create_core_with_runtime(runtime, &args);
+        let workers = core.start();
+        println!("| waiting...");
+        std::thread::sleep(std::time::Duration::from_secs(3));
+        println!("| shutting down core...");
+        core.shutdown();
+        core.join(workers);
+        println!("| core shutdown ok...");
+    }
+
+    #[test]
+    fn test_kaspad_cleanup() {
+        kaspa_core::log::try_init_logger("INFO");
+        let runtime = super::Runtime::default();
+        test_core(&runtime);
+        std::thread::sleep(std::time::Duration::from_secs(3));
+        test_core(&runtime);
+    }
+}
