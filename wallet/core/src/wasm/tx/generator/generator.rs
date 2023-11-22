@@ -17,7 +17,7 @@ extern "C" {
     /// - `sigOpCount`: [`u8`]
     /// - `minimumSignatures`: [`u16`]
     /// - `payload`: [`Uint8Array`] or hex String representation of a payload
-    #[wasm_bindgen(extends = Object, is_type_of = Array::is_array, typescript_type = "PrivateKey[]")]
+    #[wasm_bindgen(extends = Object)]
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub type GeneratorSettingsObject;
 }
