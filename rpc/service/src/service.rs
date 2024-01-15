@@ -61,6 +61,7 @@ use kaspa_txscript::{extract_script_pub_key_address, pay_to_address_script};
 use kaspa_utils::{channel::Channel, triggers::SingleTrigger};
 use kaspa_utils_tower::counters::TowerConnectionCounters;
 use kaspa_utxoindex::api::UtxoIndexProxy;
+use std::time::Instant;
 use std::{
     collections::HashMap,
     iter::once,
@@ -104,6 +105,7 @@ pub struct RpcCoreService {
     perf_monitor: Arc<PerfMonitor<Arc<TickService>>>,
     p2p_tower_counters: Arc<TowerConnectionCounters>,
     grpc_tower_counters: Arc<TowerConnectionCounters>,
+    start_instant: Instant,
 }
 
 const RPC_CORE: &str = "rpc-core";
@@ -189,6 +191,7 @@ impl RpcCoreService {
             perf_monitor,
             p2p_tower_counters,
             grpc_tower_counters,
+            start_instant: Instant::now(),
         }
     }
 
@@ -773,6 +776,7 @@ NOTE: This error usually indicates an RPC conversion error between the node and 
         } = self.perf_monitor.snapshot();
 
         let process_metrics = req.process_metrics.then_some(ProcessMetrics {
+            uptime_secs: self.start_instant.elapsed().as_secs(),
             resident_set_size,
             virtual_memory_size,
             core_num: core_num as u32,

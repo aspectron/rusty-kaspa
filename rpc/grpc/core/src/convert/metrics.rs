@@ -8,6 +8,7 @@ use kaspa_rpc_core::RpcError;
 
 from!(item: &kaspa_rpc_core::ProcessMetrics, protowire::ProcessMetrics, {
     Self {
+        uptime_secs : item.uptime_secs,
         resident_set_size: item.resident_set_size,
         virtual_memory_size: item.virtual_memory_size,
         core_num: item.core_num,
@@ -72,6 +73,7 @@ from!(item: &kaspa_rpc_core::ConsensusMetrics, protowire::ConsensusMetrics, {
 
 try_from!(item: &protowire::ProcessMetrics, kaspa_rpc_core::ProcessMetrics, {
     Self {
+        uptime_secs : item.uptime_secs,
         resident_set_size: item.resident_set_size,
         virtual_memory_size: item.virtual_memory_size,
         core_num: item.core_num,

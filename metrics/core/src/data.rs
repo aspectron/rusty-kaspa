@@ -48,6 +48,7 @@ impl MetricGroup {
                 Metric::NodeResidentSetSizeBytes,
                 Metric::NodeVirtualMemorySizeBytes,
                 Metric::NodeFileHandlesCount,
+                Metric::NodeUptimeSeconds,
             ]
             .as_slice()
             .iter(),
@@ -121,7 +122,7 @@ impl MetricGroup {
 impl From<Metric> for MetricGroup {
     fn from(value: Metric) -> Self {
         match value {
-            Metric::NodeCpuUsage | Metric::NodeResidentSetSizeBytes | Metric::NodeVirtualMemorySizeBytes => MetricGroup::System,
+            Metric::NodeUptimeSeconds | Metric::NodeCpuUsage | Metric::NodeResidentSetSizeBytes | Metric::NodeVirtualMemorySizeBytes => MetricGroup::System,
             // --
             Metric::NodeFileHandlesCount
             | Metric::NodeDiskIoReadBytes
@@ -183,6 +184,7 @@ impl From<Metric> for MetricGroup {
 #[derive(Describe, Debug, Clone, Copy, Eq, PartialEq, Hash, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Metric {
+    NodeUptimeSeconds,
     // NodeCpuCores is used to normalize NodeCpuUsage metric
     // NodeCpuCores
     NodeCpuUsage,
@@ -254,7 +256,8 @@ impl Metric {
     // as this requires changes and testing in /kos
     pub fn group(&self) -> &'static str {
         match self {
-            Metric::NodeCpuUsage
+            Metric::NodeUptimeSeconds
+            | Metric::NodeCpuUsage
             | Metric::NodeResidentSetSizeBytes
             | Metric::NodeVirtualMemorySizeBytes
             | Metric::NodeFileHandlesCount
@@ -347,6 +350,7 @@ impl Metric {
 
     pub fn format(&self, f: f64, si: bool, short: bool) -> String {
         match self {
+            Metric::NodeUptimeSeconds => format_duration(f as u64),
             Metric::NodeCpuUsage => {
                 if f.is_nan() {
                     "---".to_string()
@@ -416,6 +420,7 @@ impl Metric {
 
     pub fn title(&self) -> (&str, &str) {
         match self {
+            Metric::NodeUptimeSeconds => ("Uptime", "Uptime"),
             Metric::NodeCpuUsage => ("CPU", "CPU"),
             Metric::NodeResidentSetSizeBytes => ("Resident Memory", "Memory"),
             Metric::NodeVirtualMemorySizeBytes => ("Virtual Memory", "Virtual"),
@@ -483,10 +488,11 @@ pub struct MetricsData {
     pub unixtime_millis: f64,
 
     // ---
-    pub node_resident_set_size_bytes: u64,
-    pub node_virtual_memory_size_bytes: u64,
+    pub node_uptime_secs: u64,
     pub node_cpu_cores: u32,
     pub node_cpu_usage: f32,
+    pub node_resident_set_size_bytes: u64,
+    pub node_virtual_memory_size_bytes: u64,
     pub node_file_handles: u32,
     // ---
     pub node_disk_io_read_bytes: u64,
@@ -556,11 +562,11 @@ pub struct MetricsSnapshot {
     pub unixtime_millis: f64,
     pub duration_millis: f64,
     // ---
-    pub node_resident_set_size_bytes: f64,
-    pub node_virtual_memory_size_bytes: f64,
+    pub node_uptime_secs: f64,
     pub node_cpu_cores: f64,
     pub node_cpu_usage: f64,
-    // ---
+    pub node_resident_set_size_bytes: f64,
+    pub node_virtual_memory_size_bytes: f64,
     pub node_file_handles: f64,
     pub node_disk_io_read_bytes: f64,
     pub node_disk_io_write_bytes: f64,
@@ -621,6 +627,7 @@ impl MetricsSnapshot {
     pub fn get(&self, metric: &Metric) -> f64 {
         match metric {
             // CpuCores
+            Metric::NodeUptimeSeconds => self.node_uptime_secs,
             Metric::NodeCpuUsage => self.node_cpu_usage, // / self.cpu_cores,
             Metric::NodeResidentSetSizeBytes => self.node_resident_set_size_bytes,
             Metric::NodeVirtualMemorySizeBytes => self.node_virtual_memory_size_bytes,
@@ -716,6 +723,7 @@ impl From<(&MetricsData, &MetricsData)> for MetricsSnapshot {
             unixtime_millis: b.unixtime_millis,
             duration_millis,
             // ---
+            node_uptime_secs: b.node_uptime_secs as f64,
             node_cpu_usage: b.node_cpu_usage as f64 / b.node_cpu_cores as f64 * 100.0,
             node_cpu_cores: b.node_cpu_cores as f64,
             node_resident_set_size_bytes: b.node_resident_set_size_bytes as f64,
@@ -871,5 +879,29 @@ fn format_with_precision(f: f64) -> String {
         separated_float!(format!("{}", f.trunc()))
     } else {
         separated_float!(format!("{:.2}", f))
+    }
+}
+
+fn format_duration(seconds: u64) -> String {
+    const SECONDS_IN_MINUTE: u64 = 60;
+    const MINUTES_IN_HOUR: u64 = 60;
+    const HOURS_IN_DAY: u64 = 24;
+
+    if seconds < SECONDS_IN_MINUTE {
+        format_duration_unit(seconds, "sec")
+    } else if seconds < SECONDS_IN_MINUTE * MINUTES_IN_HOUR {
+        format_duration_unit(seconds / SECONDS_IN_MINUTE, "min")
+    } else if seconds < SECONDS_IN_MINUTE * MINUTES_IN_HOUR * HOURS_IN_DAY {
+        format_duration_unit(seconds / (SECONDS_IN_MINUTE * MINUTES_IN_HOUR), "hr")
+    } else {
+        format_duration_unit(seconds / (SECONDS_IN_MINUTE * MINUTES_IN_HOUR * HOURS_IN_DAY), "day")
+    }
+}
+
+fn format_duration_unit(value: u64, unit: &str) -> String {
+    if value > 1 {
+        format!("{} {}s", value, unit)
+    } else {
+        format!("{} {}", value, unit)
     }
 }

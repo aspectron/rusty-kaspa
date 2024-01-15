@@ -762,6 +762,7 @@ message ProcessMetrics{
   uint64 diskIoWriteBytes = 7;
   float diskIoReadPerSec = 8;
   float diskIoWritePerSec = 9;
+  uint64 uptimeSecs = 10;
 }
 
 message ConnectionMetrics {
