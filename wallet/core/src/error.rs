@@ -189,7 +189,7 @@ pub enum Error {
     InvalidAccountKind,
 
     #[error("Insufficient funds")]
-    InsufficientFunds,
+    InsufficientFunds { additional_needed: u64, origin: &'static str },
 
     #[error(transparent)]
     Utf8Error(#[from] std::str::Utf8Error),
@@ -239,8 +239,14 @@ pub enum Error {
     #[error("Priority fees can not be included into transactions with multiple outputs")]
     GeneratorIncludeFeesRequiresOneOutput,
 
-    #[error("Requested transaction is too heavy")]
+    #[error("Transaction outputs exceed the maximum allowed mass")]
+    GeneratorTransactionOutputsAreTooHeavy { mass: u64, kind: &'static str },
+
+    #[error("Transaction exceeds the maximum allowed mass")]
     GeneratorTransactionIsTooHeavy,
+
+    #[error("Storage mass exceeds maximum")]
+    StorageMassExceedsMaximumTransactionMass { storage_mass: u64 },
 
     #[error("Invalid range {0}..{1}")]
     InvalidRange(u64, u64),
@@ -268,6 +274,9 @@ pub enum Error {
 
     #[error("Missing RPC listener id (this may be a node connection issue)")]
     ListenerId,
+
+    #[error("Mass calculation error")]
+    MassCalculationError,
 }
 
 impl From<Aborted> for Error {
