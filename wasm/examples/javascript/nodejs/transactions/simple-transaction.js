@@ -9,7 +9,7 @@ const {
     kaspaToSompi,
     createTransactions,
     initConsolePanicHook,
-    SignableTransaction,
+    deserializeTransaction,
     signTransaction,
 } = require('../../../../nodejs/kaspa');
 
@@ -67,16 +67,16 @@ initConsolePanicHook();
         console.log("transactions", transactions[0])
 
         for (let pending of transactions) {
-            let tx_json = pending.toJSON();
-            console.log("Pending transaction toJSON:", pending.toJSON());
-            let pending_tx = SignableTransaction.fromJSON(tx_json);
+            let tx_json = pending.serializeJSON();
+            console.log("Pending transaction serializeJSON:", tx_json);
+            let signable_tx = await deserializeTransaction(tx_json);
             // console.log("Signing tx with secret key:", privateKey.toString());
             // await pending.sign([privateKey]);
             // console.log("Submitting pending tx to RPC ...")
             // let txid = await pending.submit(rpc);
             // console.log("Node responded with txid:", txid);
 
-            const transaction = signTransaction(pending_tx, [privateKey], true);
+            const transaction = signTransaction(signable_tx, [privateKey], true);
             let result = await rpc.submitTransaction({transaction});
 
             console.info(result);

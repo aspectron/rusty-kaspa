@@ -29,13 +29,17 @@ impl SignableTransaction {
         self.tx.lock().unwrap().clone()
     }
 
-    #[wasm_bindgen(js_name=toJSON)]
-    pub fn to_json(&self) -> Result<String, JsError> {
+    /// Serialize transaction as json string
+    /// @see {@link SignableTransaction.deserialize}
+    #[wasm_bindgen(js_name=serialize)]
+    pub fn serialize_json(&self) -> Result<String, JsError> {
         Ok(self.serialize(serde_json::value::Serializer)?.to_string())
     }
 
-    #[wasm_bindgen(js_name=fromJSON)]
-    pub fn from_json(json: &str) -> Result<SignableTransaction, JsError> {
+    /// Deserialize transaction from json string
+    /// @see {@link SignableTransaction.serialize}
+    #[wasm_bindgen(js_name=deserialize)]
+    pub fn deserialize_json(json: &str) -> Result<SignableTransaction, JsError> {
         let mtx: Self = serde_json::from_value(serde_json::Value::from_str(json)?)?;
         Ok(mtx)
     }

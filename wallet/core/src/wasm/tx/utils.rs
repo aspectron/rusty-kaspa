@@ -122,6 +122,14 @@ pub async fn create_transactions_js(settings: IGeneratorSettingsObject) -> Resul
     }
 }
 
+/// Creates a transaction from serialized transaction json
+/// @see {@link SignableTransaction.serialize} {@link SignableTransaction.deserialize}
+/// @category Wallet SDK
+#[wasm_bindgen(js_name=deserializeTransaction)]
+pub async fn deserialize_transaction(json: String) -> Result<SignableTransaction> {
+    Ok(SignableTransaction::deserialize_json(&json)?)
+}
+
 /// Creates a set of transactions using transaction [`Generator`].
 /// @category Wallet SDK
 #[wasm_bindgen(js_name=estimateTransactions)]

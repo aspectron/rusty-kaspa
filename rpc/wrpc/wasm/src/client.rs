@@ -473,7 +473,6 @@ build_wrpc_wasm_bindgen_interface!(
     ],
     [
         // functions with `request` argument
-
         /// Adds a peer to the Kaspa node's list of known peers.
         /// Returned information: None.
         AddPeer,

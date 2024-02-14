@@ -89,12 +89,13 @@ impl PendingTransaction {
     pub fn transaction(&self) -> Result<Transaction> {
         Ok(Transaction::from(self.inner.transaction()))
     }
-
-    #[wasm_bindgen(js_name=toJSON)]
-    pub fn to_json(&self) -> Result<String, JsError> {
+    /// Serialize transaction as json string
+    /// @see {@link SignableTransaction.deserialize}
+    #[wasm_bindgen(js_name=serialize)]
+    pub fn serialize_json(&self) -> Result<String, JsError> {
         let utxo_entries: UtxoEntries = self.inner.inner.utxo_entries.clone().into_iter().collect::<Vec<UtxoEntryReference>>().into();
         let tx = SignableTransaction::try_from((self.inner.signable_transaction(), utxo_entries))?;
-        tx.to_json()
+        tx.serialize_json()
     }
 }
 
