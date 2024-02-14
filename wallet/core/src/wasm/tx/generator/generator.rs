@@ -57,6 +57,11 @@ interface IGeneratorSettingsObject {
      * Optional data payload to be included in the transaction.
      */
     payload?: Uint8Array | HexString;
+
+    /**
+     * Network identifier: `mainnet` or `testnet-<num>`
+     */
+    networkId: NetworkId
 }
 "#;
 
@@ -70,6 +75,7 @@ extern "C" {
     /// - `sigOpCount`: `u8`
     /// - `minimumSignatures`: `u16`
     /// - `payload`: [`Uint8Array`] or hex String representation of a payload
+    /// - `networkId`: NetworkId
     #[wasm_bindgen(extends = Object, typescript_type = "IGeneratorSettingsObject")]
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub type IGeneratorSettingsObject;

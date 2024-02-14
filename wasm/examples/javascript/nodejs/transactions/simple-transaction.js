@@ -8,7 +8,9 @@ const {
     RpcClient,
     kaspaToSompi,
     createTransactions,
-    initConsolePanicHook
+    initConsolePanicHook,
+    SignableTransaction,
+    signTransaction,
 } = require('../../../../nodejs/kaspa');
 
 const { encoding, networkId, address: destinationAddressArg } = require("../utils").parseArgs();
@@ -29,7 +31,7 @@ initConsolePanicHook();
     console.log(`Destination address: ${destinationAddress}`);
 
     const rpc = new RpcClient({
-        url : "127.0.0.1",
+        url : "wss://eu-1.kaspa-ng.org/testnet-11",
         encoding,
         networkId
     });
@@ -55,20 +57,29 @@ initConsolePanicHook();
 
         let { transactions, summary } = await createTransactions({
             entries,
-            outputs: [{ address : destinationAddress, amount : kaspaToSompi(0.00012)}],
+            outputs: [{ address : destinationAddress, amount : kaspaToSompi(1)}],
             priorityFee: 0n,
             changeAddress: sourceAddress,
+            networkId,
         });
 
         console.log("Summary:", summary);
+        console.log("transactions", transactions[0])
 
         for (let pending of transactions) {
-            console.log("Pending transaction:", pending);
-            console.log("Signing tx with secret key:", privateKey.toString());
-            await pending.sign([privateKey]);
-            console.log("Submitting pending tx to RPC ...")
-            let txid = await pending.submit(rpc);
-            console.log("Node responded with txid:", txid);
+            let tx_json = pending.toJSON();
+            console.log("Pending transaction toJSON:", pending.toJSON());
+            let pending_tx = SignableTransaction.fromJSON(tx_json);
+            // console.log("Signing tx with secret key:", privateKey.toString());
+            // await pending.sign([privateKey]);
+            // console.log("Submitting pending tx to RPC ...")
+            // let txid = await pending.submit(rpc);
+            // console.log("Node responded with txid:", txid);
+
+            const transaction = signTransaction(pending_tx, [privateKey], true);
+            let result = await rpc.submitTransaction({transaction});
+
+            console.info(result);
         }
     }
 

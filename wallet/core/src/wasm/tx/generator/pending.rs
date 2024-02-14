@@ -1,7 +1,7 @@
 use crate::imports::*;
 use crate::result::Result;
 use crate::tx::generator as native;
-use kaspa_consensus_wasm::{PrivateKey, Transaction};
+use kaspa_consensus_wasm::{PrivateKey, SignableTransaction, Transaction, UtxoEntries};
 use kaspa_wrpc_wasm::RpcClient;
 
 /// @category Wallet SDK
@@ -88,6 +88,13 @@ impl PendingTransaction {
     #[wasm_bindgen(getter)]
     pub fn transaction(&self) -> Result<Transaction> {
         Ok(Transaction::from(self.inner.transaction()))
+    }
+
+    #[wasm_bindgen(js_name=toJSON)]
+    pub fn to_json(&self) -> Result<String, JsError> {
+        let utxo_entries: UtxoEntries = self.inner.inner.utxo_entries.clone().into_iter().collect::<Vec<UtxoEntryReference>>().into();
+        let tx = SignableTransaction::try_from((self.inner.signable_transaction(), utxo_entries))?;
+        tx.to_json()
     }
 }
 
