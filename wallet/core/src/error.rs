@@ -258,7 +258,7 @@ pub enum Error {
     #[error("Transaction exceeds the maximum allowed mass")]
     GeneratorTransactionIsTooHeavy,
 
-    #[error("Storage mass ({storage_mass}) exceeds maximum")]
+    #[error("Storage mass exceeds maximum")]
     StorageMassExceedsMaximumTransactionMass { storage_mass: u64 },
 
     #[error("Invalid range {0}..{1}")]
