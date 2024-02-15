@@ -170,6 +170,12 @@ pub struct KaspaRpcClient {
     notification_mode: NotificationMode,
 }
 
+impl Debug for KaspaRpcClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KaspaRpcClient").field("url", &self.url()).field("connected", &self.is_open()).finish()
+    }
+}
+
 impl KaspaRpcClient {
     /// Create a new `KaspaRpcClient` with the given Encoding and URL
     pub fn new(encoding: Encoding, url: Option<&str>) -> Result<KaspaRpcClient> {

@@ -438,7 +438,7 @@ build_wrpc_wasm_bindgen_interface!(
         /// Returned information: Version of the Kaspa node, protocol
         /// version, network identifier.
         /// This call is primarily used by gRPC clients.
-        /// For wRPC clients, use `getServerInfo`.
+        /// For wRPC clients, use {@link RpcClient.getServerInfo}.
         GetInfo,
         /// Provides a list of addresses of known peers in the Kaspa
         /// network that the node can potentially connect to.
