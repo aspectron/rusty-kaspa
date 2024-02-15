@@ -492,7 +492,7 @@ pub struct AddressBookEnumerateResponse {}
 #[serde(rename_all = "camelCase")]
 pub struct WalletNotification {}
 
-pub struct TransactionSerializationResponse {
+pub struct TransactionSerialization {
     pub transaction: String,
     pub addresses: Option<Vec<Address>>,
 }

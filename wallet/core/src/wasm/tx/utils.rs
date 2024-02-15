@@ -1,4 +1,4 @@
-use crate::api::message::TransactionSerializationResponse;
+use crate::api::message::TransactionSerialization;
 use crate::imports::*;
 use crate::result::Result;
 use crate::tx::PaymentOutputs;
@@ -132,14 +132,11 @@ pub async fn deserialize_transaction(json: String) -> Result<SignableTransaction
     Ok(SignableTransaction::deserialize_json(&json)?)
 }
 
-/// Serialization a transaction as json string
+/// Serialize a transaction as json string
 /// @see {@link SignableTransaction.serialize} {@link SignableTransaction.deserialize}
 /// @category Wallet SDK
 #[wasm_bindgen(js_name=serializeTransaction)]
-pub async fn serialize_transaction(
-    tx: ITransactionSerializationRequest,
-    addresses: Option<bool>,
-) -> Result<ITransactionSerializationResponse> {
+pub async fn serialize_transaction(tx: ISerializableTransaction, addresses: Option<bool>) -> Result<ITransactionSerialization> {
     let tx = JsValue::from(tx);
     let (transaction, addresses) = if let Ok(tx) = SignableTransaction::try_from(tx.clone()) {
         (tx.serialize_json()?, None)
@@ -151,7 +148,7 @@ pub async fn serialize_transaction(
         return Err(Error::InvalidTransactionJson(tx.as_string().unwrap_or_default()));
     };
 
-    TransactionSerializationResponse { transaction, addresses }.try_into()
+    TransactionSerialization { transaction, addresses }.try_into()
 }
 
 /// Creates a set of transactions using transaction [`Generator`].

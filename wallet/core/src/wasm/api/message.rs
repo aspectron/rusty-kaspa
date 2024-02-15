@@ -1489,22 +1489,22 @@ try_from! ( _args: AddressBookEnumerateResponse, IAddressBookEnumerateResponse, 
 // ---
 
 declare! {
-    ITransactionSerializationResponse,
+    ITransactionSerialization,
     r#"
     /**
      * 
      *  
-     * @category Wallet API
+     * @category Wallet SDK
      */
-    export interface ITransactionSerializationResponse {
+    export interface ITransactionSerialization {
         transaction : string,
         addresses? : Address[]
     }
     "#,
 }
 
-try_from! ( args: TransactionSerializationResponse, ITransactionSerializationResponse, {
-    let response = ITransactionSerializationResponse::default();
+try_from! ( args: TransactionSerialization, ITransactionSerialization, {
+    let response = ITransactionSerialization::default();
     response.set("transaction", &args.transaction.into())?;
     if let Some(addresses) = args.addresses{
         // let array = js_sys::Array::new();
@@ -1522,13 +1522,13 @@ const TS_ITRANSACTIONSERIALIZATIONREQUEST: &'static str = r#"
     /**
      * 
      *  
-     * @category Wallet API
+     * @category Wallet SDK
      */
-    export type ITransactionSerializationRequest = SignableTransaction | PendingTransaction | Transaction;
+    export type ISerializableTransaction = SignableTransaction | PendingTransaction | Transaction;
     "#;
 #[wasm_bindgen]
 extern "C" {
-    #[wasm_bindgen(extends = js_sys::Object, typescript_type = "ITransactionSerializationRequest")]
+    #[wasm_bindgen(extends = js_sys::Object, typescript_type = "ISerializableTransaction")]
     #[derive(Default)]
-    pub type ITransactionSerializationRequest;
+    pub type ISerializableTransaction;
 }
