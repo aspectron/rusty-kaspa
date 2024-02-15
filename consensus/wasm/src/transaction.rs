@@ -3,6 +3,7 @@ use crate::input::TransactionInput;
 use crate::output::TransactionOutput;
 use crate::result::Result;
 use kaspa_consensus_core::subnets::{self, SubnetworkId};
+use std::str::FromStr;
 
 #[wasm_bindgen(typescript_custom_section)]
 const TS_TRANSACTION: &'static str = r#"
@@ -213,6 +214,21 @@ impl Transaction {
     #[wasm_bindgen(setter = payload)]
     pub fn set_payload_from_js_value(&mut self, js_value: JsValue) {
         self.inner.lock().unwrap().payload = js_value.try_as_vec_u8().unwrap_or_else(|err| panic!("payload value error: {err}"));
+    }
+
+    /// Serialize transaction as json string
+    /// @see {@link Transaction.deserialize}
+    #[wasm_bindgen(js_name=serialize)]
+    pub fn serialize_json(&self) -> Result<String, JsError> {
+        Ok(self.serialize(serde_json::value::Serializer)?.to_string())
+    }
+
+    /// Deserialize transaction from json string
+    /// @see {@link Transaction.serialize}
+    #[wasm_bindgen(js_name=deserialize)]
+    pub fn deserialize_json(json: &str) -> Result<Transaction, JsError> {
+        let mtx: Self = serde_json::from_value(serde_json::Value::from_str(json)?)?;
+        Ok(mtx)
     }
 }
 

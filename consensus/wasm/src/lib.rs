@@ -15,6 +15,7 @@ cfg_if! {
         mod input;
         mod keypair;
         mod signable;
+        mod serializable;
         mod signer;
         mod transaction;
         mod txscript;
@@ -25,6 +26,7 @@ cfg_if! {
         pub use input::*;
         pub use keypair::*;
         pub use signable::*;
+        pub use serializable::*;
         pub use signer::*;
         pub use transaction::*;
         pub use txscript::*;

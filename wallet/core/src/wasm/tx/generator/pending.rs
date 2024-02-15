@@ -4,6 +4,7 @@ use crate::tx::generator as native;
 use kaspa_consensus_wasm::{PrivateKey, SignableTransaction, Transaction, UtxoEntries};
 use kaspa_wrpc_wasm::RpcClient;
 
+#[derive(Clone)]
 /// @category Wallet SDK
 #[wasm_bindgen(inspectable)]
 pub struct PendingTransaction {
@@ -99,8 +100,28 @@ impl PendingTransaction {
     }
 }
 
+impl PendingTransaction {
+    pub fn address_list(&self) -> Vec<Address> {
+        self.inner.addresses().clone()
+    }
+}
+
 impl From<native::PendingTransaction> for PendingTransaction {
     fn from(pending_transaction: native::PendingTransaction) -> Self {
         Self { inner: pending_transaction }
+    }
+}
+
+impl TryFrom<JsValue> for PendingTransaction {
+    type Error = Error;
+    fn try_from(js_value: JsValue) -> Result<Self, Self::Error> {
+        PendingTransaction::try_from(&js_value)
+    }
+}
+
+impl TryFrom<&JsValue> for PendingTransaction {
+    type Error = Error;
+    fn try_from(js_value: &JsValue) -> Result<Self, Self::Error> {
+        Ok(ref_from_abi!(PendingTransaction, js_value)?)
     }
 }

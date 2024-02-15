@@ -296,6 +296,9 @@ pub enum Error {
 
     #[error("Unable to convert BigInt value {0}")]
     BigInt(String),
+
+    #[error("Unable to convert json value {0:?} into transaction object")]
+    InvalidTransactionJson(String),
 }
 
 impl From<Aborted> for Error {

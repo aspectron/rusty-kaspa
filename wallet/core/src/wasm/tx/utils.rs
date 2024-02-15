@@ -1,6 +1,8 @@
+use crate::api::message::TransactionSerializationResponse;
 use crate::imports::*;
 use crate::result::Result;
 use crate::tx::PaymentOutputs;
+use crate::wasm::api::message::*;
 use crate::wasm::tx::consensus::get_consensus_params_by_address;
 use crate::wasm::tx::generator::*;
 use crate::wasm::tx::mass::MassCalculator;
@@ -128,6 +130,28 @@ pub async fn create_transactions_js(settings: IGeneratorSettingsObject) -> Resul
 #[wasm_bindgen(js_name=deserializeTransaction)]
 pub async fn deserialize_transaction(json: String) -> Result<SignableTransaction> {
     Ok(SignableTransaction::deserialize_json(&json)?)
+}
+
+/// Serialization a transaction as json string
+/// @see {@link SignableTransaction.serialize} {@link SignableTransaction.deserialize}
+/// @category Wallet SDK
+#[wasm_bindgen(js_name=serializeTransaction)]
+pub async fn serialize_transaction(
+    tx: ITransactionSerializationRequest,
+    addresses: Option<bool>,
+) -> Result<ITransactionSerializationResponse> {
+    let tx = JsValue::from(tx);
+    let (transaction, addresses) = if let Ok(tx) = SignableTransaction::try_from(tx.clone()) {
+        (tx.serialize_json()?, None)
+    } else if let Ok(tx) = PendingTransaction::try_from(tx.clone()) {
+        (tx.serialize_json()?, if addresses.unwrap_or(false) { Some(tx.address_list()) } else { None })
+    } else if let Ok(tx) = Transaction::try_from(tx.clone()) {
+        (tx.serialize_json()?, None)
+    } else {
+        return Err(Error::InvalidTransactionJson(tx.as_string().unwrap_or_default()));
+    };
+
+    TransactionSerializationResponse { transaction, addresses }.try_into()
 }
 
 /// Creates a set of transactions using transaction [`Generator`].

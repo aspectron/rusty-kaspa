@@ -103,6 +103,11 @@ impl TransactionOutpoint {
     pub fn id(&self) -> &TransactionOutpointInner {
         self.inner()
     }
+
+    #[inline(always)]
+    pub fn index(&self) -> TransactionIndexType {
+        self.inner().index
+    }
 }
 
 #[cfg_attr(feature = "wasm32-sdk", wasm_bindgen)]

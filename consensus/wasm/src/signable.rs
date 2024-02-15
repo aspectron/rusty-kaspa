@@ -1,7 +1,7 @@
 use crate::imports::*;
 use crate::utils::script_hashes;
 use crate::utxo::UtxoEntries;
-use crate::{Transaction, TransactionInput, TransactionOutput};
+use crate::{SerializableTransaction, Transaction, TransactionInput, TransactionOutput};
 use kaspa_consensus_core::tx;
 use serde_wasm_bindgen::to_value;
 use std::str::FromStr;
@@ -33,15 +33,15 @@ impl SignableTransaction {
     /// @see {@link SignableTransaction.deserialize}
     #[wasm_bindgen(js_name=serialize)]
     pub fn serialize_json(&self) -> Result<String, JsError> {
-        Ok(self.serialize(serde_json::value::Serializer)?.to_string())
+        Ok(SerializableTransaction::try_from(self)?.serialize(serde_json::value::Serializer)?.to_string())
     }
 
     /// Deserialize transaction from json string
     /// @see {@link SignableTransaction.serialize}
     #[wasm_bindgen(js_name=deserialize)]
     pub fn deserialize_json(json: &str) -> Result<SignableTransaction, JsError> {
-        let mtx: Self = serde_json::from_value(serde_json::Value::from_str(json)?)?;
-        Ok(mtx)
+        let mtx: SerializableTransaction = serde_json::from_value(serde_json::Value::from_str(json)?)?;
+        Ok((&mtx).try_into()?)
     }
 
     #[wasm_bindgen(js_name=getScriptHashes)]
