@@ -32,44 +32,38 @@ impl<T: AsRef<Transaction>> TryFrom<&SerializableTransaction<T>> for SignableTra
     }
 }
 
-// #[derive(Clone, Debug, Serialize, Deserialize)]
-// pub struct SerializableTransactionOutpoint{
-//     pub transaction_id: TransactionId,
-//     pub index: TransactionIndexType,
-// }
-// impl SerializableTransactionOutpoint{
-//     pub fn new(transaction_id: TransactionId, index:TransactionIndexType)->Self{
-//         Self { transaction_id, index }
-//     }
-// }
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SerializableUtxoEntry {
     pub address: Option<Address>,
-    //pub outpoint: SerializableTransactionOutpoint,
     pub transaction_id: TransactionId,
     pub index: TransactionIndexType,
-    pub entry: cctx::UtxoEntry,
+    pub amount: u64,
+    pub script_public_key: ScriptPublicKey,
+    pub block_daa_score: u64,
+    pub is_coinbase: bool,
 }
 
 impl From<UtxoEntry> for SerializableUtxoEntry {
     fn from(value: UtxoEntry) -> Self {
         Self {
             address: value.address,
-            // outpoint: SerializableTransactionOutpoint::new(
-            //     value.outpoint.transaction_id(),
-            //     value.outpoint.index(),
-            // ),
             transaction_id: value.outpoint.transaction_id(),
             index: value.outpoint.index(),
-            entry: value.entry,
+            amount: value.entry.amount,
+            script_public_key: value.entry.script_public_key,
+            block_daa_score: value.entry.block_daa_score,
+            is_coinbase: value.entry.is_coinbase,
         }
     }
 }
 
 impl From<SerializableUtxoEntry> for UtxoEntry {
     fn from(value: SerializableUtxoEntry) -> Self {
-        Self { address: value.address, outpoint: TransactionOutpoint::new(value.transaction_id, value.index), entry: value.entry }
+        Self {
+            address: value.address,
+            outpoint: TransactionOutpoint::new(value.transaction_id, value.index),
+            entry: cctx::UtxoEntry::new(value.amount, value.script_public_key, value.block_daa_score, value.is_coinbase),
+        }
     }
 }
 
