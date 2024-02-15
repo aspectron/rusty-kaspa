@@ -69,64 +69,22 @@ initConsolePanicHook();
         console.log("Summary:", summary);
         console.log("transactions", transactions[0])
 
-        for (let pending of transactions) {
-            let tx_json = pending.serialize();
-            console.log("Pending transaction serialize:", tx_json);
-            //
-            // test PendingTransaction serialization
-            //
-            let tx_json_test = (await serializeTransaction(pending)).transaction;
-            if (tx_json != tx_json_test){
-                console.log("PendingTransaction: serialization failed", tx_json_test);
-            }else{
-                console.log("PendingTransaction: serialization success");
-            }
-            //
-            // test SignableTransaction serialization
-            //
-            let signable_transaction = SignableTransaction.deserialize(tx_json);
-            tx_json_test = (await serializeTransaction(signable_transaction)).transaction;
-            if (tx_json != tx_json_test){
-                console.log("SignableTransaction: serialization failed", tx_json_test);
-            }else{
-                console.log("SignableTransaction: serialization success");
-            }
-            //
-            // test Transaction serialization
-            //
-            let transaction_json = pending.transaction.serialize();
-            let transaction = Transaction.deserialize(transaction_json);
-            tx_json_test = (await serializeTransaction(transaction)).transaction;
-            if (transaction_json != tx_json_test){
-                console.log("Transaction: serialization failed", tx_json_test);
-            }else{
-                console.log("Transaction: serialization success");
-            }
+        // serialize tx 
+        let serializedTransactions = transactions.map(tx=>tx.serialize());
 
-            //
-            // test PendingTransaction serialization with addresses
-            //
-            let res = (await serializeTransaction(pending, true));
-            console.log("PendingTransaction serialize", res)
-            if (!res.addresses){
-                console.log("PendingTransaction: serialization with addresses failed", res);
-            }else{
-                console.log("PendingTransaction: serialization with addresses success");
-            }
+        // test : deserialize tx and sign it
+        let signedTransactions = serializedTransactions.map(tx_json=>{
+            let signable_tx = SignableTransaction.deserialize(tx_json);
+            return signTransaction(signable_tx, [privateKey], true)
+        });
 
+        //submit tx
+        let result = await Promise.all(signedTransactions.map(async(transaction)=>{
+            return await rpc.submitTransaction({transaction});
+        }));
 
-            // let signable_tx = await deserializeTransaction(tx_json);
-            // // console.log("Signing tx with secret key:", privateKey.toString());
-            // // await pending.sign([privateKey]);
-            // // console.log("Submitting pending tx to RPC ...")
-            // // let txid = await pending.submit(rpc);
-            // // console.log("Node responded with txid:", txid);
+        console.log("result", result)
 
-            // const transaction = signTransaction(signable_tx, [privateKey], true);
-            // let result = await rpc.submitTransaction({transaction});
-
-            // console.info(result);
-        }
     }
 
     await rpc.disconnect();
