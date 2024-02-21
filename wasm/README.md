@@ -13,7 +13,7 @@ codebase within JavaScript and TypeScript environments such as Node.js and Web B
 
 - [**integrating with Kaspa** guide](https://kaspa.aspectron.org/)
 - [**Rust** documentation](https://docs.rs/kaspa-wasm/latest/kaspa_wasm/index.html)
-- [**TypeScript** documentation](https://kaspa.aspectron.org/typedoc/)
+- [**TypeScript** documentation](https://kaspa.aspectron.org/docs/)
 
 Please note that while WASM directly binds JavaScript and Rust resources, their names on JavaScript side
 are different from their name in Rust as they conform to the 'camelCase' convention in JavaScript and 
@@ -24,11 +24,74 @@ types will not be constrained by TypeScript type definitions.
 
 ## Interfaces
 
-The APIs are currently separated into the following groups:
+The SDK is currently separated into the following top-level categories:
 
-- **Transaction API** — Bindings for primitives related to transactions.
-- **RPC API** — [RPC interface bindings](https://docs.rs/kaspa-wasm/latest/kaspa-wasm/rpc) for the Kaspa node using WebSocket (wRPC) connections.
-- **Wallet API** — API for async core wallet processing tasks.
+- **RPC API** — RPC API for the Kaspa node using WebSockets.
+- **Wallet SDK** — Bindings for primitives related to key management and transactions.
+- **Wallet API** — API for the Rusty Kaspa Wallet framework.
+
+## Examples
+
+**IMPORTANT:** To view web examples, you need to serve them from a local web server and
+serve them from the root of the SDK folder (`kaspa-wasm32-sdk` if using a redistributable or
+`rusty-kaspa/wasm` if building from source). This is because examples use relative paths.
+WASM32 currently can not be loaded using the `file://` protocol.
+
+You can use any web server of your choice. If you don't have one, you can run one as follows:
+```bash
+cargo install http-server
+http-server
+```
+Access the examples at  [http://localhost:7878/examples/web/index.html](http://localhost:7878/examples/web/index.html).
+(Make sure to change the port if you are using a different server. Many servers will serve on 
+[http://localhost:8000/examples/web/index.html](http://localhost:8000/examples/web/index.html) by default)
+
+If building from source, you must run `build-release` or `build-web` scripts before running the examples.
+
+## Building from Source
+
+To build the WASM32 SDK from source, you need to have the Rust environment installed. To do that,
+follow instructions in the [Rusty-Kaspa README](https://github.com/kaspanet/rusty-kaspa).
+
+Once you have Rust installed, you can build the WASM32 SDK as follows:
+
+- `./build-release` - build the release version of the WASM32 SDK + Docs. The release version also contains `debug` builds of the libraries.
+- `./build-web` - build the web packages
+- `./build-docs` - runs `build-web` and then generates typedoc documentation
+- `./build-node` - build the NodeJS packages
+
+## WASM32 SDK release packages
+
+The SDK is built as 4 packages for Web Browsers as follows:
+- KeyGen - Key & Address Generation only
+- RPC - RPC only
+- Core - RPC + Key & Address Generation + Wallet SDK
+- Full - Full SDK + Integrated Wallet
+For NodeJS, the SDK is built as a single package containing all features.
+
+## SDK folder structure
+
+The following is a brief overview of the SDK folder structure (as available in the release):
+
+- `web/kaspa` - **full** Rusty Kaspa WASM32 SDK bindings for use in web browsers.
+- `web/kaspa-rpc` - only the RPC bindings for use in web browsers (reduced WASM binary size).
+- `nodejs/kaspa` - **full** Rusty Kaspa WASM32 SDK bindings for use with NodeJS.
+- `docs` - Rusty Kaspa WASM32 SDK documentation.
+- `examples` folders contain examples for NodeJS and web browsers.
+- `examples/data` - folder user by examples for configuration and wallet data storage.
+- `examples/javascript` - JavaScript examples.
+- `examples/javascript/general` - General SDK examples (keys & derivation, addresses, encryption, etc.).
+- `examples/javascript/transactions` - Creating, sending and receiving transactions.
+- `examples/javascript/wallet` - Interfacing with the Rusty Kaspa Wallet framework.
+- `examples/typescript` - TypeScript examples.
+
+
+If you are using JavaScript and Visual Studio Code, it is highly recommended you replicate 
+the `jsconfig.json` configuration file as is done in the SDK examples. This file allows 
+Visual Studio to provide TypeScript-like code completion, type checking and documentation.
+
+Included documentation in the release can be accessed by loading the `docs/kaspa/index.html` 
+file in a web browser.
 
 ## Using RPC
 

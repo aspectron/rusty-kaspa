@@ -24,6 +24,9 @@ pub enum Error {
     #[error("{0}")]
     Custom(String),
 
+    #[error(transparent)]
+    WalletKeys(#[from] kaspa_wallet_keys::error::Error),
+
     #[error("please select an account")]
     AccountSelection,
 
@@ -235,6 +238,9 @@ pub enum Error {
     DowncastError(String),
 
     #[error(transparent)]
+    ConsensusClient(#[from] kaspa_consensus_client::error::Error),
+
+    #[error(transparent)]
     ConsensusWasm(#[from] kaspa_consensus_wasm::error::Error),
 
     #[error("Fees::Include or Fees::Exclude are not allowed in sweep transactions")]
@@ -297,8 +303,8 @@ pub enum Error {
     #[error("Unable to convert BigInt value {0}")]
     BigInt(String),
 
-    #[error("Unable to convert json value {0:?} into transaction object")]
-    InvalidTransactionJson(String),
+    #[error("Invalid mnemonic phrase")]
+    InvalidMnemonicPhrase,
 }
 
 impl From<Aborted> for Error {

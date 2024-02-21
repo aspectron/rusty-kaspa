@@ -255,10 +255,22 @@ pub struct AccountsRenameRequest {
 #[serde(rename_all = "camelCase")]
 pub struct AccountsRenameResponse {}
 
+// @category Wallet API
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
+#[wasm_bindgen]
 pub enum AccountsDiscoveryKind {
     Bip44,
+}
+
+impl FromStr for AccountsDiscoveryKind {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "bip44" => Ok(Self::Bip44),
+            _ => Err(Error::custom(format!("Invalid discovery kind: {s}"))),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
@@ -268,7 +280,7 @@ pub struct AccountsDiscoveryRequest {
     pub address_scan_extent: u32,
     pub account_scan_extent: u32,
     pub bip39_passphrase: Option<Secret>,
-    pub bip39_mnemonic: String,
+    pub bip39_mnemonic: Secret,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
@@ -337,7 +349,7 @@ pub struct AccountsGetResponse {
 /// @category Wallet API
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
-#[wasm_bindgen]
+#[cfg_attr(feature = "wasm32-sdk", wasm_bindgen)]
 pub enum NewAddressKind {
     Receive,
     Change,

@@ -1,13 +1,8 @@
 use crate::api::message::*;
 use crate::api::traits::*;
-use kaspa_wallet_macros::declare_wasm_handlers;
-// use crate::error::Error;
 use crate::imports::*;
 use crate::result::Result;
-// use crate::secret::Secret;
-// use crate::storage::{PrvKeyData, PrvKeyDataId, PrvKeyDataInfo, WalletDescriptor};
-// use crate::tx::GeneratorSummary;
-// use workflow_core::channel::Receiver;
+use kaspa_wallet_macros::declare_wasm_handlers;
 
 pub mod extensions;
 pub mod message;
@@ -18,7 +13,7 @@ use super::Wallet;
 
 declare_wasm_handlers!([
     /// Ping backend
-    Ping,
+    // Ping,
     Batch,
     Flush,
     // Connect,
@@ -27,6 +22,7 @@ declare_wasm_handlers!([
     WalletEnumerate,
     WalletCreate,
     WalletOpen,
+    WalletReload,
     WalletClose,
     // WalletExists,
     // WalletRename,

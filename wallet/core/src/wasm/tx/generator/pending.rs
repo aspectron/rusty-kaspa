@@ -1,10 +1,10 @@
 use crate::imports::*;
 use crate::result::Result;
 use crate::tx::generator as native;
-use kaspa_consensus_wasm::{PrivateKey, SignableTransaction, Transaction, UtxoEntries};
+use kaspa_consensus_client::Transaction;
+use kaspa_wallet_keys::privatekey::PrivateKey;
 use kaspa_wrpc_wasm::RpcClient;
 
-#[derive(Clone)]
 /// @category Wallet SDK
 #[wasm_bindgen(inspectable)]
 pub struct PendingTransaction {
@@ -70,8 +70,8 @@ impl PendingTransaction {
     /// raw private key bytes (encoded as `Uint8Array` or as hex strings)
     pub fn sign(&self, js_value: JsValue) -> Result<()> {
         if let Ok(keys) = js_value.dyn_into::<Array>() {
-            let keys =
-                keys.iter().map(PrivateKey::try_from).collect::<std::result::Result<Vec<_>, kaspa_consensus_wasm::error::Error>>()?;
+            let keys: Vec<PrivateKey> =
+                keys.iter().map(PrivateKey::try_from).collect::<std::result::Result<Vec<_>, kaspa_wallet_keys::error::Error>>()?;
             self.inner.try_sign_with_keys(keys.iter().map(|key| key.into()).collect())
         } else {
             Err(Error::custom("Please supply an array of keys"))
@@ -90,38 +90,10 @@ impl PendingTransaction {
     pub fn transaction(&self) -> Result<Transaction> {
         Ok(Transaction::from(self.inner.transaction()))
     }
-    /// Serialize transaction as json string
-    /// @see {@link SignableTransaction.deserialize}
-    #[wasm_bindgen(js_name=serialize)]
-    pub fn serialize_json(&self) -> Result<String, JsError> {
-        let utxo_entries: UtxoEntries = self.inner.inner.utxo_entries.clone().into_iter().collect::<Vec<UtxoEntryReference>>().into();
-        let tx = SignableTransaction::try_from((self.inner.signable_transaction(), utxo_entries))?;
-        tx.serialize_json()
-    }
-}
-
-impl PendingTransaction {
-    pub fn address_list(&self) -> Vec<Address> {
-        self.inner.addresses().clone()
-    }
 }
 
 impl From<native::PendingTransaction> for PendingTransaction {
     fn from(pending_transaction: native::PendingTransaction) -> Self {
         Self { inner: pending_transaction }
-    }
-}
-
-impl TryFrom<JsValue> for PendingTransaction {
-    type Error = Error;
-    fn try_from(js_value: JsValue) -> Result<Self, Self::Error> {
-        PendingTransaction::try_from(&js_value)
-    }
-}
-
-impl TryFrom<&JsValue> for PendingTransaction {
-    type Error = Error;
-    fn try_from(js_value: &JsValue) -> Result<Self, Self::Error> {
-        Ok(ref_from_abi!(PendingTransaction, js_value)?)
     }
 }

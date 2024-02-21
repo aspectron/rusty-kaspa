@@ -1,12 +1,11 @@
-use crate::api::message::TransactionSerialization;
 use crate::imports::*;
 use crate::result::Result;
 use crate::tx::PaymentOutputs;
-use crate::wasm::api::message::*;
 use crate::wasm::tx::consensus::get_consensus_params_by_address;
 use crate::wasm::tx::generator::*;
 use crate::wasm::tx::mass::MassCalculator;
 use kaspa_addresses::Address;
+use kaspa_consensus_client::*;
 use kaspa_consensus_core::subnets::SUBNETWORK_ID_NATIVE;
 use kaspa_consensus_wasm::*;
 use kaspa_wallet_macros::declare_typescript_wasm_interface as declare;
@@ -84,7 +83,13 @@ declare! {
      * @category Wallet SDK
      */
     export interface ICreateTransactions {
+        /**
+         * Array of pending unsigned transactions.
+         */
         transactions : PendingTransaction[];
+        /**
+         * Summary of the transaction generation process.
+         */
         summary : GeneratorSummary;
     }
     "#,
@@ -94,7 +99,8 @@ declare! {
 const TS_CREATE_TRANSACTIONS: &'static str = r#"
 "#;
 
-/// Creates a set of transactions using transaction [`Generator`].
+/// Helper function that creates a set of transactions using the transaction {@link Generator}.
+/// @see {@link IGeneratorSettingsObject}, {@link Generator}, {@link estimateTransactions}
 /// @category Wallet SDK
 #[wasm_bindgen(js_name=createTransactions)]
 pub async fn create_transactions_js(settings: IGeneratorSettingsObject) -> Result<ICreateTransactions> {
@@ -124,37 +130,12 @@ pub async fn create_transactions_js(settings: IGeneratorSettingsObject) -> Resul
     }
 }
 
-/// Creates a transaction from serialized transaction json
-/// @see {@link SignableTransaction.serialize} {@link SignableTransaction.deserialize}
-/// @category Wallet SDK
-#[wasm_bindgen(js_name=deserializeTransaction)]
-pub async fn deserialize_transaction(json: String) -> Result<SignableTransaction> {
-    Ok(SignableTransaction::deserialize_json(&json)?)
-}
-
-/// Serialize a transaction as json string
-/// @see {@link SignableTransaction.serialize} {@link SignableTransaction.deserialize}
-/// @category Wallet SDK
-#[wasm_bindgen(js_name=serializeTransaction)]
-pub async fn serialize_transaction(tx: ISerializableTransaction, addresses: Option<bool>) -> Result<ITransactionSerialization> {
-    let tx = JsValue::from(tx);
-    let (transaction, addresses) = if let Ok(tx) = SignableTransaction::try_from(tx.clone()) {
-        (tx.serialize_json()?, None)
-    } else if let Ok(tx) = PendingTransaction::try_from(tx.clone()) {
-        (tx.serialize_json()?, if addresses.unwrap_or(false) { Some(tx.address_list()) } else { None })
-    } else if let Ok(tx) = Transaction::try_from(tx.clone()) {
-        (tx.serialize_json()?, None)
-    } else {
-        return Err(Error::InvalidTransactionJson(tx.as_string().unwrap_or_default()));
-    };
-
-    TransactionSerialization { transaction, addresses }.try_into()
-}
-
-/// Creates a set of transactions using transaction [`Generator`].
+/// Helper function that creates an estimate using the transaction {@link Generator}
+/// by producing only the {@link GeneratorSummary} containing the estimate.
+/// @see {@link IGeneratorSettingsObject}, {@link Generator}, {@link createTransactions}
 /// @category Wallet SDK
 #[wasm_bindgen(js_name=estimateTransactions)]
-pub async fn estimate_js(settings: IGeneratorSettingsObject) -> Result<GeneratorSummary> {
+pub async fn estimate_transactions_js(settings: IGeneratorSettingsObject) -> Result<GeneratorSummary> {
     let generator = Generator::ctor(settings)?;
     if is_web() {
         // yield after each generated transaction if operating in the browser

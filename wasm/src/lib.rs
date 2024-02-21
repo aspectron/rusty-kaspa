@@ -131,8 +131,11 @@ For more details, please follow the [**integrating with Kaspa**](https://kaspa.a
 
 #![allow(unused_imports)]
 
-#[cfg(all(feature = "wasm32-sdk", not(target_arch = "wasm32")))]
-compiler_error!("`kaspa-wasm` crate for WASM32 target must be built with `--features wasm32-sdk`");
+#[cfg(all(any(feature = "wasm32-sdk", feature = "wasm32-rpc", feature = "wasm32-es"), not(target_arch = "wasm32")))]
+compile_error!("`kaspa-wasm` crate for WASM32 target must be built with `--features wasm32-sdk|wasm32-rpc|wasm32-es`");
+
+mod version;
+pub use version::*;
 
 cfg_if::cfg_if! {
 
@@ -151,11 +154,58 @@ cfg_if::cfg_if! {
                 pub use kaspa_rpc_core::model::message::*;
             }
             pub use kaspa_rpc_core::api::rpc::RpcApi;
-            pub use kaspa_wrpc_wasm::RpcClient;
+            pub use kaspa_rpc_core::wasm::message::*;
+
+            pub use kaspa_wrpc_wasm::client::*;
+            pub use kaspa_wrpc_wasm::beacon::*;
+            pub use kaspa_wrpc_wasm::notify::*;
         }
 
         pub use kaspa_consensus_wasm::*;
+        pub use kaspa_wallet_keys::prelude::*;
+        pub use kaspa_wallet_core::wasm::*;
 
-        pub use kaspa_wallet_core::wasm::{tx::*, utils::*, utxo::*, wallet::*, xprivatekey::*, xpublickey::*};
+    } else if #[cfg(feature = "wasm32-core")] {
+
+        pub use kaspa_addresses::{Address, Version as AddressVersion};
+        pub use kaspa_consensus_core::tx::{ScriptPublicKey, Transaction, TransactionInput, TransactionOutpoint, TransactionOutput};
+        pub use kaspa_pow::wasm::*;
+
+        pub mod rpc {
+            //! Kaspa RPC interface
+            //!
+
+            pub mod messages {
+                //! Kaspa RPC messages
+                pub use kaspa_rpc_core::model::message::*;
+            }
+            pub use kaspa_rpc_core::api::rpc::RpcApi;
+            pub use kaspa_rpc_core::wasm::message::*;
+
+            pub use kaspa_wrpc_wasm::client::*;
+            pub use kaspa_wrpc_wasm::beacon::*;
+            pub use kaspa_wrpc_wasm::notify::*;
+        }
+
+        pub use kaspa_consensus_wasm::*;
+        pub use kaspa_wallet_keys::prelude::*;
+        pub use kaspa_wallet_core::wasm::*;
+
+    } else if #[cfg(feature = "wasm32-rpc")] {
+
+        pub use kaspa_rpc_core::api::rpc::RpcApi;
+        pub use kaspa_rpc_core::wasm::message::*;
+        pub use kaspa_rpc_core::wasm::message::IPingRequest;
+        pub use kaspa_wrpc_wasm::client::*;
+        pub use kaspa_wrpc_wasm::beacon::*;
+        pub use kaspa_wrpc_wasm::notify::*;
+        pub use kaspa_wasm_types::*;
+
+    } else if #[cfg(feature = "wasm32-keygen")] {
+
+        pub use kaspa_addresses::{Address, Version as AddressVersion};
+        pub use kaspa_wallet_keys::prelude::*;
+        pub use kaspa_wasm_types::*;
+
     }
 }
