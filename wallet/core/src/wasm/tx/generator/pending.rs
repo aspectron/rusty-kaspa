@@ -94,7 +94,7 @@ impl PendingTransaction {
     /// @see {@link SignableTransaction.deserialize}
     #[wasm_bindgen(js_name=serialize)]
     pub fn serialize_json(&self) -> Result<String, JsError> {
-        let utxo_entries: UtxoEntries = self.inner.inner.utxo_entries.clone().into_iter().collect::<Vec<UtxoEntryReference>>().into();
+        let utxo_entries: UtxoEntries = self.inner.utxo_entry_list().into();
         let tx = SignableTransaction::try_from((self.inner.signable_transaction(), utxo_entries))?;
         tx.serialize_json()
     }
@@ -103,6 +103,9 @@ impl PendingTransaction {
 impl PendingTransaction {
     pub fn address_list(&self) -> Vec<Address> {
         self.inner.addresses().clone()
+    }
+    pub fn utxo_entries(&self) -> Vec<&UtxoEntryReference> {
+        self.inner.utxo_entries().iter().collect()
     }
 }
 

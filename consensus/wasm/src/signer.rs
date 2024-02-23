@@ -68,6 +68,19 @@ fn sign_transaction_impl(
     Ok(mtx)
 }
 
+/// `varifyTransactionSignature()` is a helper function to varify transaction signature.
+/// @category Wallet SDK
+#[wasm_bindgen(js_name = "varifyTransactionSignature")]
+pub fn varify_transaction_signature(mtx: SignableTransaction)->Result<SignableTransaction>{
+    let mtx_clone = mtx.clone();
+    {
+        let tx = tx::SignableTransaction::from(mtx);
+        let tx_verifiable = tx.as_verifiable();
+        verify(&tx_verifiable)?;
+    }
+    Ok(mtx_clone)
+}
+
 /// Sign a transaction using schnorr, returns a new transaction with the signatures added.
 /// The resulting transaction may be partially signed if the supplied keys are not sufficient
 /// to sign all of its inputs.

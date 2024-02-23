@@ -130,6 +130,25 @@ impl PendingTransaction {
         &self.inner.utxo_entries
     }
 
+    /// Get UTXO entries [`Vec<UtxoEntryReference>`] of the pending transaction
+    pub fn utxo_entry_list(&self) -> Vec<UtxoEntryReference> {
+        //self.inner.signable_tx.lock().unwrap().entries.iter().map(|a|a.map(UtxoEntryReference::from)).collect()
+
+        let mut map = HashMap::new();
+        for utxo_ref in self.inner.utxo_entries.iter(){
+            map.insert(&utxo_ref.utxo.entry, utxo_ref);
+        }
+
+        let mut result = vec![];
+        for utxo_opt in self.inner.signable_tx.lock().unwrap().entries.iter(){
+            if let Some(entry) = utxo_opt.as_ref(){
+                result.push((*map.get(&entry).unwrap()).clone());
+            }
+        }
+
+        result
+    }
+
     pub fn fees(&self) -> u64 {
         self.inner.fees
     }

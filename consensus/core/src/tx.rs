@@ -29,7 +29,7 @@ pub type TransactionId = kaspa_hashes::Hash;
 /// score of the block that accepts the tx, its public key script, and how
 /// much it pays.
 /// @category Consensus
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize, BorshSchema)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize, BorshSchema)]
 #[serde(rename_all = "camelCase")]
 #[wasm_bindgen(inspectable, js_name = TransactionUtxoEntry)]
 pub struct UtxoEntry {

@@ -137,9 +137,17 @@ pub fn sign_with_multiple_v2(mut mutable_tx: SignableTransaction, privkeys: Vec<
     for i in 0..mutable_tx.tx.inputs.len() {
         let script = mutable_tx.entries[i].as_ref().unwrap().script_public_key.script();
         if let Some(schnorr_key) = map.get(&script.to_vec()) {
+            workflow_log::log_info!("\n\n######: index {i}");
+            workflow_log::log_info!("mutable_tx {mutable_tx:?}");
             let sig_hash = calc_schnorr_signature_hash(&mutable_tx.as_verifiable(), i, SIG_HASH_ALL, &mut reused_values);
+            workflow_log::log_info!("script: {:?}", script);
+            workflow_log::log_info!("sig_hash: {:?}", sig_hash);
             let msg = secp256k1::Message::from_slice(sig_hash.as_bytes().as_slice()).unwrap();
-            let sig: [u8; 64] = *schnorr_key.sign_schnorr(msg).as_ref();
+            workflow_log::log_info!("msg: {}", msg);
+            //let sig: [u8; 64] = *schnorr_key.sign_schnorr(msg).as_ref();
+            let rand = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+            let sig:[u8; 64] = *secp256k1::SECP256K1.sign_schnorr_with_aux_rand(&msg, schnorr_key, &rand).as_ref();
+            workflow_log::log_info!("sig: {:?}", sig);
             // This represents OP_DATA_65 <SIGNATURE+SIGHASH_TYPE> (since signature length is 64 bytes and SIGHASH_TYPE is one byte)
             mutable_tx.tx.inputs[i].signature_script = std::iter::once(65u8).chain(sig).chain([SIG_HASH_ALL.to_u8()]).collect();
         } else {
