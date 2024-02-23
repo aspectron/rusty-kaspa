@@ -65,6 +65,11 @@ interface IGeneratorSettingsObject {
      * Optional data payload to be included in the transaction.
      */
     payload?: Uint8Array | HexString;
+
+    /**
+     * Optional NetworkId , required when `entries` param is array instead of UtxoContext
+     */
+    networkId?: NetworkId;
 }
 "#;
 

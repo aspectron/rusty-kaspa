@@ -1,9 +1,9 @@
 use crate::imports::*;
 use crate::utils::script_hashes;
-use kaspa_consensus_client::{Transaction, TransactionInput, TransactionOutput, UtxoEntries};
-use kaspa_consensus_core::tx;
+use kaspa_consensus_client::{Transaction, TransactionInput, TransactionOutput, UtxoEntries, UtxoEntry};
+use kaspa_consensus_core::tx::{self, VerifiableTransaction};
 use serde_wasm_bindgen::to_value;
-use std::str::FromStr;
+//use std::str::FromStr;
 
 /// Represents a generic mutable transaction
 /// @category Consensus
@@ -28,20 +28,22 @@ impl SignableTransaction {
         self.tx.lock().unwrap().clone()
     }
 
-    /// Serialize transaction as json string
-    /// @see {@link SignableTransaction.deserialize}
-    #[wasm_bindgen(js_name=serialize)]
-    pub fn serialize_json(&self) -> Result<String, JsError> {
-        Ok(SerializableTransaction::try_from(self)?.serialize(serde_json::value::Serializer)?.to_string())
-    }
+    // /// Serialize transaction as json string
+    // /// @see {@link SignableTransaction.deserialize}
+    // #[wasm_bindgen(js_name=serialize)]
+    // pub fn serialize_json(&self) -> Result<String, JsError> {
+    //     //Ok(SerializableTransaction::try_from(self)?.serialize(serde_json::value::Serializer)?.to_string())
+    //     Ok("TODO::".to_string())
+    // }
 
-    /// Deserialize transaction from json string
-    /// @see {@link SignableTransaction.serialize}
-    #[wasm_bindgen(js_name=deserialize)]
-    pub fn deserialize_json(json: &str) -> Result<SignableTransaction, JsError> {
-        let mtx: SerializableTransaction = serde_json::from_value(serde_json::Value::from_str(json)?)?;
-        Ok((&mtx).try_into()?)
-    }
+    // /// Deserialize transaction from json string
+    // /// @see {@link SignableTransaction.serialize}
+    // #[wasm_bindgen(js_name=deserialize)]
+    // pub fn deserialize_json(_json: &str) -> Result<SignableTransaction, JsError> {
+    //     let pskt: PartiallySignedTransaction = serde_json::from_value(serde_json::Value::from_str(json)?)?;
+    //     // Ok((&pskt).try_into()?)
+    //     Err(JsError::new("TODO ERROR :"))
+    // }
 
     #[wasm_bindgen(js_name=getScriptHashes)]
     pub fn script_hashes(&self) -> Result<JsValue, JsError> {
@@ -134,6 +136,21 @@ impl TryFrom<(tx::SignableTransaction, UtxoEntries)> for SignableTransaction {
     type Error = Error;
     fn try_from(value: (tx::SignableTransaction, UtxoEntries)) -> Result<Self, Self::Error> {
         Ok(Self { tx: Arc::new(Mutex::new(value.0.tx.into())), entries: value.1 })
+    }
+}
+
+impl TryFrom<tx::SignableTransaction> for SignableTransaction {
+    type Error = Error;
+    fn try_from(tx: tx::SignableTransaction) -> Result<Self, Self::Error> {
+        let mut entries = vec![];
+        let verifiable_tx = tx.as_verifiable();
+        let transaction = tx.as_ref();
+        for index in 0..transaction.inputs.len() {
+            let (input, entry) = verifiable_tx.populated_input(index);
+            entries.push(UtxoEntry { address: None, outpoint: input.previous_outpoint.into(), entry: entry.clone() });
+        }
+
+        Ok(Self { tx: Arc::new(Mutex::new(tx.tx.clone().into())), entries: entries.into() })
     }
 }
 

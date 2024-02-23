@@ -9,7 +9,7 @@ const {
     kaspaToSompi,
     createTransactions,
     initConsolePanicHook,
-    serializeTransaction,
+    //serializeTransaction,
     deserializeTransaction,
     signTransaction,
     SignableTransaction,
@@ -34,7 +34,7 @@ initConsolePanicHook();
     console.log(`Destination address: ${destinationAddress}`);
 
     const rpc = new RpcClient({
-        url : "wss://eu-1.kaspa-ng.org/testnet-11",
+        url : "wss://eu-1.kaspa-ng.io/testnet-11",
         encoding,
         networkId
     });
@@ -67,14 +67,15 @@ initConsolePanicHook();
         });
 
         console.log("Summary:", summary);
-        console.log("transactions", transactions[0])
+        console.log("transactions[0]", transactions[0])
 
         // serialize tx 
         let serializedTransactions = transactions.map(tx=>tx.serialize());
 
         // test : deserialize tx and sign it
         let signedTransactions = serializedTransactions.map(tx_json=>{
-            let signable_tx = SignableTransaction.deserialize(tx_json);
+            console.log("tx_json:", tx_json);
+            let signable_tx = deserializeTransaction(tx_json);
             return signTransaction(signable_tx, [privateKey], true)
         });
 

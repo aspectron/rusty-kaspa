@@ -1,6 +1,8 @@
 use crate::imports::*;
 use crate::result::Result;
+use crate::tx::PartiallySignedTransaction;
 use js_sys::Array;
+use kaspa_consensus_core::tx::SignableTransaction as NativeSignableTransaction;
 use kaspa_consensus_core::{
     hashing::sighash_type::SIG_HASH_ALL,
     sign::{sign_with_multiple_v2, verify},
@@ -46,6 +48,14 @@ pub fn js_sign_transaction(mtx: SignableTransaction, signer: PrivateKeyArray, ve
     } else {
         Err(Error::custom("signTransaction() requires an array of signatures"))
     }
+}
+
+/// `deserializeTransaction()` is a helper function to deserialize a json string into {@link SignableTransaction}.
+/// @category Wallet SDK
+#[wasm_bindgen(js_name = "deserializeTransaction")]
+pub fn deserialize_transaction(json: &str) -> Result<SignableTransaction> {
+    let pskt: PartiallySignedTransaction = serde_json::from_value(serde_json::Value::from_str(json)?)?;
+    Ok(NativeSignableTransaction::from(pskt).try_into()?)
 }
 
 pub fn sign_transaction(mtx: SignableTransaction, private_keys: Vec<[u8; 32]>, verify_sig: bool) -> Result<SignableTransaction> {

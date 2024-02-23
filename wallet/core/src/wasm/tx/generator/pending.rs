@@ -1,6 +1,7 @@
 use crate::imports::*;
 use crate::result::Result;
 use crate::tx::generator as native;
+use crate::tx::pskt::PartiallySignedTransaction;
 use kaspa_consensus_client::Transaction;
 use kaspa_wallet_keys::privatekey::PrivateKey;
 use kaspa_wrpc_wasm::RpcClient;
@@ -89,6 +90,14 @@ impl PendingTransaction {
     #[wasm_bindgen(getter)]
     pub fn transaction(&self) -> Result<Transaction> {
         Ok(Transaction::from(self.inner.transaction()))
+    }
+
+    /// Serialize transaction as json string
+    /// @see {@link deserializeTransaction}
+    #[wasm_bindgen(js_name=serialize)]
+    pub fn serialize_json(&self) -> Result<String, JsError> {
+        let pskt = PartiallySignedTransaction::from_signable_transaction(&self.inner.signable_transaction())?;
+        Ok(serde_json::to_string(&pskt)?)
     }
 }
 

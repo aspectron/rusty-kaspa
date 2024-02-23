@@ -4,6 +4,7 @@ use crate::output::TransactionOutput;
 use crate::result::Result;
 use kaspa_consensus_core::subnets::{self, SubnetworkId};
 use kaspa_utils::hex::*;
+use std::str::FromStr;
 
 #[wasm_bindgen(typescript_custom_section)]
 const TS_TRANSACTION: &'static str = r#"
