@@ -1,6 +1,7 @@
 
 const fs = require('fs');
-const { Mnemonic, XPrv } = require('../nodejs/kaspa');
+const path = require('path');
+const { Mnemonic, XPrv, PublicKeyGenerator } = require('../nodejs/kaspa');
 const { parseArgs } = require('node:util');
 const { create } = require('domain');
 
@@ -30,25 +31,26 @@ if (values.help) {
 
 const network = values.network ?? positionals.find((positional) => positional.match(/^(testnet|mainnet|simnet|devnet)-\d+$/)) ?? null;
 
-const exists = fs.existsSync("./data/config.json");
+const configFileName = path.join(__dirname, "data", "config.json");
+const exists = fs.existsSync(configFileName);
 if (!exists || values.reset) {
     createConfigFile();
     process.exit(0);
 }
 
 if (network) {
-    let config = JSON.parse(fs.readFileSync("./data/config.json", "utf8"));
+    let config = JSON.parse(fs.readFileSync(configFileName, "utf8"));
     config.networkId = network;
-    fs.writeFileSync("./data/config.json", JSON.stringify(config, null, 4));
+    fs.writeFileSync(configFileName, JSON.stringify(config, null, 4));
     console.log("");
     console.log(`Updating networkId to '${network}'`);
 }
 
-if (fs.existsSync("./data/config.json")) {
-    let config = JSON.parse(fs.readFileSync("./data/config.json", "utf8"));
-
+if (fs.existsSync(configFileName)) {
+    let config = JSON.parse(fs.readFileSync(configFileName, "utf8"));
+// console.log("loading mnemonic:", config.mnemonic);
     let mnemonic = new Mnemonic(config.mnemonic);
-    let wallet = basicWallet(mnemonic);
+    let wallet = basicWallet(config.networkId, mnemonic);
 
     console.log("");
     console.log("networkId:", config.networkId);
@@ -62,21 +64,19 @@ if (fs.existsSync("./data/config.json")) {
 }
 
 function createConfigFile() {
-    let wallet = basicWallet(Mnemonic.random());
-
+    
     if (!network) {
         console.log("... '--network=' argument is not specified ...defaulting to 'testnet-11'");
     }
-
     let networkId = network ?? "testnet-11";
+
+    let wallet = basicWallet(networkId, Mnemonic.random());
+
     let config = {
         networkId,
         mnemonic: wallet.mnemonic.phrase,
-        xprv: wallet.xprv,
-        receive: wallet.receive,
-        change: wallet.change,
     };
-    fs.writeFileSync("./data/config.json", JSON.stringify(config, null, 4));
+    fs.writeFileSync(configFileName, JSON.stringify(config, null, 4));
     console.log("");
     console.log("Creating config data in './data/config.json'");
     console.log("");
@@ -88,17 +88,32 @@ function createConfigFile() {
     console.log("");
 }
 
-function basicWallet(mnemonic) {
+function basicWallet(networkId, mnemonic) {
+    console.log("mnemonic:", mnemonic.phrase);
     let xprv = new XPrv(mnemonic.toSeed());
-    let account_0 = xprv.derivePath("m/44'/111111'/0'/0");
-    // let xpub = account_0.publicKey();
-    // let address = xpub.deriveChild(0).toAddress();
+    let account_0_root = xprv.derivePath("m/44'/111111'/0'/0").toXPub();
+    let account_0 = {
+        receive_xpub : account_0_root.deriveChild(0),
+        change_xpub : account_0_root.deriveChild(1),
+    };
+    let receive = account_0.receive_xpub.deriveChild(0).publicKey().toAddress(networkId).toString();
+    let change = account_0.change_xpub.deriveChild(0).publicKey().toAddress(networkId).toString();
+
+    let keygen = PublicKeyGenerator.fromMasterXPrv(
+        xprv.toString(),
+        false,
+        0n,0
+    );
+
+    // let receive_pubkeys = keygen.receivePubkeys(0,1).map((key) => key.toAddress(networkId).toString());
+    // let change_pubkeys = keygen.changePubkeys(0,1).map((key) => key.toAddress(networkId).toString());
+    // console.log("receive_pubkeys:", receive_pubkeys);
+    // console.log("change_pubkeys:", change_pubkeys);
 
     return {
         mnemonic,
         xprv: xprv.toString(),
-        // xprv : xprv.intoString("xprv"),
-        // xpub,
-        // address,  // receive address
+        receive,
+        change,
     };
 }

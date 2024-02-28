@@ -84,7 +84,7 @@ impl Inner {
                             // log_info!("notification: posting to channel: {notification:?}");
                             notification_sender.send(notification).await?;
                         } else {
-                            log_warning!("WARNING: Kaspa RPC notification is not consumed by user: {:?}", notification);
+                            log_warn!("WARNING: Kaspa RPC notification is not consumed by user: {:?}", notification);
                         }
                         Ok(())
                     })
@@ -309,7 +309,7 @@ impl KaspaRpcClient {
         &self.inner.rpc_ctl
     }
 
-    /// Starts RPC services.
+    /// Start background RPC services.
     pub async fn start(&self) -> Result<()> {
         if !self.inner.background_services_running.load(Ordering::SeqCst) {
             match &self.notification_mode {
@@ -324,7 +324,7 @@ impl KaspaRpcClient {
         Ok(())
     }
 
-    /// Stops background services.
+    /// Stop background RPC services.
     pub async fn stop(&self) -> Result<()> {
         if self.inner.background_services_running.load(Ordering::SeqCst) {
             match &self.notification_mode {
@@ -346,6 +346,9 @@ impl KaspaRpcClient {
     /// to the wRPC server.  If the supplied `block` call is `true`
     /// this function will block until the first successful
     /// connection.
+    ///
+    /// This method starts background RPC services if they are not running and
+    /// attempts to connect to the RPC endpoint.
     pub async fn connect(&self, options: Option<ConnectOptions>) -> ConnectResult<Error> {
         let mut options = options.unwrap_or_default();
 
@@ -367,17 +370,19 @@ impl KaspaRpcClient {
         Ok(self.inner.rpc_client.connect(options).await?)
     }
 
+    /// This method stops background RPC services and disconnects
+    /// from the RPC endpoint.
     pub async fn disconnect(&self) -> Result<()> {
         self.inner.rpc_client.shutdown().await?;
         self.stop().await?;
         Ok(())
     }
 
-    /// Stop and shutdown RPC disconnecting existing connections
-    /// and stopping reconnection process.
-    pub async fn shutdown(&self) -> Result<()> {
-        Ok(self.inner.rpc_client.shutdown().await?)
-    }
+    // Stop and shutdown RPC disconnecting existing connections
+    // and stopping reconnection process.
+    // pub async fn shutdown(&self) -> Result<()> {
+    //     Ok(self.inner.rpc_client.shutdown().await?)
+    // }
 
     /// A helper function that is not `async`, allowing connection
     /// process to be initiated from non-async contexts.
@@ -459,7 +464,6 @@ impl KaspaRpcClient {
                     },
                     msg = wrpc_ctl_channel.receiver.recv().fuse() => {
                         if let Ok(msg) = msg {
-                            log_info!("%%% CORE RPC CTL: {:?}", msg);
                             match msg {
                                 WrpcCtl::Open => {
                                     inner.rpc_ctl.signal_open().await.expect("(KaspaRpcClient) rpc_ctl.signal_open() error");

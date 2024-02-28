@@ -20,7 +20,6 @@
 use crate::imports::*;
 use secp256k1::{Secp256k1, XOnlyPublicKey};
 use serde_wasm_bindgen::to_value;
-use workflow_wasm::abi::*;
 
 /// Data structure that contains a secret and public keys.
 /// @category Wallet SDK
@@ -40,14 +39,14 @@ impl Keypair {
 
     /// Get the [`PublicKey`] of this [`Keypair`].
     #[wasm_bindgen(getter = publicKey)]
-    pub fn get_public_key(&self) -> JsValue {
-        to_value(&self.public_key).unwrap()
+    pub fn get_public_key(&self) -> String {
+        PublicKey::from(&self.public_key).to_string()
     }
 
     /// Get the [`PrivateKey`] of this [`Keypair`].
     #[wasm_bindgen(getter = privateKey)]
-    pub fn get_private_key(&self) -> PrivateKey {
-        (&self.secret_key).into()
+    pub fn get_private_key(&self) -> String {
+        PrivateKey::from(&self.secret_key).to_hex()
     }
 
     /// Get the `XOnlyPublicKey` of this [`Keypair`].
@@ -61,9 +60,9 @@ impl Keypair {
     /// JavaScript: `let address = keypair.toAddress(NetworkType.MAINNET);`.
     #[wasm_bindgen(js_name = toAddress)]
     // pub fn to_address(&self, network_type: NetworkType) -> Result<Address> {
-    pub fn to_address(&self, network: Network) -> Result<Address> {
-        let pk = PublicKey { xonly_public_key: self.xonly_public_key, source: self.public_key.to_string() };
-        let address = pk.to_address(network)?;
+    pub fn to_address(&self, network: NetworkTypeT) -> Result<Address> {
+        let payload = &self.xonly_public_key.serialize();
+        let address = Address::new(network.try_into()?, AddressVersion::PubKey, payload);
         Ok(address)
     }
 
@@ -71,9 +70,9 @@ impl Keypair {
     /// Receives a [`NetworkType`] to determine the prefix of the address.
     /// JavaScript: `let address = keypair.toAddress(NetworkType.MAINNET);`.
     #[wasm_bindgen(js_name = toAddressECDSA)]
-    pub fn to_address_ecdsa(&self, network: Network) -> Result<Address> {
-        let pk = PublicKey { xonly_public_key: self.xonly_public_key, source: self.public_key.to_string() };
-        let address = pk.to_address_ecdsa(network)?;
+    pub fn to_address_ecdsa(&self, network: NetworkTypeT) -> Result<Address> {
+        let payload = &self.xonly_public_key.serialize();
+        let address = Address::new(network.try_into()?, AddressVersion::PubKeyECDSA, payload);
         Ok(address)
     }
 
@@ -102,6 +101,6 @@ impl Keypair {
 impl TryFrom<JsValue> for Keypair {
     type Error = Error;
     fn try_from(value: JsValue) -> std::result::Result<Self, Self::Error> {
-        Ok(ref_from_abi!(Keypair, &value)?)
+        Ok(Keypair::try_from_js_value(value)?)
     }
 }

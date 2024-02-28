@@ -6,12 +6,14 @@ import {
     PrivateKey,
     Address,
     RpcClient,
+    Resolver,
     UtxoProcessor,
     UtxoContext,
     kaspaToSompi,
     createTransactions,
-    initConsolePanicHook
-} from "../../../../nodejs/kaspa/kaspa_wasm";
+    initConsolePanicHook,
+    IUtxoProcessorEvent,
+} from "../../../../nodejs/kaspa";
 
 import {parseArgs} from "./utils";
 
@@ -36,30 +38,32 @@ let { encoding, networkId, destinationAddress } = parseArgs();
 
     // 1) Initialize RPC
     const rpc = new RpcClient({
-        url : "wss://eu-1.kaspa-ng.org/testnet-10",
+        resolver : new Resolver(),
         encoding,
         networkId
     });
 
     // 2) Create UtxoProcessor, passing RPC to it
-    let processor = await new UtxoProcessor({ rpc, networkId });
+    let processor = new UtxoProcessor({ rpc, networkId });
+    await processor.start();
 
     // 3) Create one of more UtxoContext, passing UtxoProcessor to it
     // you can create UtxoContext objects as needed to monitor different
     // address sets.
-    let context = await new UtxoContext({ processor });
+    let context = new UtxoContext({ processor });
 
     // 4) Register a listener with the UtxoProcessor::events
-    processor.events.registerListener((event:any) => {
+    processor.addEventListener((event:IUtxoProcessorEvent) => {
         console.log("event:", event);
     });
-
 
     console.log(processor);
 
     // 5) Once the environment is setup, connect to RPC
     console.log(`Connecting to ${rpc.url}`);
-    await rpc.connect(undefined);
+    await rpc.connect();
+
+    // for local nodes, wait for the node to sync
     let { isSynced } = await rpc.getServerInfo();
     if (!isSynced) {
         console.error("Please wait for the node to sync");

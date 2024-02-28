@@ -50,7 +50,7 @@ export interface RpcEvent {
  * 
  * This type is used to define the callback function that is called when an RPC notification is received.
  * 
- * @see {@link RpcClient.subscribeDaaVirtualScoreChanged},
+ * @see {@link RpcClient.subscribeVirtualDaaScoreChanged},
  * {@link RpcClient.subscribeUtxosChanged}, 
  * {@link RpcClient.subscribeVirtualChainChanged},
  * {@link RpcClient.subscribeBlockAdded},
@@ -75,7 +75,7 @@ extern "C" {
     #[derive(Debug)]
     pub type RpcEventType;
 
-    #[wasm_bindgen(extends = js_sys::Function, typescript_type = "RpcEventType | string | RpcEventCallback")]
+    #[wasm_bindgen(typescript_type = "RpcEventType | string | RpcEventCallback")]
     #[derive(Debug)]
     pub type RpcEventTypeOrCallback;
 }

@@ -27,7 +27,14 @@ export interface IUtxoEntry {
     /** @readonly */
     isCoinbase: boolean;
 }
+
 "#;
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(extends = Array, typescript_type = "UtxoEntryReference[]")]
+    pub type UtxoEntryReferenceArrayT;
+}
 
 pub type UtxoEntryId = TransactionOutpointInner;
 

@@ -67,11 +67,32 @@ impl TryFrom<IResolverConnect> for ResolverConnect {
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(extends = js_sys::Array, typescript_type = "string[]")]
-    pub type IResolverArray;
+    pub type ResolverArrayT;
 }
 
 ///
-/// Resolver is a client for obtaining public Kaspa wRPC endpoints.
+/// Resolver is a client for obtaining public Kaspa wRPC URL.
+///
+/// Resolver queries a list of public Kaspa Beacon URLs using HTTP to fetch
+/// wRPC endpoints for the given encoding, network identifier and other
+/// parameters. It then provides this information to the {@link RpcClient}.
+///
+/// Each time {@link RpcClient} disconnects, it will query the resolver
+/// to fetch a new wRPC URL.
+///
+/// ```javascript
+/// // using integrated public URLs
+/// let rpc = RpcClient({
+///     resolver: new Resolver(),
+///     networkId : "mainnet"
+/// });
+///
+/// // specifying custom resolver URLs
+/// let rpc = RpcClient({
+///     resolver: new Resolver(["<resolver-url>",...]),
+///     networkId : "mainnet"
+/// });
+/// ```
 ///
 /// @see {@link IResolverConfig}, {@link IResolverConnect}, {@link RpcClient}
 /// @category Node RPC
@@ -109,21 +130,21 @@ impl Resolver {
 impl Resolver {
     /// List of public Kaspa Beacon URLs.
     #[wasm_bindgen(getter)]
-    pub fn urls(&self) -> IResolverArray {
+    pub fn urls(&self) -> ResolverArrayT {
         Array::from_iter(self.resolver.urls().iter().map(|v| JsValue::from(v.as_str()))).unchecked_into()
     }
 
     /// Fetches a public Kaspa wRPC endpoint for the given encoding and network identifier.
     /// @see {@link Encoding}, {@link NetworkId}, {@link Node}
     #[wasm_bindgen(js_name = getNode)]
-    pub async fn get_node(&self, encoding: Encoding, network_id: INetworkId) -> Result<NodeDescriptor> {
+    pub async fn get_node(&self, encoding: Encoding, network_id: NetworkIdT) -> Result<NodeDescriptor> {
         self.resolver.get_node(encoding, network_id.try_into()?).await
     }
 
     /// Fetches a public Kaspa wRPC endpoint URL for the given encoding and network identifier.
     /// @see {@link Encoding}, {@link NetworkId}
     #[wasm_bindgen(js_name = getUrl)]
-    pub async fn get_url(&self, encoding: Encoding, network_id: INetworkId) -> Result<String> {
+    pub async fn get_url(&self, encoding: Encoding, network_id: NetworkIdT) -> Result<String> {
         self.resolver.get_url(encoding, network_id.try_into()?).await
     }
 

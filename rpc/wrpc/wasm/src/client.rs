@@ -3,9 +3,9 @@
 use crate::imports::*;
 use crate::Resolver;
 use crate::{RpcEventCallback, RpcEventType, RpcEventTypeOrCallback};
-use js_sys::Object;
-use kaspa_addresses::{Address, IAddressArray};
-use kaspa_consensus_core::network::{wasm::Network, NetworkType};
+use js_sys::{Function, Object};
+use kaspa_addresses::{Address, AddressOrStringArrayT};
+use kaspa_consensus_core::network::{NetworkType, NetworkTypeT};
 use kaspa_notify::events::EventType;
 use kaspa_notify::notification::Notification as NotificationT;
 use kaspa_rpc_core::api::ctl;
@@ -13,6 +13,7 @@ pub use kaspa_rpc_core::wasm::message::*;
 pub use kaspa_rpc_macros::{
     build_wrpc_wasm_bindgen_interface, build_wrpc_wasm_bindgen_subscriptions, declare_typescript_wasm_interface as declare,
 };
+use kaspa_wasm_core::events::{get_event_targets, Sink};
 pub use serde_wasm_bindgen::from_value;
 use workflow_rpc::client::Ctl;
 pub use workflow_rpc::client::IConnectOptions;
@@ -47,7 +48,7 @@ declare! {
          * Network identifier: `mainnet`, `testnet-10` etc.
          * `networkId` is required when using a resolver.
          */
-        networkId?: NetworkId;
+        networkId?: NetworkId | string;
     }
     "#,
 }
@@ -71,8 +72,13 @@ impl TryFrom<IRpcConfig> for RpcConfig {
         let resolver = config.try_get::<Resolver>("resolver")?;
         let url = config.try_get_string("url")?;
         let encoding = config.try_get::<Encoding>("encoding")?;
-        let network_id = config.try_get::<NetworkId>("networkId")?.ok_or_else(|| Error::custom("network is required"))?;
-        Ok(RpcConfig { resolver, url, encoding, network_id: Some(network_id) })
+        let network_id = config.try_get::<NetworkId>("networkId")?;
+
+        if resolver.is_some() && network_id.is_none() {
+            return Err(Error::custom("networkId is required when using a resolver"));
+        }
+
+        Ok(RpcConfig { resolver, url, encoding, network_id })
     }
 }
 
@@ -88,15 +94,6 @@ impl TryFrom<RpcConfig> for IRpcConfig {
     }
 }
 
-#[derive(Clone, Eq, PartialEq)]
-struct NotificationSink(Function);
-unsafe impl Send for NotificationSink {}
-impl From<NotificationSink> for Function {
-    fn from(f: NotificationSink) -> Self {
-        f.0
-    }
-}
-
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 enum NotificationEvent {
     All,
@@ -107,7 +104,7 @@ enum NotificationEvent {
 impl FromStr for NotificationEvent {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self> {
-        if s == "all" || s == "*" {
+        if s == "*" {
             Ok(NotificationEvent::All)
         } else if let Ok(ctl) = Ctl::from_str(s) {
             Ok(NotificationEvent::RpcCtl(ctl))
@@ -135,13 +132,13 @@ pub struct Inner {
     resolver: Option<Resolver>,
     notification_task: AtomicBool,
     notification_ctl: DuplexChannel,
-    notification_callbacks: Arc<Mutex<AHashMap<NotificationEvent, Vec<NotificationSink>>>>,
-    // notification_callback: Arc<Mutex<Option<NotificationSink>>>,
+    callbacks: Arc<Mutex<AHashMap<NotificationEvent, Vec<Sink>>>>,
+    // notification_callback: Arc<Mutex<Option<Sink>>>,
 }
 
 impl Inner {
-    fn notification_callbacks(&self, event: NotificationEvent) -> Option<Vec<NotificationSink>> {
-        let notification_callbacks = self.notification_callbacks.lock().unwrap();
+    fn notification_callbacks(&self, event: NotificationEvent) -> Option<Vec<Sink>> {
+        let notification_callbacks = self.callbacks.lock().unwrap();
         let all = notification_callbacks.get(&NotificationEvent::All).cloned();
         let target = notification_callbacks.get(&event).cloned();
         match (all, target) {
@@ -156,12 +153,40 @@ impl Inner {
     }
 }
 
+///
+///
 /// Kaspa RPC client uses ([wRPC](https://github.com/workflow-rs/workflow-rs/tree/master/rpc))
 /// interface to connect directly with Kaspa Node. wRPC supports
 /// two types of encodings: `borsh` (binary, default) and `json`.
 ///
+/// There are two ways to connect: Directly to any Kaspa Node or to a
+/// community-maintained public node infrastructure using the {@link Resolver} class.
+///
+/// **Connecting to a public node using a resolver**
+///
 /// ```javascript
-/// // Example usage:
+/// let rpc = new RpcClient({
+///    resolver : new Resolver(),
+///    networkId : "mainnet",
+/// });
+///
+/// await rpc.connect();
+/// ```
+///
+/// **Connecting to a Kaspa Node directly**
+///
+/// ```javascript
+/// let rpc = new RpcClient({
+///    // if port is not provided it will default
+///    // to the default port for the networkId
+///    url : "127.0.0.1",
+///    networkId : "mainnet",
+/// });
+/// ```
+///
+/// **Example usage**
+///
+/// ```javascript
 ///
 /// // Create a new RPC client with a URL
 /// let rpc = new RpcClient({ url : "wss://<node-wrpc-address>" });
@@ -194,20 +219,18 @@ impl Inner {
 /// using {@link RpcClient.addEventListener} and {@link RpcClient.removeEventListener} functions.
 ///
 /// **IMPORTANT:** If RPC is disconnected, upon reconnection you do not need
-/// to re-register event listeners, but your have to re-subscribe for Kaspa
-/// notifications.
+/// to re-register event listeners, but your have to re-subscribe for Kaspa node
+/// notifications:
 ///
 /// ```typescript
 /// rpc.addEventListener("open", async (event) => {
 ///     console.log("Connected to", rpc.url);
+///     // re-subscribe each time we connect
 ///     await rpc.subscribeDaaScore();
 ///     // ... perform wallet address subscriptions
 /// });
 ///
 /// ```
-///
-/// Connection to the community-maintained public server infrastructure can be established
-/// using the {@link Resolver} class.
 ///
 /// If using NodeJS, it is important that {@link RpcClient.disconnect} is called before
 /// the process exits to ensure that the WebSocket connection is properly closed.
@@ -251,7 +274,7 @@ impl RpcClient {
                 resolver,
                 notification_task: AtomicBool::new(false),
                 notification_ctl: DuplexChannel::oneshot(),
-                notification_callbacks: Arc::new(Default::default()),
+                callbacks: Arc::new(Default::default()),
             }),
         };
 
@@ -261,8 +284,11 @@ impl RpcClient {
 
 #[wasm_bindgen]
 impl RpcClient {
-    /// Create a new RPC client with optional [`Encoding`] and a `url`.
+    ///
+    /// Create a new RPC client with optional {@link Encoding} and a `url`.
+    ///
     /// @see {@link IRpcConfig} interface for more details.
+    ///
     #[wasm_bindgen(constructor)]
     pub fn ctor(config: Option<IRpcConfig>) -> Result<RpcClient> {
         Self::new(config.map(RpcConfig::try_from).transpose()?)
@@ -290,6 +316,7 @@ impl RpcClient {
 
     /// Set the network id for the RPC client.
     /// This setting will take effect on the next connection.
+    #[wasm_bindgen(js_name = setNetworkId)]
     pub fn set_network_id(&self, network_id: NetworkId) -> Result<()> {
         self.inner.client.set_network_id(network_id)?;
         Ok(())
@@ -346,7 +373,8 @@ impl RpcClient {
         Ok(())
     }
 
-    /// Triggers a disconnection on the underlying WebSocket.
+    /// Triggers a disconnection on the underlying WebSocket
+    /// if the WebSocket is in connected state.
     /// This is intended for debug purposes only.
     /// Can be used to test application reconnection logic.
     #[wasm_bindgen(js_name = "triggerAbort")]
@@ -358,7 +386,80 @@ impl RpcClient {
     /// Register an event listener callback.
     ///
     /// Registers a callback function to be executed when a specific event occurs.
-    /// The callback function will receive an {@link RpcEvent} object with the event type and data.
+    /// The callback function will receive an {@link RpcEvent} object with the event `type` and `data`.
+    ///
+    /// **RPC Subscriptions vs Event Listeners**
+    ///
+    /// Subscriptions are used to receive notifications from the RPC client.
+    /// Event listeners are client-side application registrations that are
+    /// triggered when notifications are received.
+    ///
+    /// If node is disconnected, upon reconnection you do not need to re-register event listeners,
+    /// however, you have to re-subscribe for Kaspa node notifications. As such, it is recommended
+    /// to register event listeners when the RPC `open` event is received.
+    ///
+    /// ```javascript
+    /// rpc.addEventListener("open", async (event) => {
+    ///     console.log("Connected to", rpc.url);
+    ///     await rpc.subscribeDaaScore();
+    ///     // ... perform wallet address subscriptions
+    /// });
+    /// ```
+    ///
+    /// **Multiple events and listeners**
+    ///
+    /// `addEventListener` can be used to register multiple event listeners for the same event
+    /// as well as the same event listener for multiple events.
+    ///
+    /// ```javascript
+    /// // Registering a single event listener for multiple events:
+    /// rpc.addEventListener(["open", "close"], (event) => {
+    ///     console.log(event);
+    /// });
+    ///
+    /// // Registering event listener for all events:
+    /// rpc.addEventListener("*", (event) => {
+    ///     console.log(event);
+    /// });
+    /// // or without supplying the event type
+    /// rpc.addEventListener((event) => {
+    ///     console.log(event);
+    /// });
+    ///
+    /// // Registering multiple event listeners for the same event:
+    /// rpc.addEventListener("open", (event) => { // first listener
+    ///     console.log(event);
+    /// });
+    /// rpc.addEventListener("open", (event) => { // second listener
+    ///     console.log(event);
+    /// });
+    /// ```
+    ///
+    /// **Use of context objects**
+    ///
+    /// You can also register an event with a `context` object. When the event is triggered,
+    /// the `handleEvent` method of the `context` object will be called while `this` value
+    /// will be set to the `context` object.
+    /// ```javascript
+    /// // Registering events with a context object:
+    ///
+    /// const context = {
+    ///     someProperty: "someValue",
+    ///     handleEvent: (event) => {
+    ///         // the following will log "someValue"
+    ///         console.log(this.someProperty);
+    ///         console.log(event);
+    ///     }
+    /// };
+    /// rpc.addEventListener(["open","close"], context);
+    ///
+    /// ```
+    ///
+    /// **General use examples**
+    ///
+    /// In TypeScript you can use {@link RpcEventType} enum (such as `RpcEventType.Open`)
+    /// or `string` (such as "open") to register event listeners.
+    /// In JavaScript you can only use `string`.
     ///
     /// ```typescript
     /// // Example usage (TypeScript):
@@ -376,7 +477,6 @@ impl RpcClient {
     ///     console.log(event.type,event.data);
     /// });
     /// await rpc.subscribeBlockAdded();
-    ///
     ///
     /// // Example usage (JavaScript):
     ///
@@ -397,17 +497,19 @@ impl RpcClient {
     ///
     #[wasm_bindgen(js_name = "addEventListener")]
     pub fn add_event_listener(&self, event: RpcEventTypeOrCallback, callback: Option<RpcEventCallback>) -> Result<()> {
-        if event.is_function() {
-            let callback = Function::from(event);
+        if let Ok(sink) = Sink::try_from(&event) {
             let event = NotificationEvent::All;
-            self.inner.notification_callbacks.lock().unwrap().entry(event).or_default().push(NotificationSink(callback));
-        } else if let Some(callback) = callback {
-            let event = NotificationEvent::try_from(JsValue::from(event))?;
-            self.inner.notification_callbacks.lock().unwrap().entry(event).or_default().push(NotificationSink(callback.into()));
+            self.inner.callbacks.lock().unwrap().entry(event).or_default().push(sink);
+            Ok(())
+        } else if let Some(Ok(sink)) = callback.map(Sink::try_from) {
+            let targets: Vec<NotificationEvent> = get_event_targets(event)?;
+            for event in targets {
+                self.inner.callbacks.lock().unwrap().entry(event).or_default().push(sink.clone());
+            }
+            Ok(())
         } else {
-            return Err(Error::custom("Invalid event listener callback"));
+            Err(Error::custom("Invalid event listener callback"))
         }
-        Ok(())
     }
 
     ///
@@ -419,26 +521,26 @@ impl RpcClient {
     /// @see {@link RpcClient.addEventListener}
     #[wasm_bindgen(js_name = "removeEventListener")]
     pub fn remove_event_listener(&self, event: RpcEventType, callback: Option<RpcEventCallback>) -> Result<()> {
-        let event = NotificationEvent::try_from(JsValue::from(event))?;
-
-        if let Some(callback) = callback {
-            let sink = NotificationSink(callback.into());
-
-            let mut notification_callbacks = self.inner.notification_callbacks.lock().unwrap();
-            match event {
-                NotificationEvent::All => {
-                    if let Some(handlers) = notification_callbacks.get_mut(&NotificationEvent::All) {
-                        handlers.retain(|handler| handler != &sink);
-                    }
-                }
-                _ => {
-                    if let Some(handlers) = notification_callbacks.get_mut(&event) {
-                        handlers.retain(|handler| handler != &sink);
-                    }
-                }
+        let mut callbacks = self.inner.callbacks.lock().unwrap();
+        if let Ok(sink) = Sink::try_from(&event) {
+            // remove callback from all events
+            for (_, handlers) in callbacks.iter_mut() {
+                handlers.retain(|handler| handler != &sink);
+            }
+        } else if let Some(Ok(sink)) = callback.map(Sink::try_from) {
+            // remove callback from specific events
+            let targets: Vec<NotificationEvent> = get_event_targets(event)?;
+            for target in targets.into_iter() {
+                callbacks.entry(target).and_modify(|handlers| {
+                    handlers.retain(|handler| handler != &sink);
+                });
             }
         } else {
-            self.inner.notification_callbacks.lock().unwrap().remove(&event);
+            // remove all callbacks for the event
+            let targets: Vec<NotificationEvent> = get_event_targets(event)?;
+            for event in targets {
+                callbacks.remove(&event);
+            }
         }
         Ok(())
     }
@@ -450,8 +552,8 @@ impl RpcClient {
     ///
     #[wasm_bindgen(js_name = "clearEventListener")]
     pub fn clear_event_listener(&self, callback: RpcEventCallback) -> Result<()> {
-        let sink = NotificationSink(callback.into());
-        let mut notification_callbacks = self.inner.notification_callbacks.lock().unwrap();
+        let sink = Sink::new(callback);
+        let mut notification_callbacks = self.inner.callbacks.lock().unwrap();
         for (_, handlers) in notification_callbacks.iter_mut() {
             handlers.retain(|handler| handler != &sink);
         }
@@ -463,7 +565,7 @@ impl RpcClient {
     ///
     #[wasm_bindgen(js_name = "removeAllEventListeners")]
     pub fn remove_all_event_listeners(&self) -> Result<()> {
-        *self.inner.notification_callbacks.lock().unwrap() = Default::default();
+        *self.inner.callbacks.lock().unwrap() = Default::default();
         Ok(())
     }
 }
@@ -477,7 +579,7 @@ impl RpcClient {
                 resolver,
                 notification_task: AtomicBool::new(false),
                 notification_ctl: DuplexChannel::oneshot(),
-                notification_callbacks: Arc::new(Mutex::new(Default::default())),
+                callbacks: Arc::new(Mutex::new(Default::default())),
             }),
         }
     }
@@ -517,7 +619,7 @@ impl RpcClient {
                                     let event = Object::new();
                                     event.set("type", &ctl.to_string().into()).ok();
                                     event.set("rpc", &self_.clone().into()).ok();
-                                    if let Err(err) = handler.0.call1(&JsValue::undefined(), &event.into()) {
+                                    if let Err(err) = handler.call(&event.into()) {
                                         log_error!("Error while executing RPC notification callback: {:?}",err);
                                     }
                                 }
@@ -534,7 +636,7 @@ impl RpcClient {
                                     let event_type_value = to_value(&event_type).unwrap();
                                     event.set("type", &event_type_value).expect("setting event type");
                                     event.set("data", &notification.to_value().unwrap()).expect("setting event data");
-                                    if let Err(err) = handler.0.call1(&JsValue::undefined(), &event.into()) {
+                                    if let Err(err) = handler.call(&event.into()) {
                                         log_error!("Error while executing RPC notification callback: {:?}",err);
                                     }
                                 }
@@ -558,7 +660,7 @@ impl RpcClient {
 #[wasm_bindgen]
 impl RpcClient {
     #[wasm_bindgen(js_name = "defaultPort")]
-    pub fn default_port(encoding: WrpcEncoding, network: Network) -> Result<u16> {
+    pub fn default_port(encoding: WrpcEncoding, network: NetworkTypeT) -> Result<u16> {
         let network_type = NetworkType::try_from(network)?;
         match encoding {
             WrpcEncoding::Borsh => Ok(network_type.default_borsh_rpc_port()),
@@ -627,7 +729,7 @@ impl RpcClient {
     /// Kaspa BlockDAG. The event notification will be scoped to the
     /// provided list of addresses.
     #[wasm_bindgen(js_name = subscribeUtxosChanged)]
-    pub async fn subscribe_utxos_changed(&self, addresses: IAddressArray) -> Result<()> {
+    pub async fn subscribe_utxos_changed(&self, addresses: AddressOrStringArrayT) -> Result<()> {
         let addresses: Vec<Address> = addresses.try_into()?;
         self.inner.client.start_notify(ListenerId::default(), Scope::UtxosChanged(UtxosChangedScope { addresses })).await?;
         Ok(())
@@ -636,7 +738,7 @@ impl RpcClient {
     /// Unsubscribe from UTXOs changed notification event
     /// for a specific set of addresses.
     #[wasm_bindgen(js_name = unsubscribeUtxosChanged)]
-    pub async fn unsubscribe_utxos_changed(&self, addresses: IAddressArray) -> Result<()> {
+    pub async fn unsubscribe_utxos_changed(&self, addresses: AddressOrStringArrayT) -> Result<()> {
         let addresses: Vec<Address> = addresses.try_into()?;
         self.inner.client.stop_notify(ListenerId::default(), Scope::UtxosChanged(UtxosChangedScope { addresses })).await?;
         Ok(())

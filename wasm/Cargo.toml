@@ -5,9 +5,10 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 include.workspace = true
+repository.workspace = true
 # wasm-pack requires this value to be a string
 # (it can not be derived from the workspace)
-license = "MIT/Apache-2.0"
+license = "ISC"
 
 [lib]
 crate-type = ["cdylib"]
@@ -23,7 +24,7 @@ kaspa-math.workspace = true
 kaspa-pow.workspace = true
 kaspa-rpc-core.workspace = true
 kaspa-utils.workspace = true
-kaspa-wasm-types.workspace = true
+kaspa-wasm-core.workspace = true
 kaspa-wallet-core.workspace = true
 kaspa-wallet-keys.workspace = true
 kaspa-wrpc-client.workspace = true
@@ -35,45 +36,21 @@ workflow-core.workspace = true
 workflow-wasm.workspace = true
 
 [features] 
-# wasm32-wallet = [
-#     "wasm32-sdk"
-# ]
 wasm32-sdk = [
-    # "wasm32-core",
-    # "kaspa-consensus-wasm/wasm32-sdk",
-    # "kaspa-wrpc-client/wasm32-sdk",
-    # "kaspa-wrpc-wasm/wasm32-sdk",
-    # "wasm32-core",
     "kaspa-wallet-core/wasm32-sdk",
     "kaspa-pow/wasm32-sdk",
-    # "workflow-core/wasm32-sdk",
-    # "workflow-wasm/wasm32-sdk",
-    # ""
 ]
 wasm32-core = [
-    # "kaspa-consensus-wasm/wasm32-sdk",
-    # "kaspa-wrpc-client/wasm32-sdk",
-    # "kaspa-wrpc-wasm/wasm32-sdk",
-    # "kaspa-consensus-core/wasm32-sdk",
-    # "kaspa-consensus-wasm/wasm32-sdk",
     "kaspa-wallet-core/wasm32-core",
     "kaspa-pow/wasm32-sdk",
-    # "workflow-core/wasm32-sdk",
-    # "workflow-wasm/wasm32-sdk",
 ]
 wasm32-rpc = [
     "kaspa-consensus-core/wasm32-sdk",
     "kaspa-consensus-wasm/wasm32-sdk",
     "kaspa-wrpc-client/wasm32-sdk",
     "kaspa-wrpc-wasm/wasm32-sdk",
-    # "kaspa-wallet-core/wasm32-sdk"
 ]
-wasm32-keygen = [
-    # "kaspa-wallet-keys",
-    # "kaspa-consensus-wasm/wasm32-keygen",
-# "kaspa-wrpc-client/wasm32-sdk",
-# "kaspa-wrpc-wasm/wasm32-sdk",
-]
+wasm32-keygen = []
 default = []
 
 [package.metadata.docs.rs]

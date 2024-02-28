@@ -39,6 +39,24 @@ pub enum Error {
 
     #[error("Invalid account type (must be one of: bip32|multisig|legacy")]
     InvalidAccountKind,
+
+    #[error("Invalid XPrv (must be a string or an instance of XPrv)")]
+    InvalidXPrv,
+
+    #[error("Invalid XPub (must be a string or an instance of XPub)")]
+    InvalidXPub,
+
+    #[error("Invalid PrivateKey (must be a string or an instance of PrivateKey)")]
+    InvalidPrivateKey,
+
+    #[error("Invalid PublicKey (must be a string or an instance of PrivateKey)")]
+    InvalidPublicKey,
+
+    #[error("Invalid PublicKey Array (must be string[] or PrivateKey[])")]
+    InvalidPublicKeyArray,
+
+    #[error("Invalid network id")]
+    NetworkId(#[from] kaspa_consensus_core::network::NetworkIdError),
 }
 
 impl Error {

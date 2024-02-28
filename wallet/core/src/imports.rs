@@ -9,7 +9,7 @@ pub use crate::account::{Account, AccountKind, DerivationCapableAccount};
 pub use crate::deterministic::*;
 pub use crate::encryption::{Encryptable, EncryptionKind};
 pub use crate::error::Error;
-pub use crate::events::{Events, SyncState};
+pub use crate::events::{EventKind, Events, SyncState};
 pub use crate::factory::{factories, Factory};
 pub use crate::result::Result;
 pub use crate::rpc::Rpc;

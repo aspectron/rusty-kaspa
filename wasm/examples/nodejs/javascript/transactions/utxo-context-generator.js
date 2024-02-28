@@ -37,7 +37,8 @@ const { encoding, networkId, address : destinationAddress } = require("../utils"
     });
 
     // 2) Create UtxoProcessor, passing RPC to it
-    let processor = await new UtxoProcessor({ rpc, networkId });
+    let processor = new UtxoProcessor({ rpc, networkId });
+    await processor.start();
 
     // 3) Create one of more UtxoContext, passing UtxoProcessor to it
     // you can create UtxoContext objects as needed to monitor different
@@ -45,7 +46,7 @@ const { encoding, networkId, address : destinationAddress } = require("../utils"
     let context = await new UtxoContext({ processor });
 
     // 4) Register a listener with the UtxoProcessor::events
-    processor.events.registerListener((event) => {
+    processor.addEventListener((event) => {
         console.log("event:", event);
     });
 
