@@ -11,7 +11,8 @@ const {
     positionals,
     tokens,
 } = parseArgs({
-    args, options: {
+    args,
+    options: {
         help: {
             type: 'boolean',
         },
@@ -21,7 +22,12 @@ const {
         network: {
             type: 'string',
         },
-    }, tokens: true, allowPositionals: true
+        legacy:{
+            type:'boolean'
+        }
+    },
+    tokens: true,
+    allowPositionals: true
 });
 
 if (values.help) {
@@ -30,8 +36,8 @@ if (values.help) {
 }
 
 const network = values.network ?? positionals.find((positional) => positional.match(/^(testnet|mainnet|simnet|devnet)-\d+$/)) ?? null;
-
-const configFileName = path.join(__dirname, "data", "config.json");
+const filename = `${values.legacy? 'legacy-':''}config.json`;
+const configFileName = path.join(__dirname, "data", filename);
 const exists = fs.existsSync(configFileName);
 if (!exists || values.reset) {
     createConfigFile();
@@ -69,8 +75,7 @@ function createConfigFile() {
         console.log("... '--network=' argument is not specified ...defaulting to 'testnet-11'");
     }
     let networkId = network ?? "testnet-11";
-
-    let wallet = basicWallet(networkId, Mnemonic.random());
+    let wallet = basicWallet(networkId, Mnemonic.random(values.legacy?12:24));
 
     let config = {
         networkId,
@@ -78,7 +83,7 @@ function createConfigFile() {
     };
     fs.writeFileSync(configFileName, JSON.stringify(config, null, 4));
     console.log("");
-    console.log("Creating config data in './data/config.json'");
+    console.log(`Creating config data in './data/${filename}'`);
     console.log("");
     console.log("networkId:", networkId);
     console.log("mnemonic:", wallet.mnemonic.phrase);
@@ -91,19 +96,19 @@ function createConfigFile() {
 function basicWallet(networkId, mnemonic) {
     console.log("mnemonic:", mnemonic.phrase);
     let xprv = new XPrv(mnemonic.toSeed());
-    let account_0_root = xprv.derivePath("m/44'/111111'/0'/0").toXPub();
+    let account_0_root = xprv.derivePath("m/44'/111111'/0'").toXPub();
     let account_0 = {
         receive_xpub : account_0_root.deriveChild(0),
         change_xpub : account_0_root.deriveChild(1),
     };
-    let receive = account_0.receive_xpub.deriveChild(0).publicKey().toAddress(networkId).toString();
-    let change = account_0.change_xpub.deriveChild(0).publicKey().toAddress(networkId).toString();
+    let receive = account_0.receive_xpub.deriveChild(0).toPublicKey().toAddress(networkId).toString();
+    let change = account_0.change_xpub.deriveChild(0).toPublicKey().toAddress(networkId).toString();
 
-    let keygen = PublicKeyGenerator.fromMasterXPrv(
-        xprv.toString(),
-        false,
-        0n,0
-    );
+    // let keygen = PublicKeyGenerator.fromMasterXPrv(
+    //     xprv.toString(),
+    //     false,
+    //     0n,0
+    // );
 
     // let receive_pubkeys = keygen.receivePubkeys(0,1).map((key) => key.toAddress(networkId).toString());
     // let change_pubkeys = keygen.changePubkeys(0,1).map((key) => key.toAddress(networkId).toString());
