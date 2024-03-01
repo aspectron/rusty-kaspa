@@ -50,8 +50,8 @@ impl PublicKey {
     }
 
     /// Get the [`Address`] of this PublicKey.
-    /// Receives a [`NetworkType`] to determine the prefix of the address.
-    /// JavaScript: `let address = publicKey.toAddress(NetworkType.MAINNET);`.
+    /// Receives a [`Network`] to determine the prefix of the address.
+    /// JavaScript: `let address = publicKey.toAddress(NetworkType.Mainnet);`.
     #[wasm_bindgen(js_name = toAddress)]
     pub fn to_address_js(&self, network: NetworkTypeT) -> Result<Address> {
         self.to_address(network.try_into()?)
@@ -59,7 +59,7 @@ impl PublicKey {
 
     /// Get `ECDSA` [`Address`] of this PublicKey.
     /// Receives a [`NetworkType`] to determine the prefix of the address.
-    /// JavaScript: `let address = publicKey.toAddress(NetworkType.MAINNET);`.
+    /// JavaScript: `let address = publicKey.toAddress(NetworkType.Mainnet);`.
     #[wasm_bindgen(js_name = toAddressECDSA)]
     pub fn to_address_ecdsa_js(&self, network: NetworkTypeT) -> Result<Address> {
         self.to_address_ecdsa(network.try_into()?)

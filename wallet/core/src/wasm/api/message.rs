@@ -1641,3 +1641,48 @@ try_from! ( _args: AddressBookEnumerateResponse, IAddressBookEnumerateResponse, 
 });
 
 // ---
+
+declare! {
+    ITransactionSerialization,
+    r#"
+    /**
+     * 
+     *  
+     * @category Wallet SDK
+     */
+    export interface ITransactionSerialization {
+        transaction : string,
+        addresses? : Address[]
+    }
+    "#,
+}
+
+try_from! ( args: TransactionSerialization, ITransactionSerialization, {
+    let response = ITransactionSerialization::default();
+    response.set("transaction", &args.transaction.into())?;
+    if let Some(addresses) = args.addresses{
+        // let array = js_sys::Array::new();
+        // for address in addresses{
+        //     array.push(&JsValue::from(address));
+        // }
+        let addresses: js_sys::Array = addresses.iter().map(|address| JsValue::from(address.to_string())).collect();
+        response.set("addresses", &addresses.into())?;
+    }
+     Ok(response)
+});
+
+#[wasm_bindgen(typescript_custom_section)]
+const TS_ITRANSACTIONSERIALIZATIONREQUEST: &'static str = r#"
+    /**
+     * 
+     *  
+     * @category Wallet SDK
+     */
+    export type ISerializableTransaction = SignableTransaction | PendingTransaction | Transaction;
+    "#;
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(extends = js_sys::Object, typescript_type = "ISerializableTransaction")]
+    #[derive(Default)]
+    pub type ISerializableTransaction;
+}

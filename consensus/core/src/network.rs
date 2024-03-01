@@ -4,7 +4,8 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 use std::str::FromStr;
-use wasm_bindgen::convert::TryFromJsValue;
+//use wasm_bindgen::convert::TryFromJsValue;
+use workflow_wasm::prelude::ref_from_abi;
 use wasm_bindgen::prelude::*;
 use workflow_core::enums::u8_try_from;
 
@@ -392,7 +393,7 @@ impl TryFrom<&JsValue> for NetworkId {
     fn try_from(js_value: &JsValue) -> Result<Self, Self::Error> {
         if let Some(network_id) = js_value.as_string() {
             NetworkId::from_str(&network_id)
-        } else if let Ok(network_id) = NetworkId::try_from_js_value(js_value.clone()) {
+        } else if let Ok(network_id) = ref_from_abi!{NetworkId, &js_value}{
             Ok(network_id)
         } else {
             Err(NetworkIdError::InvalidNetworkId(format!("{:?}", js_value)))
@@ -402,6 +403,7 @@ impl TryFrom<&JsValue> for NetworkId {
 
 #[wasm_bindgen]
 extern "C" {
+    #[derive(Debug)]
     #[wasm_bindgen(js_name = "Network", typescript_type = "NetworkType | NetworkId | string")]
     pub type NetworkTypeT;
 }

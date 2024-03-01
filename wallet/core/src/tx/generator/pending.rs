@@ -169,6 +169,9 @@ impl PendingTransaction {
     pub fn rpc_transaction(&self) -> RpcTransaction {
         self.inner.signable_tx.lock().unwrap().tx.as_ref().into()
     }
+    pub fn signable_transaction(&self) -> SignableTransaction {
+        (*self.inner.signable_tx.lock().unwrap()).clone()
+    }
 
     /// Submit the transaction on the supplied rpc
     pub async fn try_submit(&self, rpc: &Arc<DynRpcApi>) -> Result<RpcTransactionId> {

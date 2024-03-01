@@ -504,3 +504,8 @@ pub struct AddressBookEnumerateResponse {}
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WalletNotification {}
+
+pub struct TransactionSerialization {
+    pub transaction: String,
+    pub addresses: Option<Vec<Address>>,
+}

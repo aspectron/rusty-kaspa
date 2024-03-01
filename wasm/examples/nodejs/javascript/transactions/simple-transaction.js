@@ -8,7 +8,12 @@ const {
     RpcClient,
     kaspaToSompi,
     createTransactions,
-    initConsolePanicHook
+    initConsolePanicHook,
+    //serializeTransaction,
+    deserializeTransaction,
+    signTransaction,
+    SignableTransaction,
+    Transaction,
 } = require('../../../../nodejs/kaspa');
 
 const { encoding, networkId, address: destinationAddressArg } = require("../utils").parseArgs();
@@ -29,7 +34,7 @@ initConsolePanicHook();
     console.log(`Destination address: ${destinationAddress}`);
 
     const rpc = new RpcClient({
-        url : "127.0.0.1",
+        url : "wss://eu-1.kaspa-ng.io/testnet-11",
         encoding,
         networkId
     });
@@ -55,21 +60,32 @@ initConsolePanicHook();
 
         let { transactions, summary } = await createTransactions({
             entries,
-            outputs: [{ address : destinationAddress, amount : kaspaToSompi(0.00012)}],
+            outputs: [{ address : destinationAddress, amount : kaspaToSompi(1)}],
             priorityFee: 0n,
             changeAddress: sourceAddress,
+            networkId,
         });
 
         console.log("Summary:", summary);
+        console.log("transactions[0]", transactions[0])
 
-        for (let pending of transactions) {
-            console.log("Pending transaction:", pending);
-            console.log("Signing tx with secret key:", privateKey.toString());
-            await pending.sign([privateKey]);
-            console.log("Submitting pending tx to RPC ...")
-            let txid = await pending.submit(rpc);
-            console.log("Node responded with txid:", txid);
-        }
+        // serialize tx 
+        let serializedTransactions = transactions.map(tx=>tx.serialize());
+
+        // test : deserialize tx and sign it
+        let signedTransactions = serializedTransactions.map(tx_json=>{
+            console.log("tx_json:", tx_json);
+            let signable_tx = deserializeTransaction(tx_json);
+            return signTransaction(signable_tx, [privateKey], true)
+        });
+
+        //submit tx
+        let result = await Promise.all(signedTransactions.map(async(transaction)=>{
+            return await rpc.submitTransaction({transaction});
+        }));
+
+        console.log("result", result)
+
     }
 
     await rpc.disconnect();
