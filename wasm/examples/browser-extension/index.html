@@ -3,17 +3,17 @@
     <head>
         <link rel="stylesheet" href="./resources/style.css">
         <script type="module">
-            import { log, stringify, currentNetwork } from './resources/utils.js';
+            // import { log, stringify, currentNetwork } from './resources/utils.js';
 
-            import * as kaspa from '../../web/kaspa/kaspa.js';
-            let { Resolver, RpcClient, Encoding, kaspaToSompi } = kaspa;
+            // import * as kaspa from '../../web/kaspa/kaspa.js';
+            // let { Resolver, RpcClient, Encoding, kaspaToSompi } = kaspa;
 
             (async () => {
-                await kaspa.default('../../web/kaspa/kaspa_bg.wasm');
+                //await kaspa.default('../../web/kaspa/kaspa_bg.wasm');
 
-                let networkId = currentNetwork();
-                log(`Connecting to Kaspa network...`);
-                log(`Selected network is ${networkId}...`);
+                // let networkId = currentNetwork();
+                // log(`Connecting to Kaspa network...`);
+                // log(`Selected network is ${networkId}...`);
                 
                 // const rpc = new RpcClient({
                 //     resolver : new Resolver(),
@@ -34,28 +34,29 @@
                 let el = document.createElement("div");
                 document.body.appendChild(el);
                 el.innerHTML = `
-                    <div id="connect" class="link">Connect wallet</div>
+                    <button id="connect" class="link">Connect wallet</button>
                     <br>&nbsp;<br>
                     <br/><input id="amount" class="amount" type="text" value="" placeholder=" Enter amount to request payment..." />
                     <br>&nbsp;<br>
-                    <div id="request" class="link">Request payment</div>
+                    <button id="request" class="link">Request payment</button>
                     <br>&nbsp;<br>
                 `;
 
                 let connect = document.getElementById("connect");
-                submit.addEventListener("click", async (e) => {
+                connect.addEventListener("click", async (e) => {
                     e.preventDefault();
                     // TODO ... connect wallet
                 });
 
                 let request = document.getElementById("request");
-                submit.addEventListener("click", async (e) => {
+                request.addEventListener("click", async (e) => {
                     e.preventDefault();
                     let input = document.getElementById("amount");
                     let amount = input.value;
-                    let sompi = kaspaToSompi(amount);
+                    //let sompi = kaspaToSompi(amount);
                     // TODO ... request payment
                     input.value = "";
+                    Kaspa.send({address: "xxxx", amount:13.4});
                 });
 
             })();
