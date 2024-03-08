@@ -13,7 +13,7 @@ use serde_wasm_bindgen::from_value;
 
 #[wasm_bindgen]
 extern "C" {
-    #[wasm_bindgen(extends = js_sys::Array, is_type_of = Array::is_array, typescript_type = "PrivateKey[] | HexString[] | Uint8Array[]")]
+    #[wasm_bindgen(extends = js_sys::Array, is_type_of = Array::is_array, typescript_type = "(PrivateKey | HexString | Uint8Array)[]")]
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub type PrivateKeyArrayT;
 }
@@ -86,7 +86,7 @@ pub fn sign_script_hash(script_hash: JsValue, privkey: &PrivateKey) -> Result<St
 }
 
 pub fn sign_hash(sig_hash: Hash, privkey: &[u8; 32]) -> Result<Vec<u8>> {
-    let msg = secp256k1::Message::from_slice(sig_hash.as_bytes().as_slice())?;
+    let msg = secp256k1::Message::from_digest_slice(sig_hash.as_bytes().as_slice())?;
     let schnorr_key = secp256k1::Keypair::from_seckey_slice(secp256k1::SECP256K1, privkey)?;
     let sig: [u8; 64] = *schnorr_key.sign_schnorr(msg).as_ref();
     let signature = std::iter::once(65u8).chain(sig).chain([SIG_HASH_ALL.to_u8()]).collect();

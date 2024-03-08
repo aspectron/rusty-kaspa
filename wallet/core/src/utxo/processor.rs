@@ -197,7 +197,7 @@ impl UtxoProcessor {
                 let utxos_changed_scope = UtxosChangedScope { addresses };
                 self.rpc_api().start_notify(self.listener_id()?, Scope::UtxosChanged(utxos_changed_scope)).await?;
             } else {
-                log_error!("registering empty address list!");
+                log_error!("registering an empty address list!");
             }
         }
         Ok(())
@@ -554,12 +554,15 @@ impl UtxoProcessor {
 
                                 match msg {
                                     RpcState::Opened => {
+
                                         if !this.is_connected() {
+
+                                            this.handle_connect().await.unwrap_or_else(|err| log_error!("{err}"));
+
                                             this.inner.multiplexer.try_broadcast(Box::new(Events::Connect {
                                                 network_id : this.network_id().expect("network id expected during connection"),
                                                 url : this.rpc_url()
                                             })).unwrap_or_else(|err| log_error!("{err}"));
-                                            this.handle_connect().await.unwrap_or_else(|err| log_error!("{err}"));
                                         }
                                     },
                                     RpcState::Closed => {
