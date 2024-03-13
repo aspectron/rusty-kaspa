@@ -5,6 +5,12 @@ body {
     font-family: "Consolas", "Andale Mono", monospace;
     /* white-space: pre-wrap; */
 }
+@media (prefers-color-scheme: dark) {
+    body {
+        background: rgb(41, 41, 40);
+        color: rgb(188, 189, 229);
+    }
+}
 
 code {
     display: block;
