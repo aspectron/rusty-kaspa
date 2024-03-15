@@ -31,17 +31,7 @@
                 // await rpc.disconnect();
 
                 const $ = q=>document.querySelector(q);
-                let el = document.createElement("div");
-                document.body.appendChild(el);
-                el.innerHTML = `
-                    <button id="connect" class="link">Connect wallet</button>
-                    <div id="wallets"></div>
-                    <br>&nbsp;<br>
-                    <br/><input id="amount" class="amount" type="text" value="" placeholder=" Enter amount to request payment..." />
-                    <br>&nbsp;<br>
-                    <button id="request" class="link">Request payment</button>
-                    <br>&nbsp;<br>
-                `;
+               
 
                 let connect = $("#connect");
                 connect.addEventListener("click", async (e) => {
@@ -92,6 +82,17 @@
         </script>
     </head>
     <body>
+        <div>
+            <IF-NOT-USER><h1><a href="/login.html" class="link">Login</a></h1></IF-NOT-USER>
+            <IF-USER><h1><%=user_greeting_msg%> <a href="/logout" class="link">Logout</a></h1></IF-USER>
+            <button id="connect" class="link">Connect wallet</button>
+            <div id="wallets"></div>
+            <br>&nbsp;<br>
+            <br/><input id="amount" class="amount" type="text" value="" placeholder=" Enter amount to request payment..." />
+            <br>&nbsp;<br>
+            <button id="request" class="link">Request payment</button>
+            <br>&nbsp;<br>
+        </div>
         <template id="wallet-tpl">
             <div class="wallet">
                 <img class="icon" width="50" height="50">
