@@ -1,3 +1,26 @@
+@media (prefers-color-scheme: dark) {
+    body {
+        background: rgb(41, 41, 40);
+        color: rgb(188, 189, 229);
+    }
+    body a, body .link {
+        color: rgb(71, 85, 230);
+    }
+}
+a, .link {
+    color: rgb(0, 156, 117);
+    text-decoration: none;
+}
+
+a:hover, .link:hover {
+    color: rgb(80, 121, 111);
+    text-decoration: none;
+    cursor: pointer;
+}
+.link:disabled{
+    opacity:0.5;
+    cursor:not-allowed
+}
 .wallet{
     padding:10px;
     border:1px solid #DDD;
