@@ -84,7 +84,7 @@
     <body>
         <div>
             <IF-NOT-USER><h1><a href="/login.html" class="link">Login</a></h1></IF-NOT-USER>
-            <IF-USER><h1><%=user_greeting_msg%> <a href="/logout" class="link">Logout</a></h1></IF-USER>
+            <IF-USER><h1><%=user_greeting_msg%> <!--a href="/logout" class="link">Logout</a--></h1></IF-USER>
             <button id="connect" class="link">Connect wallet</button>
             <div id="wallets"></div>
             <br>&nbsp;<br>

@@ -10,7 +10,8 @@ const qs = require('querystring');
 const port = process.argv[2] || "8000";
 
 const USERS = {
-    xyz: "xyz"
+    xyz: "xyz",
+    abc:"abc"
 }
 let sessions = {};
 
@@ -22,7 +23,11 @@ const GRN = "\x1B[32m";
 readSession();
 
 http.createServer(function (req, res) {
-    let userSession = getUserSession(req);
+    //let userSession = getUserSession(req);
+    let userSession = ensureUserSession(req, res);
+    if (!userSession){
+        return
+    }
 
 
     let url = req.url == "/" ? "/index.html": req.url;
@@ -39,44 +44,43 @@ http.createServer(function (req, res) {
         return redirectTo(res, "/")
     }
 
-    if (pathname == "/login.html" && req.method == "POST"){
-        let body = "";
-        req.on("data", chunk => {
-            body += chunk.toString();
-        });
+    // if (pathname == "/login.html" && req.method == "POST"){
+    //     let body = "";
+    //     req.on("data", chunk => {
+    //         body += chunk.toString();
+    //     });
 
-        req.on('end', () => {
-            const info = qs.parse(body);
-            if (USERS[info.username] == info.password){
-                const sessionId = generateSessionId();
+    //     req.on('end', () => {
+    //         const info = qs.parse(body);
+    //         if (USERS[info.username] == info.password){
+    //             const sessionId = generateSessionId();
 
-                
-                sessions[sessionId] = {
-                    username: info.username,
-                    loggedIn: true
-                };
+    //             sessions[sessionId] = {
+    //                 username: info.username,
+    //                 loggedIn: true
+    //             };
 
-                saveSession()
+    //             saveSession()
 
-                // Set session ID as a cookie
-                res.setHeader('Set-Cookie', `sessionId=${sessionId}; HttpOnly`);
-                res.writeHead(302, { 'Location': '/' });
-                res.end();
-                return
-            }
+    //             // Set session ID as a cookie
+    //             res.setHeader('Set-Cookie', `sessionId=${sessionId}; HttpOnly`);
+    //             res.writeHead(302, { 'Location': '/' });
+    //             res.end();
+    //             return
+    //         }
 
-            send("login.html", {error:"Invalid username or password"});
-        })
+    //         send("login.html", {error:"Invalid username or password"});
+    //     })
         
-        return
-    }
+    //     return
+    // }
 
-    if (!userSession 
-        && !pathname.startsWith("/index.html")
-        && !pathname.startsWith("/resources")
-        && !pathname.startsWith("/login")){
-        return redirectTo(res, '/login.html')
-    }
+    // if (!userSession 
+    //     && !pathname.startsWith("/index.html")
+    //     && !pathname.startsWith("/resources")
+    //     && !pathname.startsWith("/login")){
+    //     return redirectTo(res, '/login.html')
+    // }
 
     // update session data and save it
     // userSession.abc = "xyz";
@@ -139,6 +143,28 @@ function getUserSession(req){
     }
     return false
 }
+
+function ensureUserSession(req, res){
+    let userSession = getUserSession(req);
+    if (userSession)
+        return userSession
+
+    const sessionId = generateSessionId();
+    
+    sessions[sessionId] = {
+        username: "demo-user-"+sessionId,
+        loggedIn: true
+    };
+
+    saveSession()
+
+    // Set session ID as a cookie
+    res.setHeader('Set-Cookie', `sessionId=${sessionId}; HttpOnly`);
+    res.writeHead(302, { 'Location': '/' });
+    res.end();
+    return
+}
+
 function deleteUserSession(req){
     let sessionId = getSessionId(req);
     if (sessionId && sessions[sessionId]){
