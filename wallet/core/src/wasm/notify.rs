@@ -72,6 +72,7 @@ cfg_if! {
             ;
 
         /**
+         * UtxoProcessor notification event data map.
          * 
          * @category Wallet API
          */
@@ -203,6 +204,7 @@ cfg_if! {
             ;
 
         /**
+         * Wallet notification event data map.
          * @see {@link Wallet.addEventListener}
          * @category Wallet API
          */
