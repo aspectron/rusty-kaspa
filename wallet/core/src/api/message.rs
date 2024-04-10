@@ -42,7 +42,7 @@ pub struct FlushResponse {}
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectRequest {
-    pub url: String,
+    pub url: Option<String>,
     pub network_id: NetworkId,
 }
 
@@ -60,7 +60,39 @@ pub struct DisconnectResponse {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetStatusRequest {}
+pub struct ChangeNetworkIdRequest {
+    pub network_id: NetworkId,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangeNetworkIdResponse {}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RetainContextRequest {
+    pub name: String,
+    pub data: Option<Vec<u8>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RetainContextResponse {
+    // pub name : String,
+    // pub data: Option<Arc<Vec<u8>>>,
+    // pub is_connected: bool,
+    // pub is_synced: bool,
+    // pub is_open: bool,
+    // pub url: Option<String>,
+    // pub is_wrpc_client: bool,
+    // pub network_id: Option<NetworkId>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetStatusRequest {
+    pub name: Option<String>,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
@@ -71,6 +103,10 @@ pub struct GetStatusResponse {
     pub url: Option<String>,
     pub is_wrpc_client: bool,
     pub network_id: Option<NetworkId>,
+    pub context: Option<Arc<Vec<u8>>>,
+    pub wallet_descriptor: Option<WalletDescriptor>,
+    pub account_descriptors: Option<Vec<AccountDescriptor>>,
+    pub selected_account_id: Option<AccountId>,
 }
 
 // ---
@@ -255,7 +291,7 @@ pub struct AccountsRenameRequest {
 #[serde(rename_all = "camelCase")]
 pub struct AccountsRenameResponse {}
 
-// @category Wallet API
+/// @category Wallet API
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, CastFromJs)]
 #[serde(rename_all = "camelCase")]
 #[wasm_bindgen]
@@ -326,6 +362,16 @@ pub struct AccountsImportRequest {}
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountsImportResponse {}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountsSelectRequest {
+    pub account_id: Option<AccountId>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountsSelectResponse {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]

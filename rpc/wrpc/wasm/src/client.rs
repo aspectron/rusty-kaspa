@@ -249,6 +249,27 @@ pub struct RpcClient {
     pub(crate) inner: Arc<Inner>,
 }
 
+cfg_if! {
+    if #[cfg(feature = "wasm32-sdk")] {
+        #[wasm_bindgen(typescript_custom_section)]
+        const TS_NOTIFY: &'static str = r#"
+        interface RpcClient {
+            /**
+            * @param {RpcEventCallback} callback
+            */
+            addEventListener(callback:RpcEventCallback): void;
+            /**
+            * @param {RpcEventType} event
+            * @param {RpcEventCallback} [callback]
+            */
+            addEventListener<M extends keyof RpcEventMap>(
+                event: M,
+                callback: (eventData: RpcEventMap[M]) => void
+            )
+        }"#;
+    }
+}
+
 impl RpcClient {
     pub fn new(config: Option<RpcConfig>) -> Result<RpcClient> {
         let RpcConfig { resolver, url, encoding, network_id } = config.unwrap_or_default();
@@ -323,7 +344,7 @@ impl RpcClient {
     /// Set the network id for the RPC client.
     /// This setting will take effect on the next connection.
     #[wasm_bindgen(js_name = setNetworkId)]
-    pub fn set_network_id(&self, network_id: NetworkId) -> Result<()> {
+    pub fn set_network_id(&self, network_id: &NetworkId) -> Result<()> {
         self.inner.client.set_network_id(network_id)?;
         Ok(())
     }
@@ -368,6 +389,7 @@ impl RpcClient {
 
         self.start_notification_task()?;
         self.inner.client.connect(options).await?;
+
         Ok(())
     }
 
@@ -375,6 +397,20 @@ impl RpcClient {
     pub async fn disconnect(&self) -> Result<()> {
         // disconnect the client first to receive the 'close' event
         self.inner.client.disconnect().await?;
+        self.stop_notification_task().await?;
+        Ok(())
+    }
+
+    /// Start background RPC services (automatically started when invoking {@link RpcClient.connect}).
+    pub async fn start(&self) -> Result<()> {
+        self.start_notification_task()?;
+        self.inner.client.start().await?;
+        Ok(())
+    }
+
+    /// Stop background RPC services (automatically stopped when invoking {@link RpcClient.disconnect}).
+    pub async fn stop(&self) -> Result<()> {
+        self.inner.client.stop().await?;
         self.stop_notification_task().await?;
         Ok(())
     }
@@ -424,10 +460,7 @@ impl RpcClient {
     /// });
     ///
     /// // Registering event listener for all events:
-    /// rpc.addEventListener("*", (event) => {
-    ///     console.log(event);
-    /// });
-    /// // or without supplying the event type
+    /// // (by omitting the event type)
     /// rpc.addEventListener((event) => {
     ///     console.log(event);
     /// });
@@ -501,7 +534,7 @@ impl RpcClient {
     /// @see {@link RpcEventData} for the event data interface specification.
     /// @see {@link RpcClient.removeEventListener}, {@link RpcClient.removeAllEventListeners}
     ///
-    #[wasm_bindgen(js_name = "addEventListener")]
+    #[wasm_bindgen(js_name = "addEventListener", skip_typescript)]
     pub fn add_event_listener(&self, event: RpcEventTypeOrCallback, callback: Option<RpcEventCallback>) -> Result<()> {
         if let Ok(sink) = Sink::try_from(&event) {
             let event = NotificationEvent::All;
@@ -602,8 +635,8 @@ impl RpcClient {
 
     async fn stop_notification_task(&self) -> Result<()> {
         if self.inner.notification_task.load(Ordering::SeqCst) {
-            self.inner.notification_task.store(false, Ordering::SeqCst);
             self.inner.notification_ctl.signal(()).await.map_err(|err| JsError::new(&err.to_string()))?;
+            self.inner.notification_task.store(false, Ordering::SeqCst);
         }
         Ok(())
     }
@@ -611,6 +644,10 @@ impl RpcClient {
     /// Notification task receives notifications and executes them on the
     /// user-supplied callback function.
     fn start_notification_task(&self) -> Result<()> {
+        if self.inner.notification_task.load(Ordering::SeqCst) {
+            return Ok(());
+        }
+
         self.inner.notification_task.store(true, Ordering::SeqCst);
 
         let ctl_receiver = self.inner.notification_ctl.request.receiver.clone();

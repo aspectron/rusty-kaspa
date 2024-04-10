@@ -1,10 +1,10 @@
 use crate::{hashing, BlueWorkType};
-use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
+use borsh::{BorshDeserialize, BorshSerialize};
 use kaspa_hashes::Hash;
 use serde::{Deserialize, Serialize};
 
 /// @category Consensus
-#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, BorshSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Header {
     /// Cached hash

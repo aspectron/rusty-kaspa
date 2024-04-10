@@ -10,7 +10,6 @@ const TS_HEADER: &'static str = r#"
  * @see {RpcClient.addEventListener}, {RpcClient.removeEventListener}
  */
 export enum RpcEventType {
-    All = "*",
     Open = "open",
     Close = "close",
     BlockAdded = "block-added",
@@ -26,6 +25,8 @@ export enum RpcEventType {
 
 /**
  * RPC notification data payload.
+ * 
+ * @category Node RPC
  */
 export type RpcEventData = IBlockAdded 
     | IVirtualChainChanged 
@@ -38,12 +39,32 @@ export type RpcEventData = IBlockAdded
     | INewBlockTemplate;
 
 /**
- * RPC notification event.
+ * RPC notification event data map.
+ * 
+ * @category Node RPC
  */
-export interface RpcEvent {
-    type: RpcEventType;
-    data?: RpcEventData;
+export type RpcEventMap = {
+    // "open" : Open,
+    // "close" : Close,
+    "block-added" : IBlockAdded,
+    "virtual-chain-changed" : IVirtualChainChanged,
+    "finality-conflict" : IFinalityConflict,
+    "finality-conflict-resolved" : IFinalityConflictResolved,
+    "utxos-changed" : IUtxosChanged,
+    "sink-blue-score-changed" : ISinkBlueScoreChanged,
+    "virtual-daa-score-changed" : IVirtualDaaScoreChanged,
+    "pruning-point-utxo-set-override" : IPruningPointUtxoSetOverride,
+    "new-block-template" : INewBlockTemplate,
 }
+
+/**
+ * RPC notification event.
+ * 
+ * @category Node RPC
+ */
+export type RpcEvent = {
+    [K in keyof RpcEventMap]: { event: K, data: RpcEventMap[K] }
+}[keyof RpcEventMap];
 
 /**
  * RPC notification callback type.

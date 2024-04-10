@@ -1,6 +1,23 @@
 Latest online documentation available at: https://kaspa.aspectron.org/docs/
 
-### Latest
+### Release 2024-03-31
+
+- Rename `kaspa-beacon` app to `kaspa-resolver`
+- Change RpcClient, UtxoProcessor and Wallet event handlers in typescript to receive typed event data
+- UtxoProcessor and Wallet event handlers now deliver TransactionRecord events (Discovery, Pending, etc.)
+as Rust or WASM objects, allowing user to call `hasAddress(<address>)` on the received `event.data.record` object.
+
+### Release 2024-03-19
+
+- Fix type checks when passing arrays to transaction `Generator` entries.
+
+### Release 2024-03-14
+
+- Introcue IWASM32BindingsConfig for configuration of class naming when using WASM32 bindings.
+- Introduce serializeToJSON for `PendingTransaction` class (deserializable with `Transaction` class).
+- Introduce serializeToJSON and deserializeFromJSON methods for `Transaction` class.
+
+### Release 2024-03-11
 
 - Fix `requestAnimationFrame` use in chrome extension environment.
 - Add rejection in `Generator` when `priorityFee` is `undefined` while outputs are present.

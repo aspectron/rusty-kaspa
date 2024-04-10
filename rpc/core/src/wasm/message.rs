@@ -3,7 +3,6 @@
 use crate::error::RpcError as Error;
 use crate::error::RpcResult as Result;
 use crate::model::*;
-use js_sys::Object;
 use kaspa_addresses::Address;
 use kaspa_addresses::AddressOrStringArrayT;
 use kaspa_consensus_client::Transaction;
@@ -796,13 +795,29 @@ declare! {
      */
     export interface IGetBlockTemplateRequest {
         payAddress : Address | string;
-        extraData : HexString;
+        /**
+         * `extraData` can contain a user-supplied plain text or a byte array represented by `Uint8array`.
+         */
+        extraData? : string | Uint8Array;
     }
     "#,
 }
 
 try_from! ( args: IGetBlockTemplateRequest, GetBlockTemplateRequest, {
-    Ok(from_value(args.into())?)
+    let pay_address = args.get_cast::<Address>("payAddress")?.into_owned();
+    let extra_data = if let Some(extra_data) = args.try_get_value("extraData")? {
+        if let Some(text) = extra_data.as_string() {
+            text.into_bytes()
+        } else {
+            extra_data.try_as_vec_u8()?
+        }
+    } else {
+        Default::default()
+    };
+    Ok(GetBlockTemplateRequest {
+        pay_address,
+        extra_data,
+    })
 });
 
 declare! {
@@ -1310,13 +1325,11 @@ declare! {
 }
 
 try_from! ( args: ISubmitTransactionRequest, SubmitTransactionRequest, {
-    let js_value = JsValue::from(args);
-    let object = Object::try_from(&js_value).ok_or("supplied argument must be an Object")?;
-    let (transaction, allow_orphan) = if let Some(transaction) = object.try_get_value("transaction")? {
-        let allow_orphan = object.try_get_bool("allowOrphan")?.unwrap_or(false);
+    let (transaction, allow_orphan) = if let Some(transaction) = args.try_get_value("transaction")? {
+        let allow_orphan = args.try_get_bool("allowOrphan")?.unwrap_or(false);
         (transaction, allow_orphan)
     } else {
-        (object.into(), false)
+        (args.into(), false)
     };
 
     let request = if let Ok(signable) = SignableTransaction::try_owned_from(&transaction) {

@@ -160,7 +160,7 @@ declare! {
 }
 
 try_from! ( args: IConnectRequest, ConnectRequest, {
-    let url = args.get_string("url")?;
+    let url = args.try_get_string("url")?;
     let network_id = args.get_network_id("networkId")?;
     Ok(ConnectRequest { url, network_id })
 });
@@ -225,12 +225,19 @@ declare! {
      *  
      * @category Wallet API
      */
-    export interface IGetStatusRequest { }
+    export interface IGetStatusRequest {
+        /**
+         * Optional context creation name.
+         * @see {@link IRetainContextRequest}
+         */
+        name? : string;
+    }
     "#,
 }
 
-try_from! ( _args: IGetStatusRequest, GetStatusRequest, {
-    Ok(GetStatusRequest { })
+try_from! ( args: IGetStatusRequest, GetStatusRequest, {
+    let name = args.try_get_string("name")?;
+    Ok(GetStatusRequest { name })
 });
 
 declare! {
@@ -247,6 +254,7 @@ declare! {
         isOpen : boolean;
         url? : string;
         networkId? : NetworkId;
+        context? : HexString;
     }
     "#,
 }
@@ -264,6 +272,53 @@ try_from! ( args: GetStatusResponse, IGetStatusResponse, {
         response.set("networkId", &network_id.into())?;
     }
     Ok(response)
+});
+
+// ---
+
+declare! {
+    IRetainContextRequest,
+    r#"
+    /**
+     * 
+     *  
+     * @category Wallet API
+     */
+    export interface IRetainContextRequest {
+        /**
+         * Optional context creation name.
+         */
+        name : string;
+        /**
+         * Optional context data to retain.
+         */
+        data? : string;
+    }
+    "#,
+}
+
+try_from! ( args: IRetainContextRequest, RetainContextRequest, {
+    let name = args.get_string("name")?;
+    let data = args.try_get_string("data")?;
+    let data = data.map(|data|Vec::<u8>::from_hex(data.as_str())).transpose()?;
+    Ok(RetainContextRequest { name, data })
+});
+
+declare! {
+    IRetainContextResponse,
+    r#"
+    /**
+     * 
+     *  
+     * @category Wallet API
+     */
+    export interface IRetainContextResponse {
+    }
+    "#,
+}
+
+try_from! ( _args: RetainContextResponse, IRetainContextResponse, {
+    Ok(IRetainContextResponse::default())
 });
 
 // ---

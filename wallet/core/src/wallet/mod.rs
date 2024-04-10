@@ -21,7 +21,6 @@ use kaspa_notify::{
     listener::ListenerId,
     scope::{Scope, VirtualDaaScoreChangedScope},
 };
-use kaspa_rpc_core::notify::mode::NotificationMode;
 use kaspa_wrpc_client::{KaspaRpcClient, Resolver, WrpcEncoding};
 use workflow_core::task::spawn;
 
@@ -90,6 +89,7 @@ pub struct Inner {
     multiplexer: Multiplexer<Box<Events>>,
     wallet_bus: Channel<WalletBusMessage>,
     estimation_abortables: Mutex<HashMap<AccountId, Abortable>>,
+    retained_contexts: Mutex<HashMap<String, Arc<Vec<u8>>>>,
 }
 
 ///
@@ -118,13 +118,8 @@ impl Wallet {
     }
 
     pub fn try_with_wrpc(store: Arc<dyn Interface>, resolver: Option<Resolver>, network_id: Option<NetworkId>) -> Result<Wallet> {
-        let rpc_client = Arc::new(KaspaRpcClient::new_with_args(
-            WrpcEncoding::Borsh,
-            NotificationMode::MultiListeners,
-            Some("wrpc://127.0.0.1:17110"),
-            resolver,
-            network_id,
-        )?);
+        let rpc_client =
+            Arc::new(KaspaRpcClient::new_with_args(WrpcEncoding::Borsh, Some("wrpc://127.0.0.1:17110"), resolver, network_id)?);
         let rpc_ctl = rpc_client.ctl().clone();
         let rpc_api: Arc<DynRpcApi> = rpc_client;
         let rpc = Rpc::new(rpc_api, rpc_ctl);
@@ -150,6 +145,7 @@ impl Wallet {
                 utxo_processor: utxo_processor.clone(),
                 wallet_bus,
                 estimation_abortables: Mutex::new(HashMap::new()),
+                retained_contexts: Mutex::new(HashMap::new()),
             }),
         };
 
@@ -419,6 +415,28 @@ impl Wallet {
         Ok(())
     }
 
+    pub async fn account_descriptors(self: Arc<Self>) -> Result<Vec<AccountDescriptor>> {
+        let iter = self.inner.store.as_account_store().unwrap().iter(None).await.unwrap();
+        let wallet = self.clone();
+
+        let stream = iter.then(move |stored| {
+            let wallet = wallet.clone();
+
+            async move {
+                let (stored_account, stored_metadata) = stored.unwrap();
+                if let Some(account) = wallet.legacy_accounts().get(&stored_account.id) {
+                    account.descriptor()
+                } else if let Some(account) = wallet.active_accounts().get(&stored_account.id) {
+                    account.descriptor()
+                } else {
+                    try_load_account(&wallet, stored_account, stored_metadata).await?.descriptor()
+                }
+            }
+        });
+
+        stream.try_collect::<Vec<_>>().await
+    }
+
     pub async fn get_prv_key_data(&self, wallet_secret: &Secret, id: &PrvKeyDataId) -> Result<Option<PrvKeyData>> {
         self.inner.store.as_prv_key_data_store()?.load_key_data(wallet_secret, id).await
     }
@@ -536,6 +554,10 @@ impl Wallet {
             return Err(Error::NetworkTypeConnected);
         }
         self.utxo_processor().set_network_id(network_id);
+
+        if let Some(wrpc_client) = self.wrpc_client() {
+            wrpc_client.set_network_id(network_id)?;
+        }
         Ok(())
     }
 
@@ -900,14 +922,14 @@ impl Wallet {
         let events = self.multiplexer().channel();
         let wallet_bus_receiver = self.wallet_bus().receiver.clone();
 
-        let this_clone = self.clone();
-        spawn(async move {
-            loop {
-                log_info!("Wallet broadcasting ping...");
-                this_clone.notify(Events::WalletPing).await.expect("Wallet::start_task() `notify` error");
-                sleep(Duration::from_secs(5)).await;
-            }
-        });
+        // let this_clone = self.clone();
+        // spawn(async move {
+        //     loop {
+        //         log_info!("Wallet broadcasting ping...");
+        //         this_clone.notify(Events::WalletPing).await.expect("Wallet::start_task() `notify` error");
+        //         sleep(Duration::from_secs(5)).await;
+        //     }
+        // });
 
         spawn(async move {
             loop {
@@ -953,6 +975,20 @@ impl Wallet {
 
     async fn stop_task(&self) -> Result<()> {
         self.inner.task_ctl.signal(()).await.expect("Wallet::stop_task() `signal` error");
+        Ok(())
+    }
+
+    pub fn enable_metrics_kinds(&self, kinds: &[MetricsUpdateKind]) {
+        self.utxo_processor().enable_metrics_kinds(kinds);
+    }
+
+    pub async fn start_metrics(&self) -> Result<()> {
+        self.utxo_processor().start_metrics().await?;
+        Ok(())
+    }
+
+    pub async fn stop_metrics(&self) -> Result<()> {
+        self.utxo_processor().stop_metrics().await?;
         Ok(())
     }
 
@@ -1573,118 +1609,118 @@ mod test {
     use kaspa_consensus_wasm::{sign_transaction, SignableTransaction, Transaction, TransactionInput, TransactionOutput};
     use kaspa_txscript::pay_to_address_script;
 
-        async fn create_utxos_context_with_addresses(
-            rpc: Arc<DynRpcApi>,
-            addresses: Vec<Address>,
-            current_daa_score: u64,
-            core: &UtxoProcessor,
-        ) -> Result<UtxoContext> {
-            let utxos = rpc.get_utxos_by_addresses(addresses).await?;
-            let utxo_context = UtxoContext::new(core, UtxoContextBinding::default());
-            let entries = utxos.into_iter().map(|entry| entry.into()).collect::<Vec<_>>();
-            for entry in entries.into_iter() {
-                utxo_context.insert(entry, current_daa_score, false).await?;
-            }
-            Ok(utxo_context)
+    async fn create_utxos_context_with_addresses(
+        rpc: Arc<DynRpcApi>,
+        addresses: Vec<Address>,
+        current_daa_score: u64,
+        core: &UtxoProcessor,
+    ) -> Result<UtxoContext> {
+        let utxos = rpc.get_utxos_by_addresses(addresses).await?;
+        let utxo_context = UtxoContext::new(core, UtxoContextBinding::default());
+        let entries = utxos.into_iter().map(|entry| entry.into()).collect::<Vec<_>>();
+        for entry in entries.into_iter() {
+            utxo_context.insert(entry, current_daa_score, false).await?;
         }
+        Ok(utxo_context)
+    }
 
-        #[allow(dead_code)]
-        // #[tokio::test]
-        async fn wallet_test() -> Result<()> {
-            println!("Creating wallet...");
-            let resident_store = Wallet::resident_store()?;
-            let wallet = Arc::new(Wallet::try_new(resident_store, None)?);
+    #[allow(dead_code)]
+    // #[tokio::test]
+    async fn wallet_test() -> Result<()> {
+        println!("Creating wallet...");
+        let resident_store = Wallet::resident_store()?;
+        let wallet = Arc::new(Wallet::try_new(resident_store, None)?);
 
-            let rpc_api = wallet.rpc_api();
-            let utxo_processor = wallet.utxo_processor();
+        let rpc_api = wallet.rpc_api();
+        let utxo_processor = wallet.utxo_processor();
 
-            let wrpc_client = wallet.wrpc_client().expect("Unable to obtain wRPC client");
+        let wrpc_client = wallet.wrpc_client().expect("Unable to obtain wRPC client");
 
-            let info = rpc_api.get_block_dag_info().await?;
-            let current_daa_score = info.virtual_daa_score;
+        let info = rpc_api.get_block_dag_info().await?;
+        let current_daa_score = info.virtual_daa_score;
 
-            let _connect_result = wrpc_client.connect(ConnectOptions::fallback()).await;
-            //println!("connect_result: {_connect_result:?}");
+        let _connect_result = wrpc_client.connect(ConnectOptions::fallback()).await;
+        //println!("connect_result: {_connect_result:?}");
 
-            let _result = wallet.start().await;
-            //println!("wallet.task(): {_result:?}");
-            let result = wallet.get_info().await;
-            println!("wallet.get_info(): {result:#?}");
+        let _result = wallet.start().await;
+        //println!("wallet.task(): {_result:?}");
+        let result = wallet.get_info().await;
+        println!("wallet.get_info(): {result:#?}");
 
-            let address = Address::try_from("kaspatest:qz7ulu4c25dh7fzec9zjyrmlhnkzrg4wmf89q7gzr3gfrsj3uz6xjceef60sd")?;
+        let address = Address::try_from("kaspatest:qz7ulu4c25dh7fzec9zjyrmlhnkzrg4wmf89q7gzr3gfrsj3uz6xjceef60sd")?;
 
-            let utxo_context =
-                self::create_utxos_context_with_addresses(rpc_api.clone(), vec![address.clone()], current_daa_score, utxo_processor)
-                    .await?;
+        let utxo_context =
+            self::create_utxos_context_with_addresses(rpc_api.clone(), vec![address.clone()], current_daa_score, utxo_processor)
+                .await?;
 
-            let utxo_set_balance = utxo_context.calculate_balance().await;
-            println!("get_utxos_by_addresses: {utxo_set_balance:?}");
+        let utxo_set_balance = utxo_context.calculate_balance().await;
+        println!("get_utxos_by_addresses: {utxo_set_balance:?}");
 
-            let to_address = Address::try_from("kaspatest:qpakxqlesqywgkq7rg4wyhjd93kmw7trkl3gpa3vd5flyt59a43yyn8vu0w8c")?;
-            let mut iter = UtxoIterator::new(&utxo_context);
-            let utxo = iter.next().unwrap();
-            let utxo = (*utxo.utxo).clone();
-            let selected_entries = vec![utxo];
+        let to_address = Address::try_from("kaspatest:qpakxqlesqywgkq7rg4wyhjd93kmw7trkl3gpa3vd5flyt59a43yyn8vu0w8c")?;
+        let mut iter = UtxoIterator::new(&utxo_context);
+        let utxo = iter.next().unwrap();
+        let utxo = (*utxo.utxo).clone();
+        let selected_entries = vec![utxo];
 
-            let entries = &selected_entries;
+        let entries = &selected_entries;
 
-            let inputs = selected_entries
-                .iter()
-                .enumerate()
-                .map(|(sequence, utxo)| TransactionInput::new(utxo.outpoint.clone(), vec![], sequence as u64, 0))
-                .collect::<Vec<TransactionInput>>();
+        let inputs = selected_entries
+            .iter()
+            .enumerate()
+            .map(|(sequence, utxo)| TransactionInput::new(utxo.outpoint.clone(), vec![], sequence as u64, 0))
+            .collect::<Vec<TransactionInput>>();
 
-            let tx = Transaction::new(
-                0,
-                inputs,
-                vec![TransactionOutput::new(1000, &pay_to_address_script(&to_address))],
-                0,
-                SUBNETWORK_ID_NATIVE,
-                0,
-                vec![],
-            )?;
+        let tx = Transaction::new(
+            0,
+            inputs,
+            vec![TransactionOutput::new(1000, &pay_to_address_script(&to_address))],
+            0,
+            SUBNETWORK_ID_NATIVE,
+            0,
+            vec![],
+        )?;
 
-            let mtx = SignableTransaction::new(tx, (*entries).clone().into());
+        let mtx = SignableTransaction::new(tx, (*entries).clone().into());
 
-            let derivation_path =
-                gen1::WalletDerivationManager::build_derivate_path(false, 0, None, Some(kaspa_bip32::AddressType::Receive))?;
+        let derivation_path =
+            gen1::WalletDerivationManager::build_derivate_path(false, 0, None, Some(kaspa_bip32::AddressType::Receive))?;
 
-            let xprv = "kprv5y2qurMHCsXYrNfU3GCihuwG3vMqFji7PZXajMEqyBkNh9UZUJgoHYBLTKu1eM4MvUtomcXPQ3Sw9HZ5ebbM4byoUciHo1zrPJBQfqpLorQ";
+        let xprv = "kprv5y2qurMHCsXYrNfU3GCihuwG3vMqFji7PZXajMEqyBkNh9UZUJgoHYBLTKu1eM4MvUtomcXPQ3Sw9HZ5ebbM4byoUciHo1zrPJBQfqpLorQ";
 
-            let xkey = ExtendedPrivateKey::<SecretKey>::from_str(xprv)?.derive_path(derivation_path)?;
+        let xkey = ExtendedPrivateKey::<SecretKey>::from_str(xprv)?.derive_path(derivation_path)?;
 
-            let xkey = xkey.derive_child(ChildNumber::new(0, false)?)?;
+        let xkey = xkey.derive_child(ChildNumber::new(0, false)?)?;
 
-            // address test
-            let address_test = Address::new(Prefix::Testnet, Version::PubKey, &xkey.public_key().to_bytes()[1..]);
-            let address_str: String = address_test.clone().into();
-            assert_eq!(address, address_test, "Addresses don't match");
-            println!("address: {address_str}");
+        // address test
+        let address_test = Address::new(Prefix::Testnet, Version::PubKey, &xkey.public_key().to_bytes()[1..]);
+        let address_str: String = address_test.clone().into();
+        assert_eq!(address, address_test, "Addresses don't match");
+        println!("address: {address_str}");
 
-            let private_keys = vec![xkey.to_bytes()];
+        let private_keys = vec![xkey.to_bytes()];
 
-            println!("mtx: {mtx:?}");
+        println!("mtx: {mtx:?}");
 
-            let mtx = sign_transaction(mtx, private_keys, true)?;
+        let mtx = sign_transaction(mtx, private_keys, true)?;
 
-            let utxo_context =
-                self::create_utxos_context_with_addresses(rpc_api.clone(), vec![to_address.clone()], current_daa_score, utxo_processor)
-                    .await?;
-            let to_balance = utxo_context.calculate_balance().await;
-            println!("to address balance before tx submit: {to_balance:?}");
+        let utxo_context =
+            self::create_utxos_context_with_addresses(rpc_api.clone(), vec![to_address.clone()], current_daa_score, utxo_processor)
+                .await?;
+        let to_balance = utxo_context.calculate_balance().await;
+        println!("to address balance before tx submit: {to_balance:?}");
 
-            let result = rpc_api.submit_transaction(mtx.into(), false).await?;
+        let result = rpc_api.submit_transaction(mtx.into(), false).await?;
 
-            println!("tx submit result, {:?}", result);
-            println!("sleep for 5s...");
-            sleep(time::Duration::from_millis(5000));
-            let utxo_context =
-                self::create_utxos_context_with_addresses(rpc_api.clone(), vec![to_address.clone()], current_daa_score, utxo_processor)
-                    .await?;
-            let to_balance = utxo_context.calculate_balance().await;
-            println!("to address balance after tx submit: {to_balance:?}");
+        println!("tx submit result, {:?}", result);
+        println!("sleep for 5s...");
+        sleep(time::Duration::from_millis(5000));
+        let utxo_context =
+            self::create_utxos_context_with_addresses(rpc_api.clone(), vec![to_address.clone()], current_daa_score, utxo_processor)
+                .await?;
+        let to_balance = utxo_context.calculate_balance().await;
+        println!("to address balance after tx submit: {to_balance:?}");
 
-            Ok(())
-        }
+        Ok(())
+    }
     */
 }
