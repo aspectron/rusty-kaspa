@@ -6,6 +6,30 @@ const {URL} = require('url');
 const path = require('path');
 const fs = require('fs');
 const qs = require('querystring');
+const {
+    Address,
+    Encoding,
+    NetworkId,
+    Mnemonic,
+    XPrv,
+} = require("../../nodejs/kaspa/kaspa");
+
+const configFile = path.join(__dirname, '../data/config.json');
+let walletAccount = null;
+if (fs.existsSync(configFile)) {
+    let config = JSON.parse(fs.readFileSync(configFile, "utf8"));
+    let mnemonic = new Mnemonic(config.mnemonic);
+    walletAccount = createAccount(config.networkId, mnemonic);
+    // console.log("walletAccount", walletAccount);
+    // console.log("address:", 
+    //     walletAccount.receiveAddress(0),
+    //     walletAccount.receiveAddress(1)
+    // );
+}else{
+    console.info("Please create a config file by running 'node init' in the 'examples/' folder")
+    process.exit(1);
+}
+
 
 const port = process.argv[2] || "8000";
 
@@ -91,6 +115,7 @@ http.createServer(function (req, res) {
     function send(pathname, data={}){
         if (userSession){
             data.username = userSession.username;
+            data.address = userSession.address;
             data.user_greeting_msg = "Hello: "+data.username;
         }
         sendFile(pathname, data, req, res);
@@ -150,17 +175,20 @@ function ensureUserSession(req, res){
         return userSession
 
     const sessionId = generateSessionId();
+    let address_index = sessions.address_index??0;
     
     sessions[sessionId] = {
         username: "demo-user-"+sessionId,
+        address: walletAccount.receiveAddress(address_index),
         loggedIn: true
     };
+    sessions.address_index = address_index+1;
 
     saveSession()
 
     // Set session ID as a cookie
-    res.setHeader('Set-Cookie', `sessionId=${sessionId}; HttpOnly`);
-    res.writeHead(302, { 'Location': '/' });
+    res.setHeader('Set-Cookie', `sessionId=${sessionId}; path=/; HttpOnly`);
+    res.writeHead(302, { 'Location': req.url });
     res.end();
     return
 }
@@ -252,6 +280,9 @@ function handleApiRequest(endpoint, userSession, req, res){
     res.setHeader('Content-Type', 'text/plain');
     //console.log("req", req)
     switch (endpoint){
+        case "address":{
+            res.write(JSON.stringify({address: userSession.address}));
+        }break;
         case "check-payment":{
             if (!userSession){
                 res.write("please login first");
@@ -265,6 +296,27 @@ function handleApiRequest(endpoint, userSession, req, res){
         }
     }
     res.end();
+}
+
+
+function createAccount(networkId, mnemonic) {
+    //console.log("mnemonic:", mnemonic.phrase);
+    let xprv = new XPrv(mnemonic.toSeed());
+    let account_0_root = xprv.derivePath("m/44'/111111'/0'").toXPub();
+    let account_0 = {
+        receive_xpub : account_0_root.deriveChild(0),
+        change_xpub : account_0_root.deriveChild(1),
+    };
+    return {
+        account_0,
+        networkId,
+        receiveAddress(index=0){
+            return this.account_0.receive_xpub.deriveChild(index).toPublicKey().toAddress(this.networkId).toString();
+        },
+        changeAddress(index=0){
+            return this.account_0.change_xpub.deriveChild(index).toPublicKey().toAddress(this.networkId).toString();
+        },
+    };
 }
 
 // Message to display when server is started

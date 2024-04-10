@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
     <head>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
         <link rel="stylesheet" href="./resources/style.css">
         <script type="module">
             // import { log, stringify, currentNetwork } from './resources/utils.js';
@@ -42,7 +43,7 @@
                     
                     let wallets = discover_kaspa_wallet();
                     wallets.forEach(w=>{
-                        console.log("wallet", w)
+                        //console.log("wallet", w)
                         let wallet = temp.content.cloneNode(true);
                         wallet.querySelector(".title").innerHTML = w.name;
                         wallet.querySelector(".icon").src = w.icon;
@@ -57,6 +58,7 @@
                 });
 
                 let wallets = $("#wallets");
+                let connectedWallet = null;
                 wallets.addEventListener("click", async (e) => {
                     e.preventDefault();
                     let uuid = e.target.closest(".wallet").dataset.uuid;
@@ -68,33 +70,82 @@
 
                     let result = await wallet.api.connect();
                     console.log("wallet.api.connect result", result)
+                    if (result.address){
+                        $("#wallet-id").value = result.address
+                        $("#wallet-id").parentNode.classList.add("show");
+                        $(".form-request").classList.add("show");
+                        connectedWallet = wallet;
+                    }
+                });
 
-                    // let input = document.getElementById("amount");
-                    // let amount = input.value;
-                    // //let sompi = kaspaToSompi(amount);
-                    // // TODO ... request payment
-                    // input.value = "";
-                    // Kaspa.send({address: "xxxx", amount:13.4});
+                $("#request").addEventListener("click", async(e)=>{
+                    e.preventDefault();
+                    $("#request-loading-spinner").classList.add("show");
+                    let address = $("#receive-address").value;
+                    let amount = $("#amount").value;
+                    console.log("address", address);
+                    console.log("amount", amount);
+                    
+                    function requestPaymentProxy(){
+                        return new Promise((resolve)=>{
+                            setTimeout(()=>{
+                                resolve({txId:"0ca72bbef3cfb28ba5d082ff083481aea7ab89cb85af75c25ab095db66a48752"})
+                            }, 1000);
+                        })
+                    }
+                    //let result = await connectedWallet.api.requestPayment({address, amount});
+                    let result = await requestPaymentProxy({address, amount});
+
+                    $("#request-loading-spinner").classList.remove("show");
+                    if (result.txId){
+                        $("#tx-id").innerHTML = result.txId;
+                        $("#tx-id").href = "https://explorer.kaspa.org/txs/"+result.txId;
+                        $("#tx-id").parentNode.classList.add("show");
+                        
+                    }
                 });
 
             })();
 
         </script>
     </head>
-    <body>
-        <div>
-            <IF-NOT-USER><h1><a href="/login.html" class="link">Login</a></h1></IF-NOT-USER>
-            <IF-USER><h1><%=user_greeting_msg%> <!--a href="/logout" class="link">Logout</a--></h1></IF-USER>
-            <button id="connect" class="link">Connect wallet</button>
+    <body class="align-items-center p-4 bg-body-tertiary_">
+        <div class="w-50 m-auto mb-4">
+            <h1><%=user_greeting_msg%></h1>
+            <button id="connect" class="btn btn-primary">Connect wallet</button>
             <div id="wallets"></div>
-            <br>&nbsp;<br>
-            <br/><input id="amount" class="amount" type="text" value="" placeholder=" Enter amount to request payment..." />
-            <br>&nbsp;<br>
-            <button id="request" class="link">Request payment</button>
-            <br>&nbsp;<br>
+            <div class="form-floating collapse">
+                <input class="form-control" id="wallet-id" disabled>
+                <label for="wallet-id">Wallet connected</label>
+            </div>
+        </div>
+        <div class="form-request w-50 m-auto collapse">
+            <form class="position-relative">
+                <h1 class="h3 mb-3 fw-normal">Request payment</h1>
+                <div class="form-floating mb-3">
+                    <input class="form-control" id="receive-address" disabled value="<%=address%>">
+                    <label for="receive-address">Receive Address</label>
+                </div>
+                <div class="form-floating mb-3">
+                    <input type="number" class="form-control" id="amount" placeholder="1.0">
+                    <label for="amount">Payment amount</label>
+                </div>
+                <button class="btn btn-primary w-100 py-2" id="request">Request</button>
+                <div id="request-loading-spinner" class="collapse">
+                    <div class="bg-success bg-opacity-50 d-flex align-items-center w-100 h-100 top-0 z-3 position-absolute p-5 rounded-3">
+                        <div class="m-auto spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="my-3 collapse">
+                    <label for="tx-id">Transaction ID: </label>
+                    <a href="" id="tx-id" target="_blank" disabled></a>
+                </div>
+            </form>
         </div>
         <template id="wallet-tpl">
-            <div class="wallet">
+            <div class="wallet btn btn-light">
                 <img class="icon" width="50" height="50">
                 <h2 class="title"></h2>
             </div>
