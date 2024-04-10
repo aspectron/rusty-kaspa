@@ -47,8 +47,12 @@ pub fn sign_with_multiple_v3(tx: Transaction, privkeys: &[[u8; 32]]) -> crate::r
         let (cctx, utxos) = tx.tx_and_utxos();
         let populated_transaction = PopulatedTransaction::new(&cctx, utxos);
         for i in 0..input_len {
-            let script_pub_key =
-                tx.inner().inputs[i].script_public_key().expect("expected to be called only following full UTXO population");
+            let script_pub_key = match tx.inner().inputs[i].script_public_key() {
+                Some(script) => script,
+                None => {
+                    return Err(crate::imports::Error::Custom("expected to be called only following full UTXO population".to_string()))
+                }
+            };
             let script = script_pub_key.script();
             if let Some(schnorr_key) = map.get(&script.to_vec()) {
                 let sig_hash = calc_schnorr_signature_hash(&populated_transaction, i, SIG_HASH_ALL, &mut reused_values);
