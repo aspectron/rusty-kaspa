@@ -5,3 +5,5 @@ analyzer-target
 package-lock.json
 /nodejs/*
 /docs/*
+examples/browser-extension/cache.json
+examples/browser-extension/session.json
