@@ -163,7 +163,6 @@ impl Transaction {
                 }
             }
         }
-          
         Array::from_iter(list.into_iter().map(JsValue::from)).unchecked_into()
     }
 
