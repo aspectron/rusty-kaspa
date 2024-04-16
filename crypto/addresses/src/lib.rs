@@ -221,8 +221,8 @@ impl Address {
         address.try_into().unwrap_or_else(|err| panic!("Address::constructor() - address error `{}`: {err}", address))
     }
 
-    #[wasm_bindgen(js_name=isValid)]
-    pub fn is_valid(address: &str) -> bool {
+    #[wasm_bindgen(js_name=validate)]
+    pub fn validate(address: &str) -> bool {
         Self::try_from(address).is_ok()
     }
 
