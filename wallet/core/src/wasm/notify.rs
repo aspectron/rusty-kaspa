@@ -227,7 +227,7 @@ cfg_if! {
          * @category Wallet API
          */
         export type IWalletEvent = {
-            [K in keyof WalletEventMap]: { event: K, data: WalletEventMap[K] }
+            [K in keyof WalletEventMap]: { type: K, data: WalletEventMap[K] }
         }[keyof WalletEventMap];
 
         /**
