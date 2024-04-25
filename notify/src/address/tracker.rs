@@ -3,7 +3,7 @@ use indexmap::{map::Entry, IndexMap};
 use itertools::Itertools;
 use kaspa_addresses::{Address, Prefix};
 use kaspa_consensus_core::tx::ScriptPublicKey;
-use kaspa_core::{debug, info, trace};
+use kaspa_core::{debug, trace};
 use kaspa_txscript::{extract_script_pub_key_address, pay_to_address_script};
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::{
