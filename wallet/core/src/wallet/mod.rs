@@ -368,7 +368,7 @@ impl Wallet {
         }
     }
 
-    async fn activate_accounts_impl(self: &Arc<Wallet>, account_ids: Option<&[AccountId]>) -> Result<()> {
+    async fn activate_accounts_impl(self: &Arc<Wallet>, account_ids: Option<&[AccountId]>) -> Result<Vec<AccountId>> {
         let stored_accounts = if let Some(ids) = account_ids {
             self.inner.store.as_account_store().unwrap().load_multiple(ids).await?
         } else {
@@ -393,9 +393,9 @@ impl Wallet {
             }
         }
 
-        self.notify(Events::AccountActivation { ids }).await?;
+        self.notify(Events::AccountActivation { ids: ids.clone() }).await?;
 
-        Ok(())
+        Ok(ids)
     }
 
     /// Activates accounts (performs account address space counts, initializes balance tracking, etc.)

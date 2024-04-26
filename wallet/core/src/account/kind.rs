@@ -16,7 +16,7 @@ pub struct AccountKind(str64);
 #[wasm_bindgen]
 impl AccountKind {
     #[wasm_bindgen(constructor)]
-    pub fn ctor(kind: &str) -> Result<AccountKind>{
+    pub fn ctor(kind: &str) -> Result<AccountKind> {
         Self::from_str(kind)
     }
     #[wasm_bindgen(js_name=toString)]

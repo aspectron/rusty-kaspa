@@ -304,7 +304,7 @@ impl Wallet {
                                         Events::Stasis { record } |
                                         Events::Maturity { record } |
                                         Events::Discovery { record } => {
-                                            let value = JsValue::from(record.clone());
+                                            let value = record.to_notification_object(EventKind::from(notification.as_ref()).to_string());
                                             if let Err(err) = handler.call(&value) {
                                                 log_error!("Error while executing notification callback: {:?}", err);
                                             }

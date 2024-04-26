@@ -348,3 +348,44 @@ impl TryFrom<JsValue> for EventKind {
         EventKind::from_str(&s)
     }
 }
+
+impl std::fmt::Display for EventKind{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        
+        let str = match self {
+            EventKind::All => "all",
+            EventKind::WalletStart => "wallet-start",
+            EventKind::Connect => "connect",
+            EventKind::Disconnect => "disconnect",
+            EventKind::UtxoIndexNotEnabled => "utxo-index-not-enabled",
+            EventKind::SyncState => "sync-state",
+            EventKind::WalletHint => "wallet-hint",
+            EventKind::WalletOpen => "wallet-open",
+            EventKind::WalletCreate => "wallet-create",
+            EventKind::WalletReload => "wallet-reload",
+            EventKind::WalletError => "wallet-error",
+            EventKind::WalletClose => "wallet-close",
+            EventKind::PrvKeyDataCreate => "prv-key-data-create",
+            EventKind::AccountActivation => "account-activation",
+            EventKind::AccountDeactivation => "account-deactivation",
+            EventKind::AccountSelection => "account-selection",
+            EventKind::AccountCreate => "account-create",
+            EventKind::AccountUpdate => "account-update",
+            EventKind::ServerStatus => "server-status",
+            EventKind::UtxoProcStart => "utxo-proc-start",
+            EventKind::UtxoProcStop => "utxo-proc-stop",
+            EventKind::UtxoProcError => "utxo-proc-error",
+            EventKind::DaaScoreChange => "daa-score-change",
+            EventKind::Pending => "pending",
+            EventKind::Reorg => "reorg",
+            EventKind::Stasis => "stasis",
+            EventKind::Maturity => "maturity",
+            EventKind::Discovery => "discovery",
+            EventKind::Balance => "balance",
+            EventKind::Metrics => "metrics",
+            EventKind::Error => "error",
+        };
+        
+        write!(f, "{str}")
+    }
+}
