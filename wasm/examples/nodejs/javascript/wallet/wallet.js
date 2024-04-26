@@ -6,7 +6,9 @@ const fs = require('fs');
 const kaspa = require('../../../../nodejs/kaspa');
 const {
     Wallet, setDefaultStorageFolder,
-    AccountKind, Mnemonic, Resolver
+    AccountKind, Mnemonic, Resolver,
+    kaspaToSompi,
+    Address
 } = kaspa;
 
 let storageFolder = path.join(__dirname, '../../../data/wallets').normalize();
@@ -32,26 +34,42 @@ setDefaultStorageFolder(storageFolder);
             console.log("walletCreate : response", response)
         }
 
+        const balance = {};
+
         wallet.addEventListener(({type, data})=>{
-            console.log(`[${type}]:`, data)
+
+            // if (type == "maturity"){
+            //     console.log("record.hasAddress :receive:", data.hasAddress(firstAccount.receiveAddress));
+            //     console.log("record.hasAddress :change:", data.hasAddress(firstAccount.changeAddress));
+            //     console.log("record.data", data.data)
+            //     console.log("record.blockDaaScore", data.blockDaaScore)
+            // }
+            if (type == "balance"){
+                balance[data.id] = data.balance;
+                console.log("balance updated:", balance);
+                return
+            }
+            if (type == "daa-score-change"){
+                if (data.currentDaaScore%1000 == 0){
+                    console.log(`[${type}]:`, data.currentDaaScore)
+                }
+            }else{
+                console.log(`[${type}]:`, data)
+            }
         })
 
-        // Open wallet file
-        let res = await wallet.walletOpen({
+        // Open wallet
+        await wallet.walletOpen({
             walletSecret,
             filename,
-            accountDescriptors: true
+            accountDescriptors: false
         });
 
-        //console.log("walletOpen: result", res)
-
         // Ensure default account
-        let accountsEnsureDefaultRes = await wallet.accountsEnsureDefault({
+        await wallet.accountsEnsureDefault({
             walletSecret,
             type: new AccountKind("bip32") // "bip32"
         });
-
-        //console.log("accountsEnsure: result", accountsEnsureDefaultRes)
 
         // // Create a new account
         // // create private key
@@ -75,12 +93,18 @@ setDefaultStorageFolder(storageFolder);
         await wallet.connect();
 
         // Start wallet processing
-        // await wallet.start();
-
-       
+        await wallet.start();
 
         // List accounts
         let accounts = await wallet.accountsEnumerate({});
+        let firstAccount = accounts.accountDescriptors[0];
+
+        //console.log("firstAccount:", firstAccount);
+
+        // Activate Account
+        await wallet.accountsActivate({
+            accountIds:[firstAccount.accountId]
+        });
 
         accounts.accountDescriptors.forEach(a=>{
             console.log(`\nAccount: ${a.accountId}`);
@@ -88,7 +112,20 @@ setDefaultStorageFolder(storageFolder);
             console.log(`   Account Name: ${a.accountName}`);
             console.log(`   Receive Address: ${a.receiveAddress}`);
             console.log(`   Change Address: ${a.changeAddress}`);
-        })
+        });
+
+        // Send a test transaction
+        let sendResult = await wallet.accountsSend({
+            walletSecret,
+            accountId: firstAccount.accountId,
+            priorityFeeSompi: kaspaToSompi("0.001"),
+            destination:[{
+                address: firstAccount.changeAddress,
+                amount: kaspaToSompi("1")
+            }]
+        });
+        console.log("sendResult", sendResult);
+        
         
         
     } catch(ex) {
