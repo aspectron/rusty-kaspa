@@ -7,6 +7,7 @@
 use crate::imports::*;
 use crate::storage::{Hint, PrvKeyDataInfo, StorageDescriptor, TransactionRecord, WalletDescriptor};
 use crate::utxo::context::UtxoContextId;
+use transaction::TransactionRecordNotification;
 
 /// Sync state of the kaspad node
 #[derive(Clone, Debug, Serialize, BorshSerialize, BorshDeserialize)]
@@ -227,6 +228,23 @@ pub enum Events {
     },
 }
 
+impl Events {
+    pub fn kind(&self) -> String {
+        EventKind::from(self).to_string()
+    }
+
+    pub fn to_js_value(&self) -> wasm_bindgen::JsValue {
+        match self {
+            Events::Pending { record }
+            | Events::Reorg { record }
+            | Events::Stasis { record }
+            | Events::Maturity { record }
+            | Events::Discovery { record } => TransactionRecordNotification::new(self.kind(), record.clone()).into(),
+            _ => serde_wasm_bindgen::to_value(self).unwrap(),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Serialize, Eq, PartialEq, Hash)]
 #[serde(rename_all = "kebab-case")]
 pub enum EventKind {
@@ -349,9 +367,8 @@ impl TryFrom<JsValue> for EventKind {
     }
 }
 
-impl std::fmt::Display for EventKind{
+impl std::fmt::Display for EventKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        
         let str = match self {
             EventKind::All => "all",
             EventKind::WalletStart => "wallet-start",
@@ -385,7 +402,7 @@ impl std::fmt::Display for EventKind{
             EventKind::Metrics => "metrics",
             EventKind::Error => "error",
         };
-        
+
         write!(f, "{str}")
     }
 }

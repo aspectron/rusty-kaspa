@@ -6,8 +6,8 @@ use super::*;
 use crate::imports::*;
 use crate::storage::Binding;
 use crate::tx::PendingTransactionInner;
-use workflow_wasm::utils::try_get_js_value_prop;
 use workflow_core::time::{unixtime_as_millis_u64, unixtime_to_locale_string};
+use workflow_wasm::utils::try_get_js_value_prop;
 
 pub use kaspa_consensus_core::tx::TransactionId;
 use zeroize::Zeroize;
@@ -277,6 +277,11 @@ export interface ITransactionRecord {
      * and store its own metadata into the value of this key.
      */
     metadata?: string;
+
+    /**
+     * Transaction data type.
+     */
+    type: string;
 }
 "#;
 
@@ -289,20 +294,19 @@ extern "C" {
 
 #[wasm_bindgen(inspectable)]
 #[derive(Debug, Clone, Serialize)]
-pub struct TransactionRecordNotification{
+pub struct TransactionRecordNotification {
     #[serde(rename = "type")]
     #[wasm_bindgen(js_name = "type", getter_with_clone)]
     pub type_: String,
     #[wasm_bindgen(getter_with_clone)]
-    pub data: TransactionRecord
+    pub data: TransactionRecord,
 }
 
-impl TransactionRecordNotification{
-    pub fn new(type_: String, data: TransactionRecord) -> Self{
-        Self{type_, data}
+impl TransactionRecordNotification {
+    pub fn new(type_: String, data: TransactionRecord) -> Self {
+        Self { type_, data }
     }
 }
-
 
 /// @category Wallet SDK
 #[wasm_bindgen(inspectable)]
@@ -455,10 +459,6 @@ impl TransactionRecord {
 
     pub fn value(&self) -> u64 {
         self.value
-    }
-
-    pub fn to_notification_object(&self, type_:String) -> wasm_bindgen::JsValue {
-        TransactionRecordNotification::new(type_, self.clone()).into()
     }
 }
 
