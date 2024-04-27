@@ -1,8 +1,5 @@
 Latest online documentation available at: https://kaspa.aspectron.org/docs/
 ### Release 2024-04-27
- - SignableTransaction replaced with Transaction
- - Address.validate(address) method added
- - transaction.addresses() method added
  - IAccountsCreateRequest interface simplified by flattering it and now it is union for future expansion for multisig etc.
  - IWalletEvent interface updated for Events with TransactionRecord
  - WIP: wallet api example under wallet/wallet.js
