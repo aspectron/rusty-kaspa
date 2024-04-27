@@ -76,7 +76,7 @@ impl TryFrom<JsValue> for AccountKind {
     type Error = Error;
     fn try_from(kind: JsValue) -> Result<Self> {
         if let Ok(kind_ref) = Self::try_ref_from_js_value(&kind) {
-            Ok(kind_ref.clone())
+            Ok(*kind_ref)
         } else if let Some(kind) = kind.as_string() {
             Ok(AccountKind::from_str(kind.as_str())?)
         } else {
