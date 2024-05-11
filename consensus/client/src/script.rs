@@ -48,6 +48,11 @@ impl ScriptBuilder {
         Self::default()
     }
 
+    #[wasm_bindgen(js_name=toString)]
+    pub fn js_to_string(&self) -> HexString {
+        self.script()
+    }
+
     #[wasm_bindgen(getter)]
     pub fn data(&self) -> HexString {
         self.script()

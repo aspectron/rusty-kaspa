@@ -4,7 +4,7 @@ pub use wasm_bindgen::prelude::*;
 /// @see {@link ScriptBuilder}
 /// @category Consensus
 ///
-#[wasm_bindgen]
+#[wasm_bindgen()]
 pub struct Opcode;
 
 #[wasm_bindgen]
