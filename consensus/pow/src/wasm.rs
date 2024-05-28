@@ -1,7 +1,7 @@
 use crate::matrix::Matrix;
 use js_sys::BigInt;
-use kaspa_consensus_client::HeaderT;
 use kaspa_consensus_client::Header;
+use kaspa_consensus_client::HeaderT;
 use kaspa_consensus_core::hashing;
 use kaspa_hashes::Hash;
 use kaspa_hashes::PowHash;
@@ -94,7 +94,7 @@ impl PoW {
 // https://github.com/tmrlvi/kaspa-miner/blob/bf361d02a46c580f55f46b5dfa773477634a5753/src/client/stratum.rs#L36
 const DIFFICULTY_1_TARGET: (u64, i16) = (0xffffu64, 208); // 0xffff 2^208
 
-/// Calculates target from difficulty, based on set_difficulty function on 
+/// Calculates target from difficulty, based on set_difficulty function on
 /// <https://github.com/tmrlvi/kaspa-miner/blob/bf361d02a46c580f55f46b5dfa773477634a5753/src/client/stratum.rs#L375>
 /// @category Mining
 #[wasm_bindgen(js_name = calculateTarget)]
