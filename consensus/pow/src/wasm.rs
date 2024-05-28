@@ -5,6 +5,7 @@ use kaspa_consensus_core::hashing;
 use kaspa_hashes::Hash;
 use kaspa_hashes::PowHash;
 use kaspa_math::Uint256;
+use kaspa_utils::hex::FromHex;
 use kaspa_utils::hex::ToHex;
 use num::Float;
 use wasm_bindgen::prelude::*;
