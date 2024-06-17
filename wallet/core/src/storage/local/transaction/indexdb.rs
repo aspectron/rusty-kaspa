@@ -220,7 +220,6 @@ impl TransactionRecordStore for TransactionStore {
         _filter: Option<Vec<TransactionKind>>,
         range: std::ops::Range<usize>,
     ) -> Result<TransactionRangeResult> {
-        //let range = 0..1;
         log_info!("DEBUG IDB: Loading transaction records for range {:?}", range);
 
         let binding_str = binding.to_hex();
@@ -240,52 +239,54 @@ impl TransactionRecordStore for TransactionStore {
                 .object_store(TRANSACTIONS_STORE_NAME)
                 .map_err(|err| Error::Custom(format!("Failed to open indexdb object store for reading {:?}", err)))?;
 
-            // let array = store
-            //     .get_all()
-            //     .map_err(|err| Error::Custom(format!("Failed to get transaction record from indexdb {:?}", err)))?
-            //     .await
-            //     .map_err(|err| Error::Custom(format!("Failed to get transaction record from indexdb {:?}", err)))?;
-            let total = store.count().map_err(|err| Error::Custom(format!("Failed to count indexdb records {:?}", err)))?.await
+            let total = store
+                .count()
+                .map_err(|err| Error::Custom(format!("Failed to count indexdb records {:?}", err)))?
+                .await
                 .map_err(|err| Error::Custom(format!("Failed to count indexdb records from future {:?}", err)))?;
-            let cursor = store.open_cursor().map_err(|err| Error::Custom(format!("Failed to open indexdb store cursor for reading {:?}", err)))?;
+            let cursor = store
+                .open_cursor()
+                .map_err(|err| Error::Custom(format!("Failed to open indexdb store cursor for reading {:?}", err)))?;
             let mut records = vec![];
             let cursor = cursor.await.map_err(|err| Error::Custom(format!("Failed to open indexdb store cursor {:?}", err)))?;
-            
-            if let Some(cursor) = cursor{
+
+            if let Some(cursor) = cursor {
                 if range.start > 0 {
-                    let res = cursor.advance(range.start as u32).map_err(|err| Error::Custom(format!("Unable to advance indexdb cursor {:?}", err)))?.await;
-                    let res = res.map_err(|err| Error::Custom(format!("Unable to advance indexdb cursor future {:?}", err)))?;
-                    if !res {
-                        //return Err(Error::Custom(format!("Unable to advance indexdb cursor future {:?}", err)));
-                    }
+                    let res = cursor
+                        .advance(range.start as u32)
+                        .map_err(|err| Error::Custom(format!("Unable to advance indexdb cursor {:?}", err)))?
+                        .await;
+                    let _res = res.map_err(|err| Error::Custom(format!("Unable to advance indexdb cursor future {:?}", err)))?;
+                    // if !res {
+                    //     //return Err(Error::Custom(format!("Unable to advance indexdb cursor future {:?}", err)));
+                    // }
                 }
 
                 let count = range.end - range.start;
 
                 loop {
-                    if records.len() < count  {
+                    if records.len() < count {
                         records.push(cursor.value());
-                        if let Ok(b) = cursor.continue_cursor(){
-                            match b.await{
-                                Ok(b)=>{
+                        if let Ok(b) = cursor.continue_cursor() {
+                            match b.await {
+                                Ok(b) => {
                                     if !b {
                                         break;
                                     }
                                 }
-                                Err(err)=>{
+                                Err(err) => {
                                     log_info!("DEBUG IDB: Loading transaction error,  cursor.continue_cursor() {:?}", err);
                                     break;
                                 }
                             }
-                        }else{
+                        } else {
                             break;
                         }
-                    }else{
+                    } else {
                         break;
                     }
-                };
+                }
             }
-            
 
             let transactions = records
                 .iter()
