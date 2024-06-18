@@ -244,8 +244,11 @@ impl TransactionRecordStore for TransactionStore {
                 .map_err(|err| Error::Custom(format!("Failed to count indexdb records {:?}", err)))?
                 .await
                 .map_err(|err| Error::Custom(format!("Failed to count indexdb records from future {:?}", err)))?;
-            let cursor = store
-                .open_cursor()
+            let binding = store
+                .index(TRANSACTIONS_STORE_TIMESTAMP_INDEX)
+                .map_err(|err| Error::Custom(format!("Failed to open indexdb indexed store cursor {:?}", err)))?;
+            let cursor = binding
+                .open_cursor_with_range_and_direction(&JsValue::NULL, web_sys::IdbCursorDirection::Prev)
                 .map_err(|err| Error::Custom(format!("Failed to open indexdb store cursor for reading {:?}", err)))?;
             let mut records = vec![];
             let cursor = cursor.await.map_err(|err| Error::Custom(format!("Failed to open indexdb store cursor {:?}", err)))?;
