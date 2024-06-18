@@ -526,10 +526,10 @@ fn transaction_record_to_js_value(
     let id_js_value = JsValue::from_str(&id);
     let timestamp_js_value = match unixtime_msec {
         Some(unixtime_msec) => {
-            let unixtime_sec = (unixtime_msec / 1000) as u32;
+            //let unixtime_sec = (unixtime_msec / 1000) as u32;
 
             let date = Date::new_0();
-            date.set_utc_seconds(unixtime_sec);
+            date.set_time(unixtime_msec as f64);
             date.into()
         }
         None => JsValue::NULL,
