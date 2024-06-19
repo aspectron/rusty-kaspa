@@ -29,7 +29,7 @@ pub type TransactionId = kaspa_hashes::Hash;
 /// score of the block that accepts the tx, its public key script, and how
 /// much it pays.
 /// @category Consensus
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
 #[wasm_bindgen(inspectable, js_name = TransactionUtxoEntry)]
 pub struct UtxoEntry {
@@ -53,7 +53,7 @@ impl MemSizeEstimator for UtxoEntry {}
 pub type TransactionIndexType = u32;
 
 /// Represents a Kaspa transaction outpoint
-#[derive(Eq, Hash, PartialEq, Debug, Copy, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[derive(Eq, Default, Hash, PartialEq, Debug, Copy, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransactionOutpoint {
     #[serde(with = "serde_bytes_fixed_ref")]
@@ -137,8 +137,8 @@ impl Clone for TransactionMass {
 }
 
 impl BorshDeserialize for TransactionMass {
-    fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
-        let mass: u64 = borsh::BorshDeserialize::deserialize(buf)?;
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let mass: u64 = borsh::BorshDeserialize::deserialize_reader(reader)?;
         Ok(Self(AtomicU64::new(mass)))
     }
 }
@@ -163,7 +163,6 @@ pub struct Transaction {
     pub payload: Vec<u8>,
 
     #[serde(default)]
-    #[borsh_skip] // TODO: skipped for now as it is only required for consensus storage and miner grpc
     mass: TransactionMass,
 
     // A field that is used to cache the transaction ID.
@@ -604,12 +603,12 @@ mod tests {
     fn test_spk_borsh() {
         // Tests for ScriptPublicKey Borsh ser/deser since we manually implemented them
         let spk = ScriptPublicKey::from_vec(12, vec![32; 20]);
-        let bin = spk.try_to_vec().unwrap();
+        let bin = borsh::to_vec(&spk).unwrap();
         let spk2: ScriptPublicKey = BorshDeserialize::try_from_slice(&bin).unwrap();
         assert_eq!(spk, spk2);
 
         let spk = ScriptPublicKey::from_vec(55455, vec![11; 200]);
-        let bin = spk.try_to_vec().unwrap();
+        let bin = borsh::to_vec(&spk).unwrap();
         let spk2: ScriptPublicKey = BorshDeserialize::try_from_slice(&bin).unwrap();
         assert_eq!(spk, spk2);
     }
