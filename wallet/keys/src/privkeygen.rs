@@ -71,6 +71,7 @@ impl PrivateKeyGenerator {
 }
 
 // NOTE: Temporarily changed return type of these from Result<PrivateKey> to Result<String> to demo shared fns
+// This would be returned to Result<PrivateKey> once PrivateKey is setup for Python
 #[cfg_attr(feature = "py-sdk", pymethods)]
 #[wasm_bindgen]
 impl PrivateKeyGenerator {
