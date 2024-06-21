@@ -587,7 +587,6 @@ fn transaction_record_to_js_value(
 
             let date = Date::new_0();
             date.set_time(unixtime_msec as f64);
-            //date.set_utc_seconds(unixtime_sec);
             date.into()
         }
         None => JsValue::NULL,
