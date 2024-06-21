@@ -620,6 +620,6 @@ fn transaction_record_from_js_value(js_value: &JsValue, secret: Option<&Secret>)
 
         Ok(transaction_record.0)
     } else {
-        Err(Error::Custom("supplied argument must be an object".to_string()))
+        Err(Error::Custom("supplied argument must be an object, found ({js_value:?})".to_string()))
     }
 }
