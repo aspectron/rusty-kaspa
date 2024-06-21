@@ -577,8 +577,6 @@ fn transaction_record_to_js_value(
 ) -> Result<JsValue, Error> {
     let id = transaction_record.id.to_string();
     let unixtime_msec = transaction_record.unixtime_msec;
-    let mut borsh_data = vec![];
-    <TransactionRecord as BorshSerialize>::serialize(transaction_record, &mut borsh_data)?;
 
     let id_js_value = JsValue::from_str(&id);
     let timestamp_js_value = match unixtime_msec {
