@@ -16,7 +16,7 @@ classifiers = [
 dependencies = []
 
 [package.metadata.maturin]
-name = "kaspadbr"
+name = "kaspapy"
 description = "Kaspa Python Bindings"
 
 [tool.maturin]

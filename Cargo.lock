@@ -2477,6 +2477,7 @@ dependencies = [
  "borsh",
  "criterion",
  "js-sys",
+ "pyo3",
  "serde",
  "smallvec",
  "thiserror",
@@ -7357,6 +7358,7 @@ name = "x-python"
 version = "0.14.1"
 dependencies = [
  "cfg-if 1.0.0",
+ "kaspa-addresses",
  "kaspa-wallet-keys",
  "pyo3",
 ]
