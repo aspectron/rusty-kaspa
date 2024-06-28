@@ -5,11 +5,7 @@ use syn::{
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
-    Error,
-    Expr,
-    ExprAsync,
-    Result,
-    Token,
+    Error, Expr, ExprAsync, Result, Token,
 };
 
 #[derive(Debug)]
