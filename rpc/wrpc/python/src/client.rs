@@ -1,3 +1,4 @@
+use kaspa_python_macros::py_async;
 use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_rpc_core::model::*;
 use kaspa_rpc_macros::build_wrpc_python_interface;
@@ -59,18 +60,37 @@ impl RpcClient {
         Python::with_gil(|py| Ok(py_fut.into_py(py)))
     }
 
+    // fn get_block_dag_info(&self, py: Python) -> PyResult<Py<PyAny>> {
+    //     // Returns result as JSON string
+    //     let inner = self.inner.clone();
+
+    //     let fut = async move {
+    //         let r = inner.get_block_dag_info().await?;
+    //         serde_json::to_string(&r).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    //     };
+
+    //     let py_fut = pyo3_asyncio_0_21::tokio::future_into_py(py, fut)?;
+
+    //     Python::with_gil(|py| Ok(py_fut.into_py(py)))
+    // }
+
     fn get_block_dag_info(&self, py: Python) -> PyResult<Py<PyAny>> {
         // Returns result as JSON string
         let inner = self.inner.clone();
 
-        let fut = async move {
+        // let fut = async move {
+        //     let r = inner.get_block_dag_info().await?;
+        //     serde_json::to_string(&r).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+        // };
+
+        // let py_fut = pyo3_asyncio_0_21::tokio::future_into_py(py, fut)?;
+
+        // Python::with_gil(|py| Ok(py_fut.into_py(py)))
+
+        py_async! {py, async move {
             let r = inner.get_block_dag_info().await?;
             serde_json::to_string(&r).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
-        };
-
-        let py_fut = pyo3_asyncio_0_21::tokio::future_into_py(py, fut)?;
-
-        Python::with_gil(|py| Ok(py_fut.into_py(py)))
+        }}
     }
 }
 
