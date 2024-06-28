@@ -11,8 +11,6 @@ use crate::imports::*;
 ///
 /// @see {@link PublicKeyGenerator}, {@link XPub}, {@link XPrv}, {@link Mnemonic}
 /// @category Wallet SDK
-///
-/// 
 #[cfg_attr(feature = "py-sdk", pyclass)]
 #[wasm_bindgen]
 pub struct PrivateKeyGenerator {
@@ -57,7 +55,7 @@ impl PrivateKeyGenerator {
     #[wasm_bindgen(js_name=changeKey)]
     pub fn change_key(&self, index: u32) -> Result<PrivateKey> {
         let xkey = self.change.derive_child(ChildNumber::new(index, false)?)?;
-        Ok(PrivateKey::from(xkey.private_key())) 
+        Ok(PrivateKey::from(xkey.private_key()))
     }
 }
 

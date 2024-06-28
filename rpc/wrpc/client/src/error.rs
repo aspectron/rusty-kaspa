@@ -1,8 +1,5 @@
 #[cfg(feature = "py-sdk")]
-use pyo3::{
-    prelude::PyErr,
-    exceptions::PyException,
-};
+use pyo3::{exceptions::PyException, prelude::PyErr};
 use thiserror::Error;
 use wasm_bindgen::JsError;
 use wasm_bindgen::JsValue;
@@ -119,12 +116,12 @@ impl From<Error> for JsValue {
     }
 }
 
-#[cfg(feature="py-sdk")]
+#[cfg(feature = "py-sdk")]
 impl From<Error> for PyErr {
     fn from(value: Error) -> Self {
         PyException::new_err(value.to_string())
     }
-} 
+}
 
 // impl From<workflow_wasm::serde::Error> for Error {
 //     fn from(err: workflow_wasm::serde::Error) -> Self {

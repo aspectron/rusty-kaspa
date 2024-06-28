@@ -1,12 +1,9 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "py-sdk")]
-use pyo3::{
-    exceptions::PyException,
-    prelude::*,
-};
+use pyo3::{exceptions::PyException, prelude::*};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use smallvec::SmallVec;
-use std::{fmt::{Display, Formatter}, ops::Add};
+use std::fmt::{Display, Formatter};
 use thiserror::Error;
 use wasm_bindgen::prelude::*;
 use workflow_wasm::{
@@ -237,7 +234,7 @@ impl Address {
 // PY-NOTE: fns exposed to both WASM and Python
 #[cfg_attr(feature = "py-sdk", pymethods)]
 #[wasm_bindgen]
-impl Address{
+impl Address {
     // PY-NOTE: want to use `#[pyo3(name = "to_string")]` for this fn, but cannot use #[pyo3()] in block where pymethods is applied via cfg_attr
     /// Convert an address to a string.
     #[wasm_bindgen(js_name = toString)]

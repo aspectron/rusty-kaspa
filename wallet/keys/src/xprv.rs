@@ -78,26 +78,6 @@ impl<'a> From<&'a XPrv> for &'a ExtendedPrivateKey<SecretKey> {
     }
 }
 
-/* NOTE: 
-    This cfg_if is commented out because... 
-    - It worked when building WASM modules (wasm/build-release, etc)
-    - Does not work when building Python module (x-python/build-dev). wasm_bindgen is applied by default to PrivateKeyGenerator
-    - Changed fn exposed to Python (PrivateKeyGenerator::new) to accept String instead
-*/ 
-// cfg_if::cfg_if! {
-//     if #[cfg(feature = "py-sdk")] {
-//         #[derive(FromPyObject)]
-//         pub struct XPrvT(pub String);
-//     } else {
-//         #[wasm_bindgen]
-//         extern "C" {
-//             #[wasm_bindgen(typescript_type = "XPrv | string")]
-//             pub type XPrvT;
-//         }
-//     }
-// }
-
-// NOTE: see comment on block above
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(typescript_type = "XPrv | string")]

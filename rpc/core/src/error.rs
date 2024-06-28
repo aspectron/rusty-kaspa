@@ -1,10 +1,7 @@
 use kaspa_consensus_core::{subnets::SubnetworkConversionError, tx::TransactionId};
 use kaspa_utils::networking::IpAddress;
 #[cfg(feature = "py-sdk")]
-use pyo3::{
-    prelude::PyErr,
-    exceptions::PyException,
-};
+use pyo3::{exceptions::PyException, prelude::PyErr};
 use std::{net::AddrParseError, num::TryFromIntError};
 use thiserror::Error;
 use workflow_core::channel::ChannelError;

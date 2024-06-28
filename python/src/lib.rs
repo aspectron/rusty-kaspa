@@ -1,4 +1,3 @@
-
 cfg_if::cfg_if! {
     if #[cfg(feature = "py-sdk")] {
         use pyo3::prelude::*;
@@ -12,7 +11,7 @@ cfg_if::cfg_if! {
             m.add_class::<kaspa_wallet_keys::publickey::PublicKey>()?;
 
             m.add_class::<kaspa_wrpc_python::client::RpcClient>()?;
-            
+
             Ok(())
         }
     }

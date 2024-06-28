@@ -1,5 +1,5 @@
 [package]
-name = "x-python"
+name = "python"
 version.workspace = true
 authors.workspace = true
 license.workspace = true
@@ -21,6 +21,6 @@ pyo3.workspace = true
 default = []
 py-sdk = [
     "kaspa-addresses/py-sdk",
-    "kaspa-wrpc-python/py-sdk",
     "kaspa-wallet-keys/py-sdk",
+    "kaspa-wrpc-python/py-sdk",
 ]

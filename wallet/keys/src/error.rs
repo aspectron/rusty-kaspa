@@ -4,10 +4,7 @@
 
 use kaspa_bip32::Error as BIP32Error;
 #[cfg(feature = "py-sdk")]
-use pyo3::{
-    prelude::PyErr,
-    exceptions::PyException,
-};
+use pyo3::{exceptions::PyException, prelude::PyErr};
 use std::sync::PoisonError;
 use thiserror::Error;
 use wasm_bindgen::JsValue;
@@ -121,9 +118,9 @@ impl From<serde_wasm_bindgen::Error> for Error {
     }
 }
 
-#[cfg(feature="py-sdk")]
+#[cfg(feature = "py-sdk")]
 impl From<Error> for PyErr {
     fn from(value: Error) -> Self {
         PyException::new_err(value.to_string())
     }
-} 
+}

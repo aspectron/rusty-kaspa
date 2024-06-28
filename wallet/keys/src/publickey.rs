@@ -277,7 +277,7 @@ impl XOnlyPublicKey {
     }
 
     pub fn to_address_py(&self, network: &str) -> PyResult<Address> {
-        // PY-NOTE: arg type of `network: &str` instead of `network: NetworkTypeT` 
+        // PY-NOTE: arg type of `network: &str` instead of `network: NetworkTypeT`
         let payload = &self.inner.serialize();
         let address = Address::new(network.try_into()?, AddressVersion::PubKey, payload);
         Ok(address)

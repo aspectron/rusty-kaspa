@@ -5057,6 +5057,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "python"
+version = "0.14.1"
+dependencies = [
+ "cfg-if 1.0.0",
+ "kaspa-addresses",
+ "kaspa-wallet-keys",
+ "kaspa-wrpc-python",
+ "pyo3",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7394,17 +7405,6 @@ dependencies = [
  "workflow-log",
  "workflow-task",
  "workflow-wasm",
-]
-
-[[package]]
-name = "x-python"
-version = "0.14.1"
-dependencies = [
- "cfg-if 1.0.0",
- "kaspa-addresses",
- "kaspa-wallet-keys",
- "kaspa-wrpc-python",
- "pyo3",
 ]
 
 [[package]]

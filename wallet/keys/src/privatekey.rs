@@ -42,7 +42,6 @@ impl PrivateKey {
     }
 }
 
-
 impl PrivateKey {
     pub fn try_from_slice(data: &[u8]) -> Result<PrivateKey> {
         Ok(Self { inner: secp256k1::SecretKey::from_slice(data)? })
