@@ -1,8 +1,9 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "py-sdk")]
-use pyo3::exceptions::PyException;
-#[cfg(feature = "py-sdk")]
-use pyo3::prelude::*;
+use pyo3::{
+    exceptions::PyException,
+    prelude::*,
+};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use smallvec::SmallVec;
 use std::{fmt::{Display, Formatter}, ops::Add};

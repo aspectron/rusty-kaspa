@@ -3275,6 +3275,7 @@ dependencies = [
  "kaspa-utils",
  "log",
  "paste",
+ "pyo3",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
@@ -3710,6 +3711,7 @@ dependencies = [
  "kaspa-rpc-core",
  "kaspa-rpc-macros",
  "paste",
+ "pyo3",
  "rand 0.8.5",
  "regex",
  "serde",
@@ -3758,6 +3760,22 @@ dependencies = [
  "tokio",
  "workflow-core",
  "workflow-log",
+ "workflow-rpc",
+]
+
+[[package]]
+name = "kaspa-wrpc-python"
+version = "0.14.1"
+dependencies = [
+ "cfg-if 1.0.0",
+ "kaspa-consensus-core",
+ "kaspa-rpc-core",
+ "kaspa-wrpc-client",
+ "pyo3",
+ "pyo3-asyncio-0-21",
+ "serde_json",
+ "thiserror",
+ "workflow-core",
  "workflow-rpc",
 ]
 
@@ -4966,6 +4984,31 @@ dependencies = [
  "pyo3-ffi",
  "pyo3-macros",
  "unindent",
+]
+
+[[package]]
+name = "pyo3-asyncio-0-21"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8fde289486f7d5cee0ac7c20b2637a0657654681079cc5eedc90d9a2a79af1e5"
+dependencies = [
+ "futures",
+ "once_cell",
+ "pin-project-lite",
+ "pyo3",
+ "pyo3-asyncio-macros-0-21",
+ "tokio",
+]
+
+[[package]]
+name = "pyo3-asyncio-macros-0-21"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e5ffc4e987e866bf54b781235a6c3b91e7e67df14f73ce716625ee78728554a"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -7360,6 +7403,7 @@ dependencies = [
  "cfg-if 1.0.0",
  "kaspa-addresses",
  "kaspa-wallet-keys",
+ "kaspa-wrpc-python",
  "pyo3",
 ]
 

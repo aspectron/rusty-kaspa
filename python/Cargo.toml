@@ -14,11 +14,13 @@ crate-type = ["cdylib"]
 cfg-if.workspace = true
 kaspa-addresses.workspace = true
 kaspa-wallet-keys.workspace = true
+kaspa-wrpc-python.workspace = true
 pyo3.workspace = true
 
 [features]
 default = []
 py-sdk = [
     "kaspa-addresses/py-sdk",
-    "kaspa-wallet-keys/py-sdk"
+    "kaspa-wrpc-python/py-sdk",
+    "kaspa-wallet-keys/py-sdk",
 ]

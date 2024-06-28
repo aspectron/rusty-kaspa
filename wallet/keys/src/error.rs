@@ -4,9 +4,10 @@
 
 use kaspa_bip32::Error as BIP32Error;
 #[cfg(feature = "py-sdk")]
-use pyo3::exceptions::PyException;
-#[cfg(feature = "py-sdk")]
-use pyo3::prelude::PyErr;
+use pyo3::{
+    prelude::PyErr,
+    exceptions::PyException,
+};
 use std::sync::PoisonError;
 use thiserror::Error;
 use wasm_bindgen::JsValue;
