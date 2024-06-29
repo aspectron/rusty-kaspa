@@ -381,6 +381,12 @@ mod mockery {
         }
     }
 
+    impl Mock for StorageMetrics {
+        fn mock() -> Self {
+            StorageMetrics { storage_size_bytes: mock() }
+        }
+    }
+
     // --------------------------------------------
     // implementations for all the rpc request
     // and response data structures.
@@ -902,7 +908,13 @@ mod mockery {
 
     impl Mock for GetMetricsRequest {
         fn mock() -> Self {
-            GetMetricsRequest { process_metrics: true, connection_metrics: true, bandwidth_metrics: true, consensus_metrics: true }
+            GetMetricsRequest {
+                process_metrics: true,
+                connection_metrics: true,
+                bandwidth_metrics: true,
+                consensus_metrics: true,
+                storage_metrics: true,
+            }
         }
     }
 
@@ -916,6 +928,7 @@ mod mockery {
                 connection_metrics: mock(),
                 bandwidth_metrics: mock(),
                 consensus_metrics: mock(),
+                storage_metrics: mock(),
             }
         }
     }
