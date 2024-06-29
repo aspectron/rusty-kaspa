@@ -569,7 +569,7 @@ impl KaspaCli {
         }
 
         let mut watch_accounts = Vec::<(usize, Arc<dyn Account>)>::new();
-        let mut unfiltered_accounts = self.wallet.accounts(None).await?;
+        let mut unfiltered_accounts = self.wallet.accounts(None, &guard).await?;
 
         while let Some(account) = unfiltered_accounts.try_next().await? {
             if account.feature().is_some() {
@@ -698,7 +698,7 @@ impl KaspaCli {
             }
         }
 
-        let mut unfiltered_accounts = self.wallet.accounts(None).await?;
+        let mut unfiltered_accounts = self.wallet.accounts(None, &guard).await?;
         let mut feature_header_printed = false;
         while let Some(account) = unfiltered_accounts.try_next().await? {
             if let Some(feature) = account.feature() {
