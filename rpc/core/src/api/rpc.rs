@@ -37,13 +37,10 @@ pub trait RpcApi: Sync + Send + AnySync {
         consensus_metrics: bool,
         storage_metrics: bool,
     ) -> RpcResult<GetMetricsResponse> {
-        self.get_metrics_call(GetMetricsRequest {
-            process_metrics,
-            connection_metrics,
-            bandwidth_metrics,
-            consensus_metrics,
-            storage_metrics,
-        })
+        self.get_metrics_call(
+            None,
+            GetMetricsRequest { process_metrics, connection_metrics, bandwidth_metrics, consensus_metrics, storage_metrics },
+        )
         .await
     }
     async fn get_metrics_call(
