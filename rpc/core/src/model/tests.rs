@@ -4,10 +4,9 @@ mod mockery {
     use crate::{model::*, RpcScriptClass};
     use kaspa_addresses::{Prefix, Version};
     use kaspa_consensus_core::api::BlockCount;
-    use kaspa_consensus_core::header::Header;
     use kaspa_consensus_core::network::NetworkType;
     use kaspa_consensus_core::subnets::SubnetworkId;
-    use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, UtxoEntry};
+    use kaspa_consensus_core::tx::ScriptPublicKey;
     use kaspa_hashes::Hash;
     use kaspa_math::Uint192;
     use kaspa_notify::subscription::Command;
@@ -136,9 +135,9 @@ mod mockery {
         }
     }
 
-    impl Mock for Header {
+    impl Mock for RpcHeader {
         fn mock() -> Self {
-            Header {
+            RpcHeader {
                 version: mock(),
                 timestamp: mock(),
                 bits: mock(),
@@ -297,15 +296,15 @@ mod mockery {
         }
     }
 
-    impl Mock for UtxoEntry {
+    impl Mock for RpcUtxoEntry {
         fn mock() -> Self {
-            UtxoEntry { amount: mock(), script_public_key: mock(), block_daa_score: mock(), is_coinbase: true }
+            RpcUtxoEntry { amount: mock(), script_public_key: mock(), block_daa_score: mock(), is_coinbase: true }
         }
     }
 
-    impl Mock for TransactionOutpoint {
+    impl Mock for RpcTransactionOutpoint {
         fn mock() -> Self {
-            TransactionOutpoint { transaction_id: mock(), index: mock() }
+            RpcTransactionOutpoint { transaction_id: mock(), index: mock() }
         }
     }
 
@@ -379,6 +378,12 @@ mod mockery {
                 network_virtual_parent_hashes_count: mock(),
                 network_virtual_daa_score: mock(),
             }
+        }
+    }
+
+    impl Mock for StorageMetrics {
+        fn mock() -> Self {
+            StorageMetrics { storage_size_bytes: mock() }
         }
     }
 
@@ -903,7 +908,13 @@ mod mockery {
 
     impl Mock for GetMetricsRequest {
         fn mock() -> Self {
-            GetMetricsRequest { process_metrics: true, connection_metrics: true, bandwidth_metrics: true, consensus_metrics: true }
+            GetMetricsRequest {
+                process_metrics: true,
+                connection_metrics: true,
+                bandwidth_metrics: true,
+                consensus_metrics: true,
+                storage_metrics: true,
+            }
         }
     }
 
@@ -917,6 +928,7 @@ mod mockery {
                 connection_metrics: mock(),
                 bandwidth_metrics: mock(),
                 consensus_metrics: mock(),
+                storage_metrics: mock(),
             }
         }
     }
