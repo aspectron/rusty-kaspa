@@ -109,11 +109,6 @@ impl PrivateKey {
         Ok(Self { inner: secp256k1::SecretKey::from_str(key)? })
     }
 
-    // #[wasm_bindgen(js_name = toKeypair)]
-    // pub fn to_keypair(&self) -> Result<Keypair, JsError> {
-    //     Keypair::from_private_key(self)
-    // }
-
     // PY-NOTE: #[pyo3()] can only be used in block that has #[pymethods] applied directly. applying via #[cfg_attr()] does not work (PyO3 limitation).
     #[pyo3(name = "to_public_key")]
     pub fn to_public_key_py(&self) -> PyResult<PublicKey> {
