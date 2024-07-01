@@ -14,6 +14,7 @@ use kaspa_consensus_core::{
 };
 use kaspa_core::{debug, info};
 use std::sync::Arc;
+use crate::model::tx_query::TransactionQuery;
 
 impl Mempool {
     pub(crate) fn pre_validate_and_populate_transaction(
@@ -25,7 +26,6 @@ impl Mempool {
         // Populate mass in the beginning, it will be used in multiple places throughout the validation and insertion.
         transaction.calculated_compute_mass = Some(consensus.calculate_transaction_compute_mass(&transaction.tx));
         self.validate_transaction_in_isolation(&transaction)?;
-        self.transaction_pool.check_double_spends(&transaction)?;
         self.populate_mempool_entries(&mut transaction);
         Ok(transaction)
     }
@@ -69,7 +69,7 @@ impl Mempool {
         }
 
         self.validate_transaction_in_context(&transaction)?;
-
+        
         // Before adding the transaction, check if there is room in the pool
         self.transaction_pool.limit_transaction_count(1, &transaction)?.iter().try_for_each(|x| {
             self.remove_transaction(x, true, TxRemovalReason::MakingRoom, format!(" for {}", transaction_id).as_str())
@@ -79,6 +79,29 @@ impl Mempool {
         let accepted_transaction =
             self.transaction_pool.add_transaction(transaction, consensus.get_virtual_daa_score(), priority)?.mtx.tx.clone();
         Ok(Some(accepted_transaction))
+    }
+
+
+    pub(crate) fn try_solve_mempool_conflicts(
+        &mut self,
+        transaction: &MutableTransaction,
+    ) -> Result<(), RuleError>{
+        if let Err(e) = self.transaction_pool.check_double_spends(&transaction) {
+            if let RuleError::RejectDoubleSpendInMempool(_, transaction_id) = e {
+                let double_spent_tx = self.get_transaction(&transaction_id, TransactionQuery::TransactionsOnly).unwrap();
+
+                if double_spent_tx.calculated_fee.unwrap() < transaction.calculated_fee.unwrap() {
+                    self.remove_transaction(&transaction_id, true, TxRemovalReason::Expired, "replaced by fee")?;
+                } else {
+                    return Err(e);
+                }
+                return Ok(());
+            } else {
+                return Err(e);
+            }
+        }
+
+        Ok(())
     }
 
     /// Validates that the transaction wasn't already accepted into the DAG
