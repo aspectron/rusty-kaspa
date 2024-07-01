@@ -116,6 +116,14 @@ pub trait Account: AnySync + Send + Sync + 'static {
         self.context().settings.name.clone()
     }
 
+    fn feature(&self) -> Option<String> {
+        None
+    }
+
+    fn xpub_keys(&self) -> Option<&ExtendedPublicKeys> {
+        None
+    }
+
     fn name_or_id(&self) -> String {
         if let Some(name) = self.name() {
             if name.is_empty() {
@@ -358,13 +366,14 @@ pub trait Account: AnySync + Send + Sync + 'static {
         payment_secret: Option<Secret>,
         abortable: &Abortable,
         notifier: Option<GenerationNotifier>,
+        guard: &AsyncMutexGuard<'_, ()>,
     ) -> Result<(GeneratorSummary, Vec<kaspa_hashes::Hash>)> {
         let keydata = self.prv_key_data(wallet_secret).await?;
         let signer = Arc::new(Signer::new(self.clone().as_dyn_arc(), keydata, payment_secret));
 
         let destination_account = self
             .wallet()
-            .get_account_by_id(&destination_account_id)
+            .get_account_by_id(&destination_account_id, guard)
             .await?
             .ok_or_else(|| Error::AccountNotFound(destination_account_id))?;
 

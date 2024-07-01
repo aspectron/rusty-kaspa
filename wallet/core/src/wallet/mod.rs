@@ -21,8 +21,11 @@ use kaspa_notify::{
     listener::ListenerId,
     scope::{Scope, VirtualDaaScoreChangedScope},
 };
+use kaspa_wallet_keys::xpub::NetworkTaggedXpub;
 use kaspa_wrpc_client::{KaspaRpcClient, Resolver, WrpcEncoding};
 use workflow_core::task::spawn;
+
+pub type WalletGuard<'l> = AsyncMutexGuard<'l, ()>;
 
 #[derive(Debug)]
 pub struct EncryptedMnemonic<T: AsRef<[u8]>> {
@@ -90,6 +93,8 @@ pub struct Inner {
     wallet_bus: Channel<WalletBusMessage>,
     estimation_abortables: Mutex<HashMap<AccountId, Abortable>>,
     retained_contexts: Mutex<HashMap<String, Arc<Vec<u8>>>>,
+    // Mutex used to protect concurrent access to accounts at the wallet api level
+    guard: Arc<AsyncMutex<()>>,
 }
 
 ///
@@ -155,6 +160,7 @@ impl Wallet {
                 wallet_bus,
                 estimation_abortables: Mutex::new(HashMap::new()),
                 retained_contexts: Mutex::new(HashMap::new()),
+                guard: Arc::new(AsyncMutex::new(())),
             }),
         };
 
@@ -163,6 +169,20 @@ impl Wallet {
 
     pub fn inner(&self) -> &Arc<Inner> {
         &self.inner
+    }
+
+    //
+    // Mutex used to protect concurrent access to accounts
+    // at the wallet api level. This is a global lock that
+    // is required by various wallet operations.
+    //
+    // Due to the fact that Rust Wallet API is async, it is
+    // possible for clients to concurrently execute API calls
+    // that can "trip over each-other", causing incorrect
+    // account states.
+    //
+    pub fn guard(&self) -> Arc<AsyncMutex<()>> {
+        self.inner.guard.clone()
     }
 
     pub fn is_resident(&self) -> Result<bool> {
@@ -204,9 +224,11 @@ impl Wallet {
         Ok(())
     }
 
-    pub async fn reload(self: &Arc<Self>, reactivate: bool) -> Result<()> {
+    pub async fn reload(self: &Arc<Self>, reactivate: bool, _guard: &WalletGuard<'_>) -> Result<()> {
         if self.is_open() {
             // similar to reset(), but effectively reboots the wallet
+
+            // let _guard = self.inner.guard.lock().await;
 
             let accounts = self.active_accounts().collect();
             let account_descriptors = Some(accounts.iter().map(|account| account.descriptor()).collect::<Result<Vec<_>>>()?);
@@ -293,6 +315,8 @@ impl Wallet {
         filename: Option<String>,
         args: WalletOpenArgs,
     ) -> Result<Option<Vec<AccountDescriptor>>> {
+        // let _guard = self.inner.guard.lock().await;
+
         let filename = filename.or_else(|| self.settings().get(WalletSettings::Wallet));
         // let name = Some(make_filename(&name, &None));
 
@@ -357,6 +381,7 @@ impl Wallet {
         wallet_secret: &Secret,
         filename: Option<String>,
         args: WalletOpenArgs,
+        _guard: &WalletGuard<'_>,
     ) -> Result<Option<Vec<AccountDescriptor>>> {
         // This is a wrapper of open_impl() that catches errors and notifies the UI
         match self.open_impl(wallet_secret, filename, args).await {
@@ -369,6 +394,8 @@ impl Wallet {
     }
 
     async fn activate_accounts_impl(self: &Arc<Wallet>, account_ids: Option<&[AccountId]>) -> Result<Vec<AccountId>> {
+        // let _guard = self.inner.guard.lock().await;
+
         let stored_accounts = if let Some(ids) = account_ids {
             self.inner.store.as_account_store().unwrap().load_multiple(ids).await?
         } else {
@@ -399,7 +426,7 @@ impl Wallet {
     }
 
     /// Activates accounts (performs account address space counts, initializes balance tracking, etc.)
-    pub async fn activate_accounts(self: &Arc<Wallet>, account_ids: Option<&[AccountId]>) -> Result<()> {
+    pub async fn activate_accounts(self: &Arc<Wallet>, account_ids: Option<&[AccountId]>, _guard: &WalletGuard<'_>) -> Result<()> {
         // This is a wrapper of activate_accounts_impl() that catches errors and notifies the UI
         if let Err(err) = self.activate_accounts_impl(account_ids).await {
             self.notify(Events::WalletError { message: err.to_string() }).await?;
@@ -409,7 +436,9 @@ impl Wallet {
         }
     }
 
-    pub async fn deactivate_accounts(self: &Arc<Wallet>, ids: Option<&[AccountId]>) -> Result<()> {
+    pub async fn deactivate_accounts(self: &Arc<Wallet>, ids: Option<&[AccountId]>, _guard: &WalletGuard<'_>) -> Result<()> {
+        let _guard = self.inner.guard.lock().await;
+
         let (ids, futures) = if let Some(ids) = ids {
             let accounts =
                 ids.iter().map(|id| self.active_accounts().get(id).ok_or(Error::AccountNotFound(*id))).collect::<Result<Vec<_>>>()?;
@@ -424,7 +453,9 @@ impl Wallet {
         Ok(())
     }
 
-    pub async fn account_descriptors(self: Arc<Self>) -> Result<Vec<AccountDescriptor>> {
+    pub async fn account_descriptors(self: Arc<Self>, _guard: &WalletGuard<'_>) -> Result<Vec<AccountDescriptor>> {
+        // let _guard = self.inner.guard.lock().await;
+
         let iter = self.inner.store.as_account_store().unwrap().iter(None).await.unwrap();
         let wallet = self.clone();
 
@@ -604,6 +635,7 @@ impl Wallet {
         wallet_secret: &Secret,
         account_create_args: AccountCreateArgs,
         notify: bool,
+        _guard: &WalletGuard<'_>,
     ) -> Result<Arc<dyn Account>> {
         let account = match account_create_args {
             AccountCreateArgs::Bip32 { prv_key_data_args, account_args } => {
@@ -616,6 +648,7 @@ impl Wallet {
             AccountCreateArgs::Multisig { prv_key_data_args, additional_xpub_keys, name, minimum_signatures } => {
                 self.create_account_multisig(wallet_secret, prv_key_data_args, additional_xpub_keys, name, minimum_signatures).await?
             }
+            AccountCreateArgs::Bip32Watch { account_args } => self.create_account_bip32_watch(wallet_secret, account_args).await?,
         };
 
         if notify {
@@ -743,6 +776,36 @@ impl Wallet {
         Ok(account)
     }
 
+    pub async fn create_account_bip32_watch(
+        self: &Arc<Wallet>,
+        wallet_secret: &Secret,
+        account_args: AccountCreateArgsBip32Watch,
+    ) -> Result<Arc<dyn Account>> {
+        let account_store = self.inner.store.clone().as_account_store()?;
+
+        let AccountCreateArgsBip32Watch { account_name, xpub_keys } = account_args;
+
+        let xpub_keys = Arc::new(
+            xpub_keys
+                .into_iter()
+                .map(|xpub_key| {
+                    ExtendedPublicKeySecp256k1::from_str(&xpub_key).map_err(|err| Error::InvalidExtendedPublicKey(xpub_key, err))
+                })
+                .collect::<Result<Vec<_>>>()?,
+        );
+
+        let account: Arc<dyn Account> = Arc::new(bip32watch::Bip32Watch::try_new(self, account_name, xpub_keys, false).await?);
+
+        if account_store.load_single(account.id()).await?.is_some() {
+            return Err(Error::AccountAlreadyExists(*account.id()));
+        }
+
+        self.inner.store.clone().as_account_store()?.store_single(&account.to_storage()?, None).await?;
+        self.inner.store.commit(wallet_secret).await?;
+
+        Ok(account)
+    }
+
     async fn create_account_legacy(
         self: &Arc<Wallet>,
         wallet_secret: &Secret,
@@ -847,7 +910,13 @@ impl Wallet {
         Ok((wallet_descriptor, storage_descriptor, mnemonic, account))
     }
 
-    pub async fn get_account_by_id(self: &Arc<Self>, account_id: &AccountId) -> Result<Option<Arc<dyn Account>>> {
+    pub async fn get_account_by_id(
+        self: &Arc<Self>,
+        account_id: &AccountId,
+        _guard: &WalletGuard<'_>,
+    ) -> Result<Option<Arc<dyn Account>>> {
+        let _guard = self.inner.guard.lock().await;
+
         if let Some(account) = self.active_accounts().get(account_id) {
             Ok(Some(account.clone()))
         } else {
@@ -1036,7 +1105,11 @@ impl Wallet {
         Ok(matches)
     }
 
-    pub async fn accounts(self: &Arc<Self>, filter: Option<PrvKeyDataId>) -> Result<impl Stream<Item = Result<Arc<dyn Account>>>> {
+    pub async fn accounts(
+        self: &Arc<Self>,
+        filter: Option<PrvKeyDataId>,
+        _guard: &WalletGuard<'_>,
+    ) -> Result<impl Stream<Item = Result<Arc<dyn Account>>>> {
         let iter = self.inner.store.as_account_store().unwrap().iter(filter).await.unwrap();
         let wallet = self.clone();
 
@@ -1557,6 +1630,7 @@ impl Wallet {
         payment_secret: Option<&Secret>,
         kind: AccountKind,
         mnemonic_phrase: Option<&Secret>,
+        guard: &WalletGuard<'_>,
     ) -> Result<AccountDescriptor> {
         if kind != BIP32_ACCOUNT_KIND {
             return Err(Error::custom("Account kind is not supported"));
@@ -1582,12 +1656,16 @@ impl Wallet {
 
             let account_create_args = AccountCreateArgs::new_bip32(prv_key_data_id, payment_secret.cloned(), None, None);
 
-            let account = self.clone().create_account(wallet_secret, account_create_args, false).await?;
+            let account = self.clone().create_account(wallet_secret, account_create_args, false, guard).await?;
 
             self.store().flush(wallet_secret).await?;
 
             Ok(account.descriptor()?)
         }
+    }
+
+    pub fn network_format_xpub(&self, xpub_key: &ExtendedPublicKeySecp256k1) -> String {
+        NetworkTaggedXpub::from((xpub_key.clone(), self.network_id().unwrap())).to_string()
     }
 }
 
