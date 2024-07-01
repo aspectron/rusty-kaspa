@@ -6,10 +6,7 @@ use kaspa_wrpc_client::{
     client::{ConnectOptions, ConnectStrategy},
     KaspaRpcClient, WrpcEncoding,
 };
-use pyo3::{
-    exceptions::PyValueError,
-    prelude::*, types::PyDict,
-};
+use pyo3::{prelude::*, types::PyDict};
 use std::time::Duration;
 
 #[pyclass]
