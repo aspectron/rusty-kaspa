@@ -86,7 +86,7 @@ impl Mempool {
         &mut self,
         transaction: &MutableTransaction,
     ) -> Result<(), RuleError>{
-        if let Err(e) = self.transaction_pool.check_double_spends(&transaction) {
+        if let Err(e) = self.transaction_pool.check_double_spends(transaction) {
             if let RuleError::RejectDoubleSpendInMempool(_, transaction_id) = e {
                 let double_spent_tx = self.get_transaction(&transaction_id, TransactionQuery::TransactionsOnly).unwrap();
 
