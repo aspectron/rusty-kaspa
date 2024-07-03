@@ -61,7 +61,7 @@ impl ScriptBuilder {
     /// Adds the passed opcodes to the end of the script.
     /// Supplied opcodes can be represented as an `Uint8Array` or a `HexString`.
     #[wasm_bindgen(js_name = "addOps")]
-    pub fn add_ops(&self, opcodes: JsValue) -> Result<ScriptBuilder> {
+    pub fn add_ops(&self, opcodes: BinaryT) -> Result<ScriptBuilder> {
         let opcodes = opcodes.try_as_vec_u8()?;
         self.inner_mut().add_ops(&opcodes)?;
 
