@@ -3781,6 +3781,7 @@ version = "0.14.1"
 dependencies = [
  "cfg-if 1.0.0",
  "kaspa-consensus-core",
+ "kaspa-notify",
  "kaspa-python-macros",
  "kaspa-rpc-core",
  "kaspa-rpc-macros",

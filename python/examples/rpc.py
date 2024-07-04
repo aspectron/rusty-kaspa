@@ -6,7 +6,8 @@ from kaspa import RpcClient
 
 
 async def main():
-    client = await RpcClient.connect(url = "ws://localhost:17110")
+    client = RpcClient(url = "ws://localhost:17110")
+    await client.connect()
     print(f'Client is connected: {client.is_connected()}')
 
     get_server_info_response = await client.get_server_info()

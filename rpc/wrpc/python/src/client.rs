@@ -2,31 +2,76 @@ use kaspa_python_macros::py_async;
 use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_rpc_core::model::*;
 use kaspa_rpc_macros::build_wrpc_python_interface;
+use kaspa_notify::listener::ListenerId;
 use kaspa_wrpc_client::{
     client::{ConnectOptions, ConnectStrategy},
-    KaspaRpcClient, WrpcEncoding,
+    KaspaRpcClient, 
+    result::Result,
+    WrpcEncoding,
 };
 use pyo3::{prelude::*, types::PyDict};
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{
+        atomic::{AtomicBool},
+        Arc, Mutex,
+    },
+    time::Duration,
+};
+pub use workflow_core::channel::{Channel, DuplexChannel};
 
 pub struct Inner {
     client: Arc<KaspaRpcClient>,
+    // resolver TODO
+    notification_task: AtomicBool,
+    notification_ctl: DuplexChannel,
+    // callbacks TODO
+    listener_id: Arc<Mutex<Option<ListenerId>>>,
+    notification_channel: Channel<kaspa_rpc_core::Notification>,
 }
 
 #[pyclass]
 pub struct RpcClient {
-    inner: Inner,
+    inner: Arc<Inner>,
     // url: String,
-    // encoding: Option<WrpcEncoding>,
-    // verbose : Option<bool>,
-    // timeout: Option<u64>,
+    // encoding TODO
+    // verbose TODO
+    // timeout TODO
+}
+
+impl RpcClient {
+    fn new(url: Option<String>, encoding: Option<WrpcEncoding>) -> Result<RpcClient> {
+        let encoding = encoding.unwrap_or(WrpcEncoding::Borsh);
+
+        let client = Arc::new(
+            KaspaRpcClient::new(encoding, url.as_deref(), None, None, None)
+                .unwrap()
+        );
+
+        let rpc_client = RpcClient {
+            inner: Arc::new(Inner {
+                client,
+                notification_task: AtomicBool::new(false),
+                notification_ctl: DuplexChannel::oneshot(),
+                listener_id: Arc::new(Mutex::new(None)),
+                notification_channel: Channel::unbounded()
+            })
+        };
+
+        Ok(rpc_client)
+    }
 }
 
 #[pymethods]
 impl RpcClient {
-    #[staticmethod]
-    fn connect(py: Python, url: Option<String>) -> PyResult<Bound<PyAny>> {
-        let client = KaspaRpcClient::new(WrpcEncoding::Borsh, url.as_deref(), None, None, None)?;
+    #[new]
+    fn ctor(url: Option<String>) -> PyResult<RpcClient> {
+        // TODO expose args to Python similar to WASM wRPC Client IRpcConfig
+
+        Ok(Self::new(url, None)?)
+    }
+
+    fn connect(&self, py: Python) -> PyResult<Py<PyAny>> {
+        // TODO expose args to Python similar to WASM wRPC Client IConnectOptions
 
         let options = ConnectOptions {
             block_async_connect: true,
@@ -35,17 +80,11 @@ impl RpcClient {
             ..Default::default()
         };
 
-        pyo3_asyncio_0_21::tokio::future_into_py(py, async move {
-            client.connect(Some(options)).await.map_err(|e| pyo3::exceptions::PyException::new_err(e.to_string()))?;
-
-            Python::with_gil(|py| {
-                Py::new(py, {
-                    RpcClient { inner: Inner { client: client.into() } }
-                })
-                    .map(|py_rpc_client| py_rpc_client.into_py(py))
-                    .map_err(|e| pyo3::exceptions::PyException::new_err(e.to_string()))
-            })
-        })
+        let client = self.inner.client.clone();
+        py_async! {py, async move {
+            let _ = client.connect(Some(options)).await.map_err(|e| pyo3::exceptions::PyException::new_err(e.to_string()));
+            Ok(())
+        }}
     }
 
     fn is_connected(&self) -> bool {
