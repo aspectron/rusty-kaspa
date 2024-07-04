@@ -7,7 +7,7 @@ edition.workspace = true
 include.workspace = true
 
 [lib]
-name = "kaspapy"
+name = "kaspa"
 crate-type = ["cdylib"]
 
 [dependencies]

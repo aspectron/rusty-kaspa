@@ -2,7 +2,7 @@ import asyncio
 import json
 import time
 
-from kaspapy import RpcClient
+from kaspa import RpcClient
 
 
 async def main():
