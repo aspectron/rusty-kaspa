@@ -1,5 +1,5 @@
-use crate::result::Result;
 use crate::{script_builder as native, standard};
+use crate::result::Result;
 use kaspa_consensus_core::tx::ScriptPublicKey;
 use kaspa_utils::hex::ToHex;
 use kaspa_wasm_core::types::{BinaryT, HexString};
