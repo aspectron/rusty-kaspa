@@ -16,10 +16,7 @@ cfg_if::cfg_if! {
         mod utils;
         mod hash;
         mod sign;
-        mod opcode;
-        mod script;
         mod serializable;
-
 
         pub use header::*;
         pub use input::*;
@@ -28,8 +25,6 @@ cfg_if::cfg_if! {
         pub use utils::*;
         pub use hash::*;
         // pub use signing::*;
-        pub use opcode::Opcodes;
-        pub use script::*;
         pub use sign::sign_with_multiple_v3;
     }
 }

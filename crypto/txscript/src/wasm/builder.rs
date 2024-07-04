@@ -1,11 +1,12 @@
+use crate::result::Result;
+use crate::{script_builder as native, standard};
+use kaspa_consensus_core::tx::ScriptPublicKey;
+use kaspa_utils::hex::ToHex;
 use kaspa_wasm_core::types::{BinaryT, HexString};
 use std::cell::{Ref, RefCell, RefMut};
 use std::rc::Rc;
-
-use crate::imports::*;
-use crate::result::Result;
-use kaspa_txscript::{script_builder as native, standard};
-use kaspa_utils::hex::ToHex;
+use wasm_bindgen::prelude::wasm_bindgen;
+use workflow_wasm::prelude::*;
 
 /// ScriptBuilder provides a facility for building custom scripts. It allows
 /// you to push opcodes, ints, and data while respecting canonical encoding. In
@@ -36,7 +37,7 @@ impl ScriptBuilder {
 
 impl Default for ScriptBuilder {
     fn default() -> Self {
-        Self { script_builder: Rc::new(RefCell::new(kaspa_txscript::script_builder::ScriptBuilder::new())) }
+        Self { script_builder: Rc::new(RefCell::new(native::ScriptBuilder::new())) }
     }
 }
 
@@ -45,6 +46,17 @@ impl ScriptBuilder {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Creates a new ScriptBuilder over an existing script.
+    /// Supplied script can be represented as an `Uint8Array` or a `HexString`.
+    #[wasm_bindgen(js_name = "fromScript")]
+    pub fn from_script(script: BinaryT) -> Result<ScriptBuilder> {
+        let builder = ScriptBuilder::default();
+        let script = script.try_as_vec_u8()?;
+        builder.inner_mut().extend(&script);
+
+        Ok(builder)
     }
 
     /// Pushes the passed opcode to the end of the script. The script will not

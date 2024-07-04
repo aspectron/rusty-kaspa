@@ -9,14 +9,20 @@ include.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+wasm32-sdk = []
+
 [dependencies]
 blake2b_simd.workspace = true
 borsh.workspace = true
 indexmap.workspace = true
+cfg-if.workspace = true
 itertools.workspace = true
 kaspa-addresses.workspace = true
 kaspa-consensus-core.workspace = true
 kaspa-hashes.workspace = true
+kaspa-utils.workspace = true
+kaspa-wasm-core.workspace = true
 kaspa-txscript-errors.workspace = true
 log.workspace = true
 parking_lot.workspace = true
@@ -27,6 +33,9 @@ sha2.workspace = true
 smallvec.workspace = true
 thiserror.workspace = true
 wasm-bindgen.workspace = true
+workflow-wasm.workspace = true
+serde-wasm-bindgen.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
