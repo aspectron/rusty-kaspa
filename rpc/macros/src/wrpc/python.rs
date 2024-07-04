@@ -41,7 +41,7 @@ impl ToTokens for RpcTable {
                 #[pymethods]
                 impl RpcClient {
                     fn #fn_call(&self, py: Python, request: Py<PyDict>) -> PyResult<Py<PyAny>> {
-                        let client = self.client.clone();
+                        let client = self.inner.client.clone();
 
                         let request : #request_type = serde_pyobject::from_pyobject(request.into_bound(py)).unwrap();
 

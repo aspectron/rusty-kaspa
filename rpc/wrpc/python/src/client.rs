@@ -7,11 +7,15 @@ use kaspa_wrpc_client::{
     KaspaRpcClient, WrpcEncoding,
 };
 use pyo3::{prelude::*, types::PyDict};
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
+
+pub struct Inner {
+    client: Arc<KaspaRpcClient>,
+}
 
 #[pyclass]
 pub struct RpcClient {
-    client: KaspaRpcClient,
+    inner: Inner,
     // url: String,
     // encoding: Option<WrpcEncoding>,
     // verbose : Option<bool>,
@@ -35,7 +39,9 @@ impl RpcClient {
             client.connect(Some(options)).await.map_err(|e| pyo3::exceptions::PyException::new_err(e.to_string()))?;
 
             Python::with_gil(|py| {
-                Py::new(py, RpcClient { client })
+                Py::new(py, {
+                    RpcClient { inner: Inner { client: client.into() } }
+                })
                     .map(|py_rpc_client| py_rpc_client.into_py(py))
                     .map_err(|e| pyo3::exceptions::PyException::new_err(e.to_string()))
             })
@@ -43,11 +49,11 @@ impl RpcClient {
     }
 
     fn is_connected(&self) -> bool {
-        self.client.is_connected()
+        self.inner.client.is_connected()
     }
 
     fn get_server_info(&self, py: Python) -> PyResult<Py<PyAny>> {
-        let client = self.client.clone();
+        let client = self.inner.client.clone();
         py_async! {py, async move {
             let response = client.get_server_info_call(GetServerInfoRequest { }).await?;
             Python::with_gil(|py| {
@@ -57,7 +63,7 @@ impl RpcClient {
     }
 
     fn get_block_dag_info(&self, py: Python) -> PyResult<Py<PyAny>> {
-        let client = self.client.clone();
+        let client = self.inner.client.clone();
         py_async! {py, async move {
             let response = client.get_block_dag_info_call(GetBlockDagInfoRequest { }).await?;
             Python::with_gil(|py| {
@@ -70,7 +76,7 @@ impl RpcClient {
 #[pymethods]
 impl RpcClient {
     fn is_connected_test(&self) -> bool {
-        self.client.is_connected()
+        self.inner.client.is_connected()
     }
 }
 
