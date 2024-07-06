@@ -5,11 +5,21 @@ import time
 from kaspa import RpcClient
 
 
-async def main():
-    client = RpcClient(url = "ws://localhost:17110")
-    await client.connect()
-    print(f'Client is connected: {client.is_connected()}')
+def subscription_callback(event):
+    print(event)
 
+async def rpc_subscriptions(client):
+    client.add_event_listener('all', subscription_callback)
+
+    await client.subscribe_daa_score()
+    await client.subscribe_virtual_chain_changed(True)
+
+    await asyncio.sleep(10)
+
+    await client.unsubscribe_daa_score()
+    await client.unsubscribe_virtual_chain_changed(True)
+
+async def rpc_calls(client):
     get_server_info_response = await client.get_server_info()
     print(get_server_info_response)
 
@@ -24,6 +34,14 @@ async def main():
     get_balances_by_addresses_request = {'addresses': ['kaspa:qqxn4k5dchwk3m207cmh9ewagzlwwvfesngkc8l90tj44mufcgmujpav8hakt', 'kaspa:qr5ekyld6j4zn0ngennj9nx5gpt3254fzs77ygh6zzkvyy8scmp97de4ln8v5']}
     get_balances_by_addresses_response =  await client.get_balances_by_addresses_call(get_balances_by_addresses_request)
     print(get_balances_by_addresses_response)
+
+async def main():
+    client = RpcClient(url = "ws://localhost:17110")
+    await client.connect()
+    print(f'Client is connected: {client.is_connected()}')
+
+    await rpc_calls(client)
+    await rpc_subscriptions(client)
 
 
 if __name__ == "__main__":

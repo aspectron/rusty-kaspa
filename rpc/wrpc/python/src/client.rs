@@ -1,60 +1,104 @@
+use ahash::AHashMap;
+use futures::*;
+use kaspa_notify::listener::ListenerId;
+use kaspa_notify::notification::Notification;
+use kaspa_notify::scope::{Scope, VirtualChainChangedScope, VirtualDaaScoreChangedScope};
+use kaspa_notify::{connection::ChannelType, events::EventType};
 use kaspa_python_macros::py_async;
 use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_rpc_core::model::*;
+use kaspa_rpc_core::notify::connection::ChannelConnection;
 use kaspa_rpc_macros::build_wrpc_python_interface;
-use kaspa_notify::listener::ListenerId;
 use kaspa_wrpc_client::{
     client::{ConnectOptions, ConnectStrategy},
-    KaspaRpcClient, 
+    error::Error,
     result::Result,
-    WrpcEncoding,
+    KaspaRpcClient, WrpcEncoding,
 };
+use pyo3::exceptions::PyException;
 use pyo3::{prelude::*, types::PyDict};
+use std::str::FromStr;
 use std::{
     sync::{
-        atomic::{AtomicBool},
+        atomic::{AtomicBool, Ordering},
         Arc, Mutex,
     },
     time::Duration,
 };
-pub use workflow_core::channel::{Channel, DuplexChannel};
+use workflow_core::channel::{Channel, DuplexChannel};
+use workflow_log::*;
+use workflow_rpc::client::Ctl;
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+enum NotificationEvent {
+    All,
+    Notification(EventType),
+    RpcCtl(Ctl),
+}
+
+impl FromStr for NotificationEvent {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self> {
+        if s == "all" {
+            Ok(NotificationEvent::All)
+        } else if let Ok(ctl) = Ctl::from_str(s) {
+            Ok(NotificationEvent::RpcCtl(ctl))
+        } else if let Ok(event) = EventType::from_str(s) {
+            Ok(NotificationEvent::Notification(event))
+        } else {
+            Err(Error::custom(format!("Invalid notification event type: `{}`", s)))
+        }
+    }
+}
 
 pub struct Inner {
     client: Arc<KaspaRpcClient>,
     // resolver TODO
     notification_task: AtomicBool,
     notification_ctl: DuplexChannel,
-    // callbacks TODO
+    callbacks: Arc<Mutex<AHashMap<NotificationEvent, Vec<PyObject>>>>,
     listener_id: Arc<Mutex<Option<ListenerId>>>,
     notification_channel: Channel<kaspa_rpc_core::Notification>,
 }
 
+impl Inner {
+    fn notification_callbacks(&self, event: NotificationEvent) -> Option<Vec<PyObject>> {
+        let notification_callbacks = self.callbacks.lock().unwrap();
+        let all = notification_callbacks.get(&NotificationEvent::All).cloned();
+        let target = notification_callbacks.get(&event).cloned();
+        match (all, target) {
+            (Some(mut vec_all), Some(vec_target)) => {
+                vec_all.extend(vec_target);
+                Some(vec_all)
+            }
+            (Some(vec_all), None) => Some(vec_all),
+            (None, Some(vec_target)) => Some(vec_target),
+            (None, None) => None,
+        }
+    }
+}
+
 #[pyclass]
+#[derive(Clone)]
 pub struct RpcClient {
     inner: Arc<Inner>,
-    // url: String,
-    // encoding TODO
-    // verbose TODO
-    // timeout TODO
 }
 
 impl RpcClient {
     fn new(url: Option<String>, encoding: Option<WrpcEncoding>) -> Result<RpcClient> {
         let encoding = encoding.unwrap_or(WrpcEncoding::Borsh);
 
-        let client = Arc::new(
-            KaspaRpcClient::new(encoding, url.as_deref(), None, None, None)
-                .unwrap()
-        );
+        let client = Arc::new(KaspaRpcClient::new(encoding, url.as_deref(), None, None, None).unwrap());
 
         let rpc_client = RpcClient {
             inner: Arc::new(Inner {
                 client,
                 notification_task: AtomicBool::new(false),
                 notification_ctl: DuplexChannel::oneshot(),
+                callbacks: Arc::new(Default::default()),
                 listener_id: Arc::new(Mutex::new(None)),
-                notification_channel: Channel::unbounded()
-            })
+                notification_channel: Channel::unbounded(),
+            }),
         };
 
         Ok(rpc_client)
@@ -72,13 +116,14 @@ impl RpcClient {
 
     fn connect(&self, py: Python) -> PyResult<Py<PyAny>> {
         // TODO expose args to Python similar to WASM wRPC Client IConnectOptions
-
         let options = ConnectOptions {
             block_async_connect: true,
             connect_timeout: Some(Duration::from_millis(5_000)),
             strategy: ConnectStrategy::Fallback,
             ..Default::default()
         };
+
+        self.start_notification_task(py).unwrap();
 
         let client = self.inner.client.clone();
         py_async! {py, async move {
@@ -109,6 +154,187 @@ impl RpcClient {
                 Ok(serde_pyobject::to_pyobject(py, &response).unwrap().to_object(py))
             })
         }}
+    }
+
+    fn add_event_listener(&self, event: String, callback: PyObject) -> PyResult<()> {
+        let event = NotificationEvent::from_str(event.as_str()).unwrap();
+        self.inner.callbacks.lock().unwrap().entry(event).or_default().push(callback.clone());
+        Ok(())
+    }
+
+    // fn remove_event_listener() TODO
+    // fn clear_event_listener() TODO
+
+    fn remove_all_event_listeners(&self) -> PyResult<()> {
+        *self.inner.callbacks.lock().unwrap() = Default::default();
+        Ok(())
+    }
+}
+
+impl RpcClient {
+    pub fn listener_id(&self) -> Option<ListenerId> {
+        *self.inner.listener_id.lock().unwrap()
+    }
+
+    fn start_notification_task(&self, py: Python) -> Result<()> {
+        if self.inner.notification_task.load(Ordering::SeqCst) {
+            return Ok(());
+        }
+
+        self.inner.notification_task.store(true, Ordering::SeqCst);
+
+        let ctl_receiver = self.inner.notification_ctl.request.receiver.clone();
+        let ctl_sender = self.inner.notification_ctl.response.sender.clone();
+        let notification_receiver = self.inner.notification_channel.receiver.clone();
+        let ctl_multiplexer_channel =
+            self.inner.client.rpc_client().ctl_multiplexer().as_ref().expect("Python RpcClient ctl_multiplexer is None").channel();
+        let this = self.clone();
+
+        let _ = pyo3_asyncio_0_21::tokio::future_into_py(py, async move {
+            loop {
+                select_biased! {
+                    msg = ctl_multiplexer_channel.recv().fuse() => {
+                        if let Ok(ctl) = msg {
+
+                            match ctl {
+                                Ctl::Connect => {
+                                    let listener_id = this.inner.client.register_new_listener(ChannelConnection::new(
+                                        "kaspapy-wrpc-client-python",
+                                        this.inner.notification_channel.sender.clone(),
+                                        ChannelType::Persistent,
+                                    ));
+                                    *this.inner.listener_id.lock().unwrap() = Some(listener_id);
+                                }
+                                Ctl::Disconnect => {
+                                    let listener_id = this.inner.listener_id.lock().unwrap().take();
+                                    if let Some(listener_id) = listener_id {
+                                        if let Err(err) = this.inner.client.unregister_listener(listener_id).await {
+                                            log_error!("Error in unregister_listener: {:?}",err);
+                                        }
+                                    }
+                                }
+                            }
+
+                            let event = NotificationEvent::RpcCtl(ctl);
+                            if let Some(handlers) = this.inner.notification_callbacks(event) {
+                                for handler in handlers.into_iter() {
+                                    Python::with_gil(|py| {
+                                        let object = PyDict::new_bound(py);
+                                        object.set_item("type", ctl.to_string()).unwrap();
+                                        // objectdict.set_item("rpc", ).unwrap(); TODO
+
+                                        handler.call1(py, (object,))
+                                            .map_err(|e| {
+                                                pyo3::exceptions::PyException::new_err(format!("Error while executing RPC notification callback: {}", e))
+                                            })
+                                            .unwrap();
+                                    });
+                                }
+                            }
+                        }
+                    },
+                    msg = notification_receiver.recv().fuse() => {
+                        if let Ok(notification) = &msg {
+                            match &notification {
+                                // TODO mirror wasm implementation for Notification::UtxosChanged
+                                // kaspa_rpc_core::Notification::UtxosChanged(utxos_changed_notification) => {},
+                                _ => {
+                                    let event_type = notification.event_type();
+                                    let notification_event = NotificationEvent::Notification(event_type);
+                                    if let Some(handlers) = this.inner.notification_callbacks(notification_event) {
+                                        for handler in handlers.into_iter() {
+                                            Python::with_gil(|py| {
+                                                let object = PyDict::new_bound(py);
+                                                object.set_item("type", event_type.to_string()).unwrap();
+
+                                                // TODO eliminate unnecessary nesting in `data`
+                                                // e.g. response currently looks like this:
+                                                // {'type': 'VirtualDaaScoreChanged', 'data': {'VirtualDaaScoreChanged': {'virtualDaaScore': 83965064}}}
+                                                object.set_item("data", serde_pyobject::to_pyobject(py, &notification).unwrap().to_object(py)).unwrap();
+
+                                                handler.call1(py, (object,))
+                                                    .map_err(|e| {
+                                                        pyo3::exceptions::PyException::new_err(format!("Error while executing RPC notification callback: {}", e))
+                                                    })
+                                                    .unwrap();
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ = ctl_receiver.recv().fuse() => {
+                        break;
+                    },
+
+                }
+            }
+
+            if let Some(listener_id) = this.listener_id() {
+                this.inner.listener_id.lock().unwrap().take();
+                if let Err(err) = this.inner.client.unregister_listener(listener_id).await {
+                    log_error!("Error in unregister_listener: {:?}", err);
+                }
+            }
+
+            ctl_sender.send(()).await.ok();
+
+            Python::with_gil(|_| Ok(()))
+        });
+
+        Ok(())
+    }
+}
+
+#[pymethods]
+impl RpcClient {
+    fn subscribe_daa_score(&self, py: Python) -> PyResult<Py<PyAny>> {
+        if let Some(listener_id) = self.listener_id() {
+            let client = self.inner.client.clone();
+            py_async! {py, async move {
+                client.start_notify(listener_id, Scope::VirtualDaaScoreChanged(VirtualDaaScoreChangedScope {})).await?;
+                Ok(())
+            }}
+        } else {
+            Err(PyErr::new::<PyException, _>("RPC subscribe on a closed connection"))
+        }
+    }
+
+    fn unsubscribe_daa_score(&self, py: Python) -> PyResult<Py<PyAny>> {
+        if let Some(listener_id) = self.listener_id() {
+            let client = self.inner.client.clone();
+            py_async! {py, async move {
+                client.stop_notify(listener_id, Scope::VirtualDaaScoreChanged(VirtualDaaScoreChangedScope {})).await?;
+                Ok(())
+            }}
+        } else {
+            Err(PyErr::new::<PyException, _>("RPC unsubscribe on a closed connection"))
+        }
+    }
+
+    fn subscribe_virtual_chain_changed(&self, py: Python, include_accepted_transaction_ids: bool) -> PyResult<Py<PyAny>> {
+        if let Some(listener_id) = self.listener_id() {
+            let client = self.inner.client.clone();
+            py_async! {py, async move {
+                client.start_notify(listener_id, Scope::VirtualChainChanged(VirtualChainChangedScope { include_accepted_transaction_ids })).await?;
+                Ok(())
+            }}
+        } else {
+            Err(PyErr::new::<PyException, _>("RPC subscribe on a closed connection"))
+        }
+    }
+
+    fn unsubscribe_virtual_chain_changed(&self, py: Python, include_accepted_transaction_ids: bool) -> PyResult<Py<PyAny>> {
+        if let Some(listener_id) = self.listener_id() {
+            let client = self.inner.client.clone();
+            py_async! {py, async move {
+                client.stop_notify(listener_id, Scope::VirtualChainChanged(VirtualChainChangedScope { include_accepted_transaction_ids })).await?;
+                Ok(())
+            }}
+        } else {
+            Err(PyErr::new::<PyException, _>("RPC unsubscribe on a closed connection"))
+        }
     }
 }
 

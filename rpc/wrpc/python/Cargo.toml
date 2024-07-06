@@ -17,7 +17,9 @@ py-sdk = [
 ]
 
 [dependencies]
+ahash.workspace = true
 cfg-if.workspace = true
+futures.workspace = true
 kaspa-consensus-core.workspace = true
 kaspa-notify.workspace = true
 kaspa-rpc-core.workspace = true
@@ -30,4 +32,5 @@ serde_json.workspace = true
 serde-pyobject = "0.3.0"
 thiserror.workspace = true
 workflow-core.workspace = true
+workflow-log.workspace = true
 workflow-rpc.workspace = true
