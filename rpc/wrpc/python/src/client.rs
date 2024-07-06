@@ -17,8 +17,8 @@ use kaspa_wrpc_client::{
 };
 use pyo3::{
     exceptions::PyException,
-    prelude::*, 
-    types::{PyDict, PyTuple}
+    prelude::*,
+    types::{PyDict, PyTuple},
 };
 use std::str::FromStr;
 use std::{
@@ -71,7 +71,7 @@ impl PyCallback {
                 new_args.push(event.into());
 
                 Ok(Py::from(PyTuple::new_bound(py, new_args)))
-            },
+            }
             None => Ok(Py::from(PyTuple::new_bound(py, [event]))),
         }
     }
@@ -184,12 +184,12 @@ impl RpcClient {
 
     #[pyo3(signature = (event, callback, *args, **kwargs))]
     fn add_event_listener(
-        &self, 
-        py: Python, 
-        event: String, 
-        callback: PyObject, 
-        args: &Bound<'_, PyTuple>, 
-        kwargs: Option<&Bound<'_, PyDict>>
+        &self,
+        py: Python,
+        event: String,
+        callback: PyObject,
+        args: &Bound<'_, PyTuple>,
+        kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<()> {
         let event = NotificationEvent::from_str(event.as_str()).unwrap();
 
