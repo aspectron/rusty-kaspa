@@ -15,8 +15,11 @@ use kaspa_wrpc_client::{
     result::Result,
     KaspaRpcClient, WrpcEncoding,
 };
-use pyo3::exceptions::PyException;
-use pyo3::{prelude::*, types::PyDict};
+use pyo3::{
+    exceptions::PyException,
+    prelude::*, 
+    types::{PyDict, PyTuple}
+};
 use std::str::FromStr;
 use std::{
     sync::{
@@ -51,18 +54,41 @@ impl FromStr for NotificationEvent {
     }
 }
 
+#[derive(Clone)]
+struct PyCallback {
+    callback: PyObject,
+    args: Option<Py<PyTuple>>,
+    kwargs: Option<Py<PyDict>>,
+}
+
+impl PyCallback {
+    fn append_event_to_args(&self, py: Python<'_>, event: Bound<'_, PyDict>) -> PyResult<Py<PyTuple>> {
+        match &self.args {
+            Some(existing_args) => {
+                let tuple_ref = existing_args.bind(py);
+
+                let mut new_args: Vec<PyObject> = tuple_ref.iter().map(|arg| arg.to_object(py)).collect();
+                new_args.push(event.into());
+
+                Ok(Py::from(PyTuple::new_bound(py, new_args)))
+            },
+            None => Ok(Py::from(PyTuple::new_bound(py, [event]))),
+        }
+    }
+}
+
 pub struct Inner {
     client: Arc<KaspaRpcClient>,
     // resolver TODO
     notification_task: AtomicBool,
     notification_ctl: DuplexChannel,
-    callbacks: Arc<Mutex<AHashMap<NotificationEvent, Vec<PyObject>>>>,
+    callbacks: Arc<Mutex<AHashMap<NotificationEvent, Vec<PyCallback>>>>,
     listener_id: Arc<Mutex<Option<ListenerId>>>,
     notification_channel: Channel<kaspa_rpc_core::Notification>,
 }
 
 impl Inner {
-    fn notification_callbacks(&self, event: NotificationEvent) -> Option<Vec<PyObject>> {
+    fn notification_callbacks(&self, event: NotificationEvent) -> Option<Vec<PyCallback>> {
         let notification_callbacks = self.callbacks.lock().unwrap();
         let all = notification_callbacks.get(&NotificationEvent::All).cloned();
         let target = notification_callbacks.get(&event).cloned();
@@ -156,9 +182,23 @@ impl RpcClient {
         }}
     }
 
-    fn add_event_listener(&self, event: String, callback: PyObject) -> PyResult<()> {
+    #[pyo3(signature = (event, callback, *args, **kwargs))]
+    fn add_event_listener(
+        &self, 
+        py: Python, 
+        event: String, 
+        callback: PyObject, 
+        args: &Bound<'_, PyTuple>, 
+        kwargs: Option<&Bound<'_, PyDict>>
+    ) -> PyResult<()> {
         let event = NotificationEvent::from_str(event.as_str()).unwrap();
-        self.inner.callbacks.lock().unwrap().entry(event).or_default().push(callback.clone());
+
+        let args = args.to_object(py).extract::<Py<PyTuple>>(py).unwrap();
+        let kwargs = kwargs.unwrap().to_object(py).extract::<Py<PyDict>>(py).unwrap();
+
+        let py_callback = PyCallback { callback, args: Some(args), kwargs: Some(kwargs) };
+
+        self.inner.callbacks.lock().unwrap().entry(event).or_default().push(py_callback);
         Ok(())
     }
 
@@ -223,7 +263,10 @@ impl RpcClient {
                                         object.set_item("type", ctl.to_string()).unwrap();
                                         // objectdict.set_item("rpc", ).unwrap(); TODO
 
-                                        handler.call1(py, (object,))
+                                        let args = handler.append_event_to_args(py, object).unwrap();
+                                        let kwargs = handler.kwargs.as_ref().map(|kw| kw.bind(py));
+
+                                        handler.callback.call_bound(py, args.bind(py), kwargs)
                                             .map_err(|e| {
                                                 pyo3::exceptions::PyException::new_err(format!("Error while executing RPC notification callback: {}", e))
                                             })
@@ -244,15 +287,17 @@ impl RpcClient {
                                     if let Some(handlers) = this.inner.notification_callbacks(notification_event) {
                                         for handler in handlers.into_iter() {
                                             Python::with_gil(|py| {
-                                                let object = PyDict::new_bound(py);
-                                                object.set_item("type", event_type.to_string()).unwrap();
-
                                                 // TODO eliminate unnecessary nesting in `data`
                                                 // e.g. response currently looks like this:
                                                 // {'type': 'VirtualDaaScoreChanged', 'data': {'VirtualDaaScoreChanged': {'virtualDaaScore': 83965064}}}
+                                                let object = PyDict::new_bound(py);
+                                                object.set_item("type", event_type.to_string()).unwrap();
                                                 object.set_item("data", serde_pyobject::to_pyobject(py, &notification).unwrap().to_object(py)).unwrap();
 
-                                                handler.call1(py, (object,))
+                                                let args = handler.append_event_to_args(py, object).unwrap();
+                                                let kwargs = handler.kwargs.as_ref().map(|kw| kw.bind(py));
+
+                                                handler.callback.call_bound(py, args.bind(py), kwargs)
                                                     .map_err(|e| {
                                                         pyo3::exceptions::PyException::new_err(format!("Error while executing RPC notification callback: {}", e))
                                                     })

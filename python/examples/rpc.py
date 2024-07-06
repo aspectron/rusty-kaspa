@@ -5,11 +5,12 @@ import time
 from kaspa import RpcClient
 
 
-def subscription_callback(event):
-    print(event)
+def subscription_callback(event, callback_id, **kwargs):
+    print(kwargs.get('kwarg1'))
+    print(f'{callback_id} | {event}')
 
 async def rpc_subscriptions(client):
-    client.add_event_listener('all', subscription_callback)
+    client.add_event_listener('all', subscription_callback, callback_id=1, kwarg1='Im a kwarg!!')
 
     await client.subscribe_daa_score()
     await client.subscribe_virtual_chain_changed(True)
