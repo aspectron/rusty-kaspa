@@ -5,8 +5,14 @@
 
 pub mod descriptor;
 pub mod kind;
+pub mod pskb;
 pub mod variants;
+use kaspa_hashes::Hash;
+use kaspa_wallet_pskt::bundle::Bundle;
 pub use kind::*;
+use pskb::{
+    bundle_from_pskt_generator, bundle_to_finalizer_stream, create_pending_transaction, pskb_signer, PSKBSigner, PSKTGenerator,
+};
 pub use variants::*;
 
 use crate::derivation::build_derivate_paths;
@@ -346,6 +352,72 @@ pub trait Account: AnySync + Send + Sync + 'static {
         }
 
         Ok((generator.summary(), ids))
+    }
+
+    async fn send_as_unsigned_pskb(
+        self: Arc<Self>,
+        destination: PaymentDestination,
+        priority_fee_sompi: Fees,
+        payload: Option<Vec<u8>>,
+        wallet_secret: Secret,
+        payment_secret: Option<Secret>,
+        abortable: &Abortable,
+    ) -> Result<Bundle, Error> {
+        let settings = GeneratorSettings::try_new_with_account(self.clone().as_dyn_arc(), destination, priority_fee_sompi, payload)?;
+        let keydata = self.prv_key_data(wallet_secret).await?;
+        let signer = Arc::new(PSKBSigner::new(self.clone().as_dyn_arc(), keydata, payment_secret));
+        let generator = Generator::try_new(settings, None, Some(abortable))?;
+        let pskt_generator = PSKTGenerator::new(generator, signer, self.wallet().address_prefix()?);
+        bundle_from_pskt_generator(pskt_generator).await
+    }
+
+    async fn sign_pskb(
+        self: Arc<Self>,
+        bundle: &Bundle,
+        wallet_secret: Secret,
+        payment_secret: Option<Secret>,
+    ) -> Result<Bundle, Error> {
+        let keydata = self.prv_key_data(wallet_secret).await?;
+        let signer = Arc::new(PSKBSigner::new(self.clone().as_dyn_arc(), keydata, payment_secret));
+
+        match pskb_signer(bundle, signer, self.wallet().network_id()?).await {
+            Ok(signer) => Ok(signer),
+            Err(e) => Err(Error::from(e.to_string())),
+        }
+    }
+
+    async fn sign_pskb_json(
+        self: Arc<Self>,
+        pskb_ser: &str,
+        wallet_secret: Secret,
+        payment_secret: Option<Secret>,
+    ) -> Result<Bundle, Error> {
+        let pskbp: Bundle = Bundle::from_hex(pskb_ser)?;
+        Ok(self.sign_pskb(&pskbp, wallet_secret, payment_secret).await.unwrap())
+    }
+
+    async fn broadcast_pskb_json(self: Arc<Self>, pskb_ser: &str) -> Result<Vec<Hash>, Error> {
+        let pskbp: Bundle = Bundle::from_hex(pskb_ser)?;
+        Ok(self.broadcast_pskb(pskbp).await.unwrap())
+    }
+
+    async fn broadcast_pskb(self: Arc<Self>, bundle: Bundle) -> Result<Vec<Hash>, Error> {
+        let mut ids = Vec::new();
+        let mut stream = bundle_to_finalizer_stream(bundle);
+
+        while let Some(result) = stream.next().await {
+            match result {
+                Ok(transaction) => {
+                    let change = self.wallet().account()?.change_address()?;
+                    let transaction = create_pending_transaction(transaction, self.wallet().network_id()?, change)?;
+                    ids.push(transaction.try_submit(&self.wallet().rpc_api()).await?);
+                }
+                Err(e) => {
+                    eprintln!("Error processing a PSKT from bundle: {:?}", e);
+                }
+            }
+        }
+        Ok(ids)
     }
 
     /// Execute a transfer to another wallet account.

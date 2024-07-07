@@ -1,0 +1,99 @@
+{
+    "inner_list": [
+        {
+            "global": {
+                "version": 0,
+                "tx_version": 0,
+                "fallback_lock_time": null,
+                "inputs_modifiable": false,
+                "outputs_modifiable": false,
+                "input_count": 3,
+                "output_count": 2,
+                "xpubs": {},
+                "id": null,
+                "proprietaries": {}
+            },
+            "inputs": [
+                {
+                    "utxo_entry": {
+                        "amount": 600000000,
+                        "scriptPublicKey": "000020a4dc7c18950869560c84bbfe26ef821040237a350a0650e97cdb1cda16a349dcac",
+                        "blockDaaScore": 152216061,
+                        "isCoinbase": false
+                    },
+                    "previous_outpoint": {
+                        "transactionId": "4faffde39043bc55cabd7ecfbf15adc43908d1f5d587bcc38134f76b93cb365f",
+                        "index": 0
+                    },
+                    "sequence": 18446744073709551615,
+                    "min_time": null,
+                    "partial_sigs": {},
+                    "sighash_type": 1,
+                    "redeem_script": "20a4dc7c18950869560c84bbfe26ef821040237a350a0650e97cdb1cda16a349dcac",
+                    "sig_op_count": 1,
+                    "bip32_derivations": {},
+                    "final_script_sig": null,
+                    "proprietaries": {}
+                },
+                {
+                    "utxo_entry": {
+                        "amount": 600000000,
+                        "scriptPublicKey": "000020a4dc7c18950869560c84bbfe26ef821040237a350a0650e97cdb1cda16a349dcac",
+                        "blockDaaScore": 152215941,
+                        "isCoinbase": false
+                    },
+                    "previous_outpoint": {
+                        "transactionId": "bb88bde96e99d55c976a9e6ac9af34fcfa16408fb9fdbbbf385c707c0ffdcaa5",
+                        "index": 0
+                    },
+                    "sequence": 18446744073709551615,
+                    "min_time": null,
+                    "partial_sigs": {},
+                    "sighash_type": 1,
+                    "redeem_script": "20a4dc7c18950869560c84bbfe26ef821040237a350a0650e97cdb1cda16a349dcac",
+                    "sig_op_count": 1,
+                    "bip32_derivations": {},
+                    "final_script_sig": null,
+                    "proprietaries": {}
+                },
+                {
+                    "utxo_entry": {
+                        "amount": 33212891773898,
+                        "scriptPublicKey": "0000200e6227c375a68b02da57c58f8eaf837a003c59e957890baf1cf18aaf28aca76dac",
+                        "blockDaaScore": 152216049,
+                        "isCoinbase": false
+                    },
+                    "previous_outpoint": {
+                        "transactionId": "b1aa90d9f3a599b80101474913b9e5330037c149fd3f4abfda3960c258ddbaa0",
+                        "index": 1
+                    },
+                    "sequence": 18446744073709551615,
+                    "min_time": null,
+                    "partial_sigs": {},
+                    "sighash_type": 1,
+                    "redeem_script": "200e6227c375a68b02da57c58f8eaf837a003c59e957890baf1cf18aaf28aca76dac",
+                    "sig_op_count": 1,
+                    "bip32_derivations": {},
+                    "final_script_sig": null,
+                    "proprietaries": {}
+                }
+            ],
+            "outputs": [
+                {
+                    "amount": 10000000000,
+                    "script_public_key": "000020a4dc7c18950869560c84bbfe26ef821040237a350a0650e97cdb1cda16a349dcac",
+                    "redeem_script": null,
+                    "bip32_derivations": {},
+                    "proprietaries": {}
+                },
+                {
+                    "amount": 33204091769526,
+                    "script_public_key": "0000200e6227c375a68b02da57c58f8eaf837a003c59e957890baf1cf18aaf28aca76dac",
+                    "redeem_script": null,
+                    "bip32_derivations": {},
+                    "proprietaries": {}
+                }
+            ]
+        }
+    ]
+}

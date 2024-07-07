@@ -24,23 +24,54 @@ impl Send {
         let (wallet_secret, payment_secret) = ctx.ask_wallet_secret(Some(&account)).await?;
 
         // let ctx_ = ctx.clone();
-        let (summary, _ids) = account
-            .send(
-                outputs.into(),
-                priority_fee_sompi.into(),
-                None,
-                wallet_secret,
-                payment_secret,
-                &abortable,
-                Some(Arc::new(move |_ptx| {
-                    // tprintln!(ctx_, "Sending transaction: {}", ptx.id());
-                })),
-            )
-            .await?;
+        // let (summary, _ids) = account
+        //     .send(
+        //         outputs.into(),
+        //         priority_fee_sompi.into(),
+        //         None,
+        //         wallet_secret,
+        //         payment_secret,
+        //         &abortable,
+        //         Some(Arc::new(move |_ptx| {
+        //             // tprintln!(ctx_, "Sending transaction: {}", ptx.id());
+        //         })),
+        //     )
+        //     .await?;
 
-        tprintln!(ctx, "Send - {summary}");
+        // tprintln!(ctx, "Send - {summary}");
         // tprintln!(ctx, "\nSending {} KAS to {address}, tx ids:", sompi_to_kaspa_string(amount_sompi));
         // tprintln!(ctx, "{}\n", ids.into_iter().map(|a| a.to_string()).collect::<Vec<_>>().join("\n"));
+
+        // todo remove
+        // PSKB playground ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        // let signer = account.clone()
+        //     .send_as_unsigned_pskb(
+        //         outputs.into(),
+        //         priority_fee_sompi.into(),
+        //         None,
+        //         wallet_secret.clone(), payment_secret.clone(),
+        //         &abortable,
+        //     )
+        //     .await?;
+
+        // let enc = signer.to_hex().unwrap();
+        // tprintln!(ctx, "PKSB signer - {}", &enc);
+
+        // let signed_bundle = account.clone()
+        //     .sign_pskb_json(
+        //         &enc,
+        //         wallet_secret.clone(), payment_secret.clone()).await?;
+
+        // let enc = signed_bundle.to_hex().unwrap();
+        // tprintln!(ctx, "PKSB signed - {}", &enc);
+
+        // if let Ok(sent) = account.clone().broadcast_pskb_json(
+        //     &enc,
+        // ).await{
+        //     tprintln!(ctx, "Sent transactions {:?}", sent);
+        // }
+        // PSKB playground ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         Ok(())
     }

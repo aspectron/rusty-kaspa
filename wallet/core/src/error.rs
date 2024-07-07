@@ -326,6 +326,9 @@ pub enum Error {
 
     #[error(transparent)]
     Metrics(#[from] kaspa_metrics_core::error::Error),
+
+    #[error(transparent)]
+    Pskt(#[from] kaspa_wallet_pskt::error::Error),
 }
 
 impl From<Aborted> for Error {

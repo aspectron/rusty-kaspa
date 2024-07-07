@@ -3538,6 +3538,7 @@ dependencies = [
  "kaspa-utils",
  "kaspa-wallet-keys",
  "kaspa-wallet-macros",
+ "kaspa-wallet-pskt",
  "kaspa-wasm-core",
  "kaspa-wrpc-client",
  "kaspa-wrpc-wasm",
@@ -3622,7 +3623,10 @@ dependencies = [
 name = "kaspa-wallet-pskt"
 version = "0.14.1"
 dependencies = [
+ "bincode",
  "derive_builder",
+ "futures",
+ "hex",
  "js-sys",
  "kaspa-bip32",
  "kaspa-consensus-client",
