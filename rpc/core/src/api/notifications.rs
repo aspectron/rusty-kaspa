@@ -10,8 +10,10 @@ use kaspa_notify::{
         Subscription,
     },
 };
+#[cfg(feature = "py-sdk")]
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "py-sdk")]
 use serde_pyobject::to_pyobject;
 use std::sync::Arc;
 use wasm_bindgen::JsValue;
@@ -65,6 +67,7 @@ impl Notification {
         }
     }
 
+    #[cfg(feature = "py-sdk")]
     pub fn to_pyobject(&self, py: Python) -> PyResult<PyObject> {
         let bound_obj = match self {
             Notification::BlockAdded(v) => to_pyobject(py, &v),

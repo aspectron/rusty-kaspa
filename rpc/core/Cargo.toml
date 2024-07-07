@@ -14,7 +14,10 @@ wasm32-sdk = [
     "kaspa-consensus-client/wasm32-sdk",
     "kaspa-consensus-wasm/wasm32-sdk"
 ]
-py-sdk = ["pyo3", "serde-pyobject"]
+py-sdk = [
+    "pyo3", 
+    "serde-pyobject"
+]
 
 [dependencies]
 kaspa-addresses.workspace = true
