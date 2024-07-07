@@ -62,7 +62,7 @@ struct PyCallback {
 }
 
 impl PyCallback {
-    fn append_event_to_args(&self, py: Python<'_>, event: Bound<'_, PyDict>) -> PyResult<Py<PyTuple>> {
+    fn append_to_args(&self, py: Python, event: Bound<PyDict>) -> PyResult<Py<PyTuple>> {
         match &self.args {
             Some(existing_args) => {
                 let tuple_ref = existing_args.bind(py);
@@ -74,6 +74,19 @@ impl PyCallback {
             }
             None => Ok(Py::from(PyTuple::new_bound(py, [event]))),
         }
+    }
+
+    fn execute(&self, py: Python, event: Bound<PyDict>) -> PyResult<PyObject> {
+        let args = self.append_to_args(py, event).unwrap();
+        let kwargs = self.kwargs.as_ref().map(|kw| kw.bind(py));
+
+        let result = self
+            .callback
+            .call_bound(py, args.bind(py), kwargs)
+            .map_err(|e| pyo3::exceptions::PyException::new_err(format!("Error while executing RPC notification callback: {}", e)))
+            .unwrap();
+
+        Ok(result)
     }
 }
 
@@ -259,18 +272,11 @@ impl RpcClient {
                             if let Some(handlers) = this.inner.notification_callbacks(event) {
                                 for handler in handlers.into_iter() {
                                     Python::with_gil(|py| {
-                                        let object = PyDict::new_bound(py);
-                                        object.set_item("type", ctl.to_string()).unwrap();
+                                        let event = PyDict::new_bound(py);
+                                        event.set_item("type", ctl.to_string()).unwrap();
                                         // objectdict.set_item("rpc", ).unwrap(); TODO
 
-                                        let args = handler.append_event_to_args(py, object).unwrap();
-                                        let kwargs = handler.kwargs.as_ref().map(|kw| kw.bind(py));
-
-                                        handler.callback.call_bound(py, args.bind(py), kwargs)
-                                            .map_err(|e| {
-                                                pyo3::exceptions::PyException::new_err(format!("Error while executing RPC notification callback: {}", e))
-                                            })
-                                            .unwrap();
+                                        handler.execute(py, event).unwrap();
                                     });
                                 }
                             }
@@ -279,29 +285,38 @@ impl RpcClient {
                     msg = notification_receiver.recv().fuse() => {
                         if let Ok(notification) = &msg {
                             match &notification {
-                                // TODO mirror wasm implementation for Notification::UtxosChanged
-                                // kaspa_rpc_core::Notification::UtxosChanged(utxos_changed_notification) => {},
+                                kaspa_rpc_core::Notification::UtxosChanged(utxos_changed_notification) => {
+                                    let event_type = notification.event_type();
+                                    let notification_event = NotificationEvent::Notification(event_type);
+                                    if let Some(handlers) = this.inner.notification_callbacks(notification_event) {
+                                        let UtxosChangedNotification { added, removed } = utxos_changed_notification;
+
+                                        for handler in handlers.into_iter() {
+                                            Python::with_gil(|py| {
+                                                let added = serde_pyobject::to_pyobject(py, added).unwrap();
+                                                let removed = serde_pyobject::to_pyobject(py, removed).unwrap();
+
+                                                let event = PyDict::new_bound(py);
+                                                event.set_item("type", event_type.to_string()).unwrap();
+                                                event.set_item("added", &added.to_object(py)).unwrap();
+                                                event.set_item("removed", &removed.to_object(py)).unwrap();
+
+                                                handler.execute(py, event).unwrap();
+                                            })
+                                        }
+                                    }
+                                },
                                 _ => {
                                     let event_type = notification.event_type();
                                     let notification_event = NotificationEvent::Notification(event_type);
                                     if let Some(handlers) = this.inner.notification_callbacks(notification_event) {
                                         for handler in handlers.into_iter() {
                                             Python::with_gil(|py| {
-                                                // TODO eliminate unnecessary nesting in `data`
-                                                // e.g. response currently looks like this:
-                                                // {'type': 'VirtualDaaScoreChanged', 'data': {'VirtualDaaScoreChanged': {'virtualDaaScore': 83965064}}}
-                                                let object = PyDict::new_bound(py);
-                                                object.set_item("type", event_type.to_string()).unwrap();
-                                                object.set_item("data", serde_pyobject::to_pyobject(py, &notification).unwrap().to_object(py)).unwrap();
+                                                let event = PyDict::new_bound(py);
+                                                event.set_item("type", event_type.to_string()).unwrap();
+                                                event.set_item("data", &notification.to_pyobject(py).unwrap()).unwrap();
 
-                                                let args = handler.append_event_to_args(py, object).unwrap();
-                                                let kwargs = handler.kwargs.as_ref().map(|kw| kw.bind(py));
-
-                                                handler.callback.call_bound(py, args.bind(py), kwargs)
-                                                    .map_err(|e| {
-                                                        pyo3::exceptions::PyException::new_err(format!("Error while executing RPC notification callback: {}", e))
-                                                    })
-                                                    .unwrap();
+                                                handler.execute(py, event).unwrap();
                                             });
                                         }
                                     }

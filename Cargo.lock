@@ -3289,6 +3289,7 @@ dependencies = [
  "paste",
  "pyo3",
  "serde",
+ "serde-pyobject",
  "serde-wasm-bindgen",
  "serde_json",
  "smallvec",

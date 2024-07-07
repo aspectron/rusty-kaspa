@@ -10,7 +10,9 @@ use kaspa_notify::{
         Subscription,
     },
 };
+use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
+use serde_pyobject::to_pyobject;
 use std::sync::Arc;
 use wasm_bindgen::JsValue;
 use workflow_wasm::serde::to_value;
@@ -61,6 +63,22 @@ impl Notification {
             Notification::SinkBlueScoreChanged(v) => to_value(&v),
             Notification::VirtualChainChanged(v) => to_value(&v),
         }
+    }
+
+    pub fn to_pyobject(&self, py: Python) -> PyResult<PyObject> {
+        let bound_obj = match self {
+            Notification::BlockAdded(v) => to_pyobject(py, &v),
+            Notification::FinalityConflict(v) => to_pyobject(py, &v),
+            Notification::FinalityConflictResolved(v) => to_pyobject(py, &v),
+            Notification::NewBlockTemplate(v) => to_pyobject(py, &v),
+            Notification::PruningPointUtxoSetOverride(v) => to_pyobject(py, &v),
+            Notification::UtxosChanged(v) => to_pyobject(py, &v),
+            Notification::VirtualDaaScoreChanged(v) => to_pyobject(py, &v),
+            Notification::SinkBlueScoreChanged(v) => to_pyobject(py, &v),
+            Notification::VirtualChainChanged(v) => to_pyobject(py, &v),
+        };
+
+        Ok(bound_obj.unwrap().to_object(py))
     }
 }
 
