@@ -122,86 +122,53 @@ impl Stream for PSKTStream {
     }
 }
 
-fn convert_pending_tx_to_pskt(pending_tx: PendingTransaction, _persist_signatures: bool) -> Result<PSKT<Signer>, Error> {
-    // let pskt_inner = Inner::from(pending_tx.transaction());
-
-    // pending_tx.utxo_entries()
+fn convert_pending_tx_to_pskt(pending_tx: PendingTransaction, persist_signatures: bool) -> Result<PSKT<Signer>, Error> {
     let signable_tx = pending_tx.signable_transaction();
 
     let verifiable_tx = signable_tx.as_verifiable();
 
     let populated_inputs: Vec<(&TransactionInput, &UtxoEntry)> = verifiable_tx.populated_inputs().collect();
 
-    let pskt_inner = Inner::from((pending_tx.transaction(), populated_inputs));
+    let pskt_inner = Inner::from((pending_tx.transaction(), populated_inputs.to_owned()));
 
-    // // let creator_pskt = PSKT::<Creator>::default().inputs_modifiable().outputs_modifiable();
+    let signer = PSKT::<Signer>::from(pskt_inner);
 
-    // let collected_inputs: Vec<Input> = verifiable_tx
-    //     .as_verifiable()
-    //     .populated_inputs()
-    //     .map(|(input, utxo_entry)| {
-    //         InputBuilder::default()
-    //             .utxo_entry(utxo_entry.clone())
-    //             .previous_outpoint(input.previous_outpoint)
-    //             .sig_op_count(input.sig_op_count)
-    //             .build()
-    //             .unwrap()
-    //     })
-    //     .collect();
+    // todo: detection and depending on PSKT type
+    if persist_signatures {
+        let signed_pskt = signer
+            .pass_signature_sync(|tx, _| -> Result<Vec<SignInputOk>, String> {
+                tx.tx
+                    .inputs
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(idx, _input)| {
+                        if let Some((input, _)) = signable_tx.as_verifiable().populated_inputs().nth(idx) {
+                            if !input.signature_script.is_empty() {
+                                let signature =
+                                    secp256k1::schnorr::Signature::from_slice(&input.signature_script).expect("Schnorr signature");
 
-    Ok(PSKT::<Signer>::from(pskt_inner))
+                                // unsuported requirement: new public key as placeholder
+                                // todo: optional or with more types
+                                let secp = secp256k1::Secp256k1::new();
+                                let keypair = secp256k1::Keypair::new(&secp, &mut rand::thread_rng());
+                                let public_key = PublicKey::from_keypair(&keypair);
 
-    // let constructor_in: PSKT<Constructor> =
-    //     collected_inputs.into_iter().fold(creator_pskt.constructor(), |constructor, input| constructor.input(input));
+                                return Some(Ok(SignInputOk {
+                                    signature: Signature::Schnorr(signature),
+                                    pub_key: public_key,
+                                    key_source: None,
+                                }));
+                            }
+                        }
+                        None
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .unwrap();
+        return Ok(signed_pskt);
+    }
 
-    // let collected_outputs: Vec<Output> = verifiable_tx
-    //     .as_verifiable()
-    //     .outputs()
-    //     .iter()
-    //     .map(|out| OutputBuilder::default().amount(out.value).script_public_key(out.script_public_key.clone()).build().unwrap())
-    //     .collect();
-
-    // let constructor_out = collected_outputs.into_iter().fold(constructor_in, |constructor, output| constructor.output(output));
-
-    // let updater_pskt =
-    //     verifiable_tx.as_verifiable().populated_inputs().enumerate().fold(constructor_out.updater(), |updater, (index, _)| {
-    //         updater.set_sequence(u64::MAX, index).expect("Failed to set sequence")
-    //     });
-
-    // // todo: discuss if persist_signatures is needed and how to extend SignInputOk
-    // if persist_signatures {
-    //     let signed_pskt = updater_pskt
-    //         .signer()
-    //         .pass_signature_sync(|tx, _| -> Result<Vec<SignInputOk>, String> {
-    //             tx.tx
-    //                 .inputs
-    //                 .iter()
-    //                 .enumerate()
-    //                 .filter_map(|(idx, _input)| {
-    //                     if let Some((input, _)) = verifiable_tx.as_verifiable().populated_inputs().nth(idx) {
-    //                         let signature =
-    //                             secp256k1::schnorr::Signature::from_slice(&input.signature_script).expect("Schnorr signature");
-
-    //                         // unsuported: new public key place holder
-    //                         let secp = secp256k1::Secp256k1::new();
-    //                         let keypair = secp256k1::Keypair::new(&secp, &mut rand::thread_rng());
-    //                         let public_key = PublicKey::from_keypair(&keypair);
-
-    //                         return Some(Ok(SignInputOk {
-    //                             signature: Signature::Schnorr(signature),
-    //                             pub_key: public_key,
-    //                             key_source: None,
-    //                         }));
-    //                     }
-    //                     None
-    //                 })
-    //                 .collect::<Result<Vec<_>, _>>()
-    //         })
-    //         .unwrap();
-    //     Ok(signed_pskt)
-    // } else {
-    //     Ok(updater_pskt.signer())
-    // }
+    Ok(signer)
 }
 
 pub async fn bundle_from_pskt_generator(generator: PSKTGenerator) -> Result<Bundle, Error> {
