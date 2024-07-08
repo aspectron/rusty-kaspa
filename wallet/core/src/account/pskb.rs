@@ -6,14 +6,13 @@ use kaspa_bip32::PrivateKey;
 use kaspa_consensus_client::UtxoEntry as ClientUTXO;
 use kaspa_consensus_core::hashing::sighash::{calc_schnorr_signature_hash, SigHashReusedValues};
 use kaspa_consensus_core::tx::VerifiableTransaction;
+use kaspa_consensus_core::tx::{TransactionInput, UtxoEntry};
 use kaspa_txscript::extract_script_pub_key_address;
 use kaspa_txscript::opcodes::codes::OpData65;
 use kaspa_txscript::script_builder::ScriptBuilder;
 use kaspa_wallet_core::tx::{Generator, GeneratorSettings, PaymentDestination, PendingTransaction};
 use kaspa_wallet_pskt::bundle::Bundle;
-use kaspa_wallet_pskt::prelude::{
-    Constructor, Creator, Finalizer, Inner, Input, InputBuilder, Output, OutputBuilder, SignInputOk, Signature, Signer, PSKT,
-};
+use kaspa_wallet_pskt::prelude::{Creator, Finalizer, Inner, SignInputOk, Signature, Signer, PSKT};
 use secp256k1::schnorr;
 use secp256k1::{Message, PublicKey};
 use std::iter;
@@ -123,77 +122,86 @@ impl Stream for PSKTStream {
     }
 }
 
-fn convert_pending_tx_to_pskt(pending_tx: PendingTransaction, persist_signatures: bool) -> Result<PSKT<Signer>, Error> {
+fn convert_pending_tx_to_pskt(pending_tx: PendingTransaction, _persist_signatures: bool) -> Result<PSKT<Signer>, Error> {
+    // let pskt_inner = Inner::from(pending_tx.transaction());
+
+    // pending_tx.utxo_entries()
     let signable_tx = pending_tx.signable_transaction();
 
-    let verifiable_tx = signable_tx.clone();
+    let verifiable_tx = signable_tx.as_verifiable();
 
-    let creator_pskt = PSKT::<Creator>::default().inputs_modifiable().outputs_modifiable();
+    let populated_inputs: Vec<(&TransactionInput, &UtxoEntry)> = verifiable_tx.populated_inputs().collect();
 
-    let collected_inputs: Vec<Input> = verifiable_tx
-        .as_verifiable()
-        .populated_inputs()
-        .map(|(input, utxo_entry)| {
-            InputBuilder::default()
-                .utxo_entry(utxo_entry.clone())
-                .previous_outpoint(input.previous_outpoint)
-                .sig_op_count(input.sig_op_count)
-                .build()
-                .unwrap()
-        })
-        .collect();
+    let pskt_inner = Inner::from((pending_tx.transaction(), populated_inputs));
 
-    let constructor_in: PSKT<Constructor> =
-        collected_inputs.into_iter().fold(creator_pskt.constructor(), |constructor, input| constructor.input(input));
+    // // let creator_pskt = PSKT::<Creator>::default().inputs_modifiable().outputs_modifiable();
 
-    let collected_outputs: Vec<Output> = verifiable_tx
-        .as_verifiable()
-        .outputs()
-        .iter()
-        .map(|out| OutputBuilder::default().amount(out.value).script_public_key(out.script_public_key.clone()).build().unwrap())
-        .collect();
+    // let collected_inputs: Vec<Input> = verifiable_tx
+    //     .as_verifiable()
+    //     .populated_inputs()
+    //     .map(|(input, utxo_entry)| {
+    //         InputBuilder::default()
+    //             .utxo_entry(utxo_entry.clone())
+    //             .previous_outpoint(input.previous_outpoint)
+    //             .sig_op_count(input.sig_op_count)
+    //             .build()
+    //             .unwrap()
+    //     })
+    //     .collect();
 
-    let constructor_out = collected_outputs.into_iter().fold(constructor_in, |constructor, output| constructor.output(output));
+    Ok(PSKT::<Signer>::from(pskt_inner))
 
-    let updater_pskt =
-        verifiable_tx.as_verifiable().populated_inputs().enumerate().fold(constructor_out.updater(), |updater, (index, _)| {
-            updater.set_sequence(u64::MAX, index).expect("Failed to set sequence")
-        });
+    // let constructor_in: PSKT<Constructor> =
+    //     collected_inputs.into_iter().fold(creator_pskt.constructor(), |constructor, input| constructor.input(input));
 
-    // todo: discuss if persist_signatures is needed and how to extend SignInputOk
-    if persist_signatures {
-        let signed_pskt = updater_pskt
-            .signer()
-            .pass_signature_sync(|tx, _| -> Result<Vec<SignInputOk>, String> {
-                tx.tx
-                    .inputs
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(idx, _input)| {
-                        if let Some((input, _)) = verifiable_tx.as_verifiable().populated_inputs().nth(idx) {
-                            let signature =
-                                secp256k1::schnorr::Signature::from_slice(&input.signature_script).expect("Schnorr signature");
+    // let collected_outputs: Vec<Output> = verifiable_tx
+    //     .as_verifiable()
+    //     .outputs()
+    //     .iter()
+    //     .map(|out| OutputBuilder::default().amount(out.value).script_public_key(out.script_public_key.clone()).build().unwrap())
+    //     .collect();
 
-                            // unsuported: new public key place holder
-                            let secp = secp256k1::Secp256k1::new();
-                            let keypair = secp256k1::Keypair::new(&secp, &mut rand::thread_rng());
-                            let public_key = PublicKey::from_keypair(&keypair);
+    // let constructor_out = collected_outputs.into_iter().fold(constructor_in, |constructor, output| constructor.output(output));
 
-                            return Some(Ok(SignInputOk {
-                                signature: Signature::Schnorr(signature),
-                                pub_key: public_key,
-                                key_source: None,
-                            }));
-                        }
-                        None
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-            })
-            .unwrap();
-        Ok(signed_pskt)
-    } else {
-        Ok(updater_pskt.signer())
-    }
+    // let updater_pskt =
+    //     verifiable_tx.as_verifiable().populated_inputs().enumerate().fold(constructor_out.updater(), |updater, (index, _)| {
+    //         updater.set_sequence(u64::MAX, index).expect("Failed to set sequence")
+    //     });
+
+    // // todo: discuss if persist_signatures is needed and how to extend SignInputOk
+    // if persist_signatures {
+    //     let signed_pskt = updater_pskt
+    //         .signer()
+    //         .pass_signature_sync(|tx, _| -> Result<Vec<SignInputOk>, String> {
+    //             tx.tx
+    //                 .inputs
+    //                 .iter()
+    //                 .enumerate()
+    //                 .filter_map(|(idx, _input)| {
+    //                     if let Some((input, _)) = verifiable_tx.as_verifiable().populated_inputs().nth(idx) {
+    //                         let signature =
+    //                             secp256k1::schnorr::Signature::from_slice(&input.signature_script).expect("Schnorr signature");
+
+    //                         // unsuported: new public key place holder
+    //                         let secp = secp256k1::Secp256k1::new();
+    //                         let keypair = secp256k1::Keypair::new(&secp, &mut rand::thread_rng());
+    //                         let public_key = PublicKey::from_keypair(&keypair);
+
+    //                         return Some(Ok(SignInputOk {
+    //                             signature: Signature::Schnorr(signature),
+    //                             pub_key: public_key,
+    //                             key_source: None,
+    //                         }));
+    //                     }
+    //                     None
+    //                 })
+    //                 .collect::<Result<Vec<_>, _>>()
+    //         })
+    //         .unwrap();
+    //     Ok(signed_pskt)
+    // } else {
+    //     Ok(updater_pskt.signer())
+    // }
 }
 
 pub async fn bundle_from_pskt_generator(generator: PSKTGenerator) -> Result<Bundle, Error> {

@@ -398,7 +398,7 @@ pub trait Account: AnySync + Send + Sync + 'static {
 
     async fn broadcast_pskb_json(self: Arc<Self>, pskb_ser: &str) -> Result<Vec<Hash>, Error> {
         let pskbp: Bundle = Bundle::from_hex(pskb_ser)?;
-        Ok(self.broadcast_pskb(pskbp).await.unwrap())
+        self.broadcast_pskb(pskbp).await
     }
 
     async fn broadcast_pskb(self: Arc<Self>, bundle: Bundle) -> Result<Vec<Hash>, Error> {

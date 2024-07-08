@@ -1,14 +1,14 @@
 use crate::error::Error;
 use crate::input::{Input, InputBuilder};
 use crate::output::{Output, OutputBuilder};
-use crate::pskt::Inner;
+use crate::pskt::{Global, Inner};
 use kaspa_consensus_client::{Transaction, TransactionInput, TransactionInputInner, TransactionOutput, TransactionOutputInner};
+use kaspa_consensus_core::tx as cctx;
 
 impl From<Transaction> for Inner {
     fn from(_transaction: Transaction) -> Inner {
-        // Self::Transaction(transaction)
-
-        todo!()
+        let transaction = cctx::Transaction::from(&_transaction);
+        Inner::from(transaction)
     }
 }
 
@@ -51,5 +51,57 @@ impl TryFrom<TransactionOutput> for Output {
         .build()?;
 
         Ok(output)
+    }
+}
+
+impl From<(cctx::Transaction, Vec<(&cctx::TransactionInput, &cctx::UtxoEntry)>)> for Inner {
+    fn from((transaction, populated_inputs): (cctx::Transaction, Vec<(&cctx::TransactionInput, &cctx::UtxoEntry)>)) -> Inner {
+        let inputs = populated_inputs
+            .into_iter()
+            .map(|(input, utxo)| {
+                println!("Populated utxo");
+                InputBuilder::default()
+                    .utxo_entry(utxo.to_owned().clone())
+                    .previous_outpoint(input.previous_outpoint)
+                    .sig_op_count(input.sig_op_count)
+                    .build()
+                    .unwrap()
+            })
+            .collect();
+
+        let outputs: Vec<Output> = transaction
+            .outputs
+            .iter()
+            .filter_map(|output| Output::try_from(TransactionOutput::from(output.to_owned())).ok())
+            .collect();
+
+        Inner { global: Global::default(), inputs, outputs }
+    }
+}
+
+impl From<cctx::Transaction> for Inner {
+    fn from(transaction: cctx::Transaction) -> Inner {
+        let inputs: Vec<Input> = transaction
+            .inputs
+            .iter()
+            .filter_map(|input| {
+                let tx_input = TransactionInput::from(input.to_owned());
+                match Input::try_from(tx_input) {
+                    Ok(input) => Some(input),
+                    Err(e) => {
+                        println!("Error converting input: {:?}", e);
+                        None
+                    }
+                }
+            })
+            .collect();
+
+        let outputs: Vec<Output> = transaction
+            .outputs
+            .iter()
+            .filter_map(|output| Output::try_from(TransactionOutput::from(output.to_owned())).ok())
+            .collect();
+
+        Inner { global: Global::default(), inputs, outputs }
     }
 }
