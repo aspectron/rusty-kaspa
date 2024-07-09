@@ -10,9 +10,10 @@ license.workspace = true
 repository.workspace = true
 
 [features]
-default = []
+default = ["py-sdk"]
 py-sdk = [
     "pyo3/extension-module",
+    "kaspa-addresses/py-sdk",
     "kaspa-rpc-core/py-sdk",
     "kaspa-wrpc-client/py-sdk",
 ]
@@ -21,6 +22,7 @@ py-sdk = [
 ahash.workspace = true
 cfg-if.workspace = true
 futures.workspace = true
+kaspa-addresses.workspace = true
 kaspa-consensus-core.workspace = true
 kaspa-notify.workspace = true
 kaspa-rpc-core.workspace = true

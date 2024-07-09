@@ -1,8 +1,9 @@
 use ahash::AHashMap;
 use futures::*;
+use kaspa_addresses::Address;
 use kaspa_notify::listener::ListenerId;
 use kaspa_notify::notification::Notification;
-use kaspa_notify::scope::{Scope, VirtualChainChangedScope, VirtualDaaScoreChangedScope};
+use kaspa_notify::scope::{Scope, UtxosChangedScope, VirtualChainChangedScope, VirtualDaaScoreChangedScope};
 use kaspa_notify::{connection::ChannelType, events::EventType};
 use kaspa_python_macros::py_async;
 use kaspa_rpc_core::api::rpc::RpcApi;
@@ -368,6 +369,30 @@ impl RpcClient {
                 client.stop_notify(listener_id, Scope::VirtualDaaScoreChanged(VirtualDaaScoreChangedScope {})).await?;
                 Ok(())
             }}
+        } else {
+            Err(PyErr::new::<PyException, _>("RPC unsubscribe on a closed connection"))
+        }
+    }
+
+    fn subscribe_utxos_changed(&self, py: Python, addresses: Vec<Address>) -> PyResult<Py<PyAny>> {
+        if let Some(listener_id) = self.listener_id() {
+            let client = self.inner.client.clone();
+            py_async! {py, async move {
+                client.start_notify(listener_id, Scope::UtxosChanged(UtxosChangedScope { addresses })).await?;
+                Ok(())
+            }}
+         } else {
+            Err(PyErr::new::<PyException, _>("RPC subscribe on a closed connection"))
+        }
+    }
+
+    fn unsubscribe_utxos_changed(&self, py: Python, addresses: Vec<Address>) -> PyResult<Py<PyAny>> {
+        if let Some(listener_id) = self.listener_id() {
+            let client = self.inner.client.clone();
+            py_async! {py, async move {
+                client.stop_notify(listener_id, Scope::UtxosChanged(UtxosChangedScope { addresses })).await?;
+                Ok(())
+            }} 
         } else {
             Err(PyErr::new::<PyException, _>("RPC unsubscribe on a closed connection"))
         }
