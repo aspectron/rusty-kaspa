@@ -5,6 +5,7 @@ use crate::wasm::PrivateKeyArrayT;
 use kaspa_consensus_client::{numeric, string};
 use kaspa_consensus_client::{ITransaction, Transaction};
 use kaspa_wallet_keys::privatekey::PrivateKey;
+use kaspa_wasm_core::types::BinaryT;
 use kaspa_wrpc_wasm::RpcClient;
 
 /// @category Wallet SDK
@@ -68,6 +69,18 @@ impl PendingTransaction {
     #[wasm_bindgen(js_name = getUtxoEntries)]
     pub fn get_utxo_entries(&self) -> Array {
         self.inner.utxo_entries().values().map(|utxo_entry| JsValue::from(utxo_entry.clone())).collect()
+    }
+
+    #[wasm_bindgen(js_name = calculateSighash)]
+    pub fn calculate_sig_hash(&self, input_index: u8) -> Result<String> {
+        let sighash = self.inner.calculate_sighash(input_index.into())?;
+
+        Ok(sighash.to_hex())
+    }
+
+    #[wasm_bindgen(js_name = signInput)]
+    pub fn sign_input(&self, input_index: u8, signature_script: BinaryT) -> Result<()> {
+        self.inner.sign_input(input_index.into(), signature_script.try_as_vec_u8()?)
     }
 
     /// Sign transaction with supplied [`Array`] or [`PrivateKey`] or an array of

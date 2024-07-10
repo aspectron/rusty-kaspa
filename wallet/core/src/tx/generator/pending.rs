@@ -9,7 +9,10 @@ use crate::rpc::DynRpcApi;
 use crate::tx::{DataKind, Generator};
 use crate::utxo::{UtxoContext, UtxoEntryId, UtxoEntryReference};
 use kaspa_consensus_core::sign::sign_with_multiple_v2;
+use kaspa_consensus_core::hashing::sighash::{calc_schnorr_signature_hash, SigHashReusedValues};
+use kaspa_consensus_core::hashing::sighash_type;
 use kaspa_consensus_core::tx::{SignableTransaction, Transaction, TransactionId};
+use kaspa_hashes::Hash;
 use kaspa_rpc_core::{RpcTransaction, RpcTransactionId};
 
 pub(crate) struct PendingTransactionInner {
@@ -220,6 +223,22 @@ impl PendingTransaction {
         let signer = self.inner.generator.signer().as_ref().expect("no signer in tx generator");
         let signed_tx = signer.try_sign(self.inner.signable_tx.lock()?.clone(), self.addresses())?;
         *self.inner.signable_tx.lock().unwrap() = signed_tx;
+        Ok(())
+    }
+
+    pub fn calculate_sighash(&self, input_index: usize) -> Result<Hash> {
+        let mutable_tx = self.inner.signable_tx.lock()?.clone();
+        let mut reused_values = SigHashReusedValues::new();
+        let hash = calc_schnorr_signature_hash(&mutable_tx.as_verifiable(), input_index, sighash_type::SIG_HASH_SINGLE, &mut reused_values);
+    
+        Ok(hash)
+    }
+
+    pub fn sign_input(&self, input_index: usize, signature_script: Vec<u8>) -> Result<()> {
+        let mut mutable_tx = self.inner.signable_tx.lock()?.clone();
+        mutable_tx.tx.inputs[input_index].signature_script = signature_script;
+        *self.inner.signable_tx.lock().unwrap() = mutable_tx;
+
         Ok(())
     }
 
