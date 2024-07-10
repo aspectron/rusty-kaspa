@@ -17,7 +17,6 @@ pub use crate::rpc::Rpc;
 pub use crate::rpc::{DynRpcApi, RpcCtl};
 pub use crate::serializer::*;
 pub use crate::storage::*;
-pub use crate::tx::MassCombinationStrategy;
 pub use crate::utxo::balance::Balance;
 pub use crate::utxo::scan::{Scan, ScanExtent};
 pub use crate::utxo::{Maturity, NetworkParams, OutgoingTransaction, UtxoContext, UtxoEntryReference, UtxoProcessor};
@@ -36,6 +35,7 @@ pub use futures::{select, select_biased, FutureExt, Stream, StreamExt, TryStream
 pub use js_sys::{Array, BigInt, Object};
 pub use kaspa_addresses::{Address, Prefix};
 pub use kaspa_consensus_core::network::{NetworkId, NetworkType};
+pub use kaspa_consensus_core::tx::Kip9Version;
 pub use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionId, TransactionIndexType};
 pub use kaspa_metrics_core::{Metric, Metrics, MetricsSnapshot};
 pub use kaspa_utils::hashmap::*;

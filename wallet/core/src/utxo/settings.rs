@@ -10,7 +10,7 @@ pub struct Inner {
     pub coinbase_transaction_maturity_period_daa: AtomicU64,
     pub coinbase_transaction_stasis_period_daa: u64,
     pub user_transaction_maturity_period_daa: AtomicU64,
-    pub mass_combination_strategy: MassCombinationStrategy,
+    pub kip9_version: Kip9Version,
     pub additional_compound_transaction_mass: u64,
 }
 
@@ -36,8 +36,8 @@ impl NetworkParams {
     }
 
     #[inline]
-    pub fn mass_combination_strategy(&self) -> MassCombinationStrategy {
-        self.inner.mass_combination_strategy
+    pub fn kip9_version(&self) -> Kip9Version {
+        self.inner.kip9_version
     }
 
     #[inline]
@@ -60,7 +60,7 @@ lazy_static::lazy_static! {
             coinbase_transaction_maturity_period_daa: AtomicU64::new(100),
             coinbase_transaction_stasis_period_daa: 50,
             user_transaction_maturity_period_daa: AtomicU64::new(10),
-            mass_combination_strategy: MassCombinationStrategy::Max,
+            kip9_version: Kip9Version::Beta,
             additional_compound_transaction_mass: 0,
         }),
     };
@@ -72,7 +72,7 @@ lazy_static::lazy_static! {
             coinbase_transaction_maturity_period_daa: AtomicU64::new(100),
             coinbase_transaction_stasis_period_daa: 50,
             user_transaction_maturity_period_daa: AtomicU64::new(10),
-            mass_combination_strategy: MassCombinationStrategy::Max,
+            kip9_version: MassCombinationStrategy::Max,
             additional_compound_transaction_mass: 0,
         }),
     };
@@ -84,7 +84,7 @@ lazy_static::lazy_static! {
             coinbase_transaction_maturity_period_daa: AtomicU64::new(1_000),
             coinbase_transaction_stasis_period_daa: 500,
             user_transaction_maturity_period_daa: AtomicU64::new(100),
-            mass_combination_strategy: MassCombinationStrategy::Max,
+            kip9_version: MassCombinationStrategy::Max,
             additional_compound_transaction_mass: 100,
         }),
     };
@@ -96,7 +96,7 @@ lazy_static::lazy_static! {
             coinbase_transaction_maturity_period_daa: AtomicU64::new(100),
             coinbase_transaction_stasis_period_daa: 50,
             user_transaction_maturity_period_daa: AtomicU64::new(10),
-            mass_combination_strategy: MassCombinationStrategy::Max,
+            kip9_version: MassCombinationStrategy::Max,
             additional_compound_transaction_mass: 0,
         }),
     };
@@ -108,7 +108,7 @@ lazy_static::lazy_static! {
             coinbase_transaction_maturity_period_daa: AtomicU64::new(100),
             coinbase_transaction_stasis_period_daa: 50,
             user_transaction_maturity_period_daa: AtomicU64::new(10),
-            mass_combination_strategy: MassCombinationStrategy::Max,
+            kip9_version: MassCombinationStrategy::Max,
             additional_compound_transaction_mass: 0,
         }),
     };

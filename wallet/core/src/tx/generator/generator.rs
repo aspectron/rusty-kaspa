@@ -863,7 +863,7 @@ impl Generator {
                 let storage_mass_with_change = self.calc_storage_mass(data, output_harmonic_with_change);
 
                 if storage_mass_with_change == 0
-                    || (self.inner.network_params.mass_combination_strategy() == MassCombinationStrategy::Max
+                    || (self.inner.network_params.kip9_version() == MassCombinationStrategy::Max
                         && storage_mass_with_change < compute_mass_with_change)
                 {
                     0
