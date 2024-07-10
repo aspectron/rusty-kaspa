@@ -10,7 +10,7 @@ license.workspace = true
 repository.workspace = true
 
 [features]
-default = ["py-sdk"]
+default = []
 py-sdk = [
     "pyo3/extension-module",
     "kaspa-addresses/py-sdk",
