@@ -95,7 +95,7 @@ impl PyCallback {
 pub struct Inner {
     client: Arc<KaspaRpcClient>,
     // resolver TODO
-    notification_task: AtomicBool,
+    notification_task: Arc<AtomicBool>,
     notification_ctl: DuplexChannel,
     callbacks: Arc<Mutex<AHashMap<NotificationEvent, Vec<PyCallback>>>>,
     listener_id: Arc<Mutex<Option<ListenerId>>>,
@@ -134,7 +134,7 @@ impl RpcClient {
         let rpc_client = RpcClient {
             inner: Arc::new(Inner {
                 client,
-                notification_task: AtomicBool::new(false),
+                notification_task: Arc::new(AtomicBool::new(false)),
                 notification_ctl: DuplexChannel::oneshot(),
                 callbacks: Arc::new(Default::default()),
                 listener_id: Arc::new(Mutex::new(None)),
@@ -185,7 +185,15 @@ impl RpcClient {
         }}
     }
 
-    // fn disconnect() TODO
+    fn disconnect(&self, py: Python) -> PyResult<Py<PyAny>> {
+        let client = self.clone();
+        
+        py_async! {py, async move {
+            client.inner.client.disconnect().await?;
+            client.stop_notification_task().await?;
+            Ok(())
+        }}
+    }
 
     fn get_server_info(&self, py: Python) -> PyResult<Py<PyAny>> {
         let client = self.inner.client.clone();
@@ -241,7 +249,13 @@ impl RpcClient {
         *self.inner.listener_id.lock().unwrap()
     }
 
-    // fn stop_notification_task() TODO
+    async fn stop_notification_task(&self) -> Result<()> {
+        if self.inner.notification_task.load(Ordering::SeqCst) {
+            self.inner.notification_ctl.signal(()).await?;
+            self.inner.notification_task.store(false, Ordering::SeqCst);
+        }
+        Ok(())
+    }
 
     fn start_notification_task(&self, py: Python) -> Result<()> {
         if self.inner.notification_task.load(Ordering::SeqCst) {

@@ -7,7 +7,6 @@ from kaspa import RpcClient
 
 
 def subscription_callback(event, name, **kwargs):
-    print(kwargs.get('kwarg1'))
     print(f'{name} | {event}')
 
 async def rpc_subscriptions(client):
@@ -23,8 +22,8 @@ async def rpc_subscriptions(client):
 
     await client.unsubscribe_virtual_daa_score_changed()
     await client.unsubscribe_virtual_chain_changed(True)
-    await client.ubsubscribe_block_added()
-    await client.ubsubscribe_new_block_template()
+    await client.unsubscribe_block_added()
+    await client.unsubscribe_new_block_template()
 
 async def rpc_calls(client):
     get_server_info_response = await client.get_server_info()
@@ -50,6 +49,8 @@ async def main():
 
     await rpc_calls(client)
     await rpc_subscriptions(client)
+
+    await client.disconnect()
 
 
 if __name__ == "__main__":
