@@ -1,24 +1,30 @@
 import asyncio
 import json
 import time
+import os
 
 from kaspa import RpcClient
 
 
-def subscription_callback(event, callback_id, **kwargs):
+def subscription_callback(event, name, **kwargs):
     print(kwargs.get('kwarg1'))
-    print(f'{callback_id} | {event}')
+    print(f'{name} | {event}')
 
 async def rpc_subscriptions(client):
-    client.add_event_listener('all', subscription_callback, callback_id=1, kwarg1='Im a kwarg!!')
+    # client.add_event_listener('all', subscription_callback, callback_id=1, kwarg1='Im a kwarg!!')
+    client.add_event_listener('all', subscription_callback, name="all")
 
-    await client.subscribe_daa_score()
+    await client.subscribe_virtual_daa_score_changed()
     await client.subscribe_virtual_chain_changed(True)
+    await client.subscribe_block_added()
+    await client.subscribe_new_block_template()
 
     await asyncio.sleep(10)
 
-    await client.unsubscribe_daa_score()
+    await client.unsubscribe_virtual_daa_score_changed()
     await client.unsubscribe_virtual_chain_changed(True)
+    await client.ubsubscribe_block_added()
+    await client.ubsubscribe_new_block_template()
 
 async def rpc_calls(client):
     get_server_info_response = await client.get_server_info()
@@ -37,7 +43,8 @@ async def rpc_calls(client):
     print(get_balances_by_addresses_response)
 
 async def main():
-    client = RpcClient(url = "ws://localhost:17110")
+    rpc_host = os.environ.get("KASPA_RPC_HOST")
+    client = RpcClient(url = f"ws://{rpc_host}:17210")
     await client.connect()
     print(f'Client is connected: {client.is_connected()}')
 

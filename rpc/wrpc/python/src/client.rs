@@ -9,10 +9,11 @@ use kaspa_python_macros::py_async;
 use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_rpc_core::model::*;
 use kaspa_rpc_core::notify::connection::ChannelConnection;
-use kaspa_rpc_macros::build_wrpc_python_interface;
+use kaspa_rpc_macros::{build_wrpc_python_interface, build_wrpc_python_subscriptions};
 use kaspa_wrpc_client::{
     client::{ConnectOptions, ConnectStrategy},
     error::Error,
+    prelude::*,
     result::Result,
     KaspaRpcClient, WrpcEncoding,
 };
@@ -154,6 +155,18 @@ impl RpcClient {
         Ok(Self::new(url, None)?)
     }
 
+    fn url(&self) -> Option<String> {
+        self.inner.client.url()
+    }
+
+    fn is_connected(&self) -> bool {
+        self.inner.client.is_connected()
+    }
+
+    fn encoding(&self) -> String {
+        self.inner.client.encoding().to_string()
+    }
+
     fn connect(&self, py: Python) -> PyResult<Py<PyAny>> {
         // TODO expose args to Python similar to WASM wRPC Client IConnectOptions
         let options = ConnectOptions {
@@ -172,9 +185,7 @@ impl RpcClient {
         }}
     }
 
-    fn is_connected(&self) -> bool {
-        self.inner.client.is_connected()
-    }
+    // fn disconnect() TODO
 
     fn get_server_info(&self, py: Python) -> PyResult<Py<PyAny>> {
         let client = self.inner.client.clone();
@@ -229,6 +240,8 @@ impl RpcClient {
     pub fn listener_id(&self) -> Option<ListenerId> {
         *self.inner.listener_id.lock().unwrap()
     }
+
+    // fn stop_notification_task() TODO
 
     fn start_notification_task(&self, py: Python) -> Result<()> {
         if self.inner.notification_task.load(Ordering::SeqCst) {
@@ -350,30 +363,6 @@ impl RpcClient {
 
 #[pymethods]
 impl RpcClient {
-    fn subscribe_daa_score(&self, py: Python) -> PyResult<Py<PyAny>> {
-        if let Some(listener_id) = self.listener_id() {
-            let client = self.inner.client.clone();
-            py_async! {py, async move {
-                client.start_notify(listener_id, Scope::VirtualDaaScoreChanged(VirtualDaaScoreChangedScope {})).await?;
-                Ok(())
-            }}
-        } else {
-            Err(PyErr::new::<PyException, _>("RPC subscribe on a closed connection"))
-        }
-    }
-
-    fn unsubscribe_daa_score(&self, py: Python) -> PyResult<Py<PyAny>> {
-        if let Some(listener_id) = self.listener_id() {
-            let client = self.inner.client.clone();
-            py_async! {py, async move {
-                client.stop_notify(listener_id, Scope::VirtualDaaScoreChanged(VirtualDaaScoreChangedScope {})).await?;
-                Ok(())
-            }}
-        } else {
-            Err(PyErr::new::<PyException, _>("RPC unsubscribe on a closed connection"))
-        }
-    }
-
     fn subscribe_utxos_changed(&self, py: Python, addresses: Vec<Address>) -> PyResult<Py<PyAny>> {
         if let Some(listener_id) = self.listener_id() {
             let client = self.inner.client.clone();
@@ -381,7 +370,7 @@ impl RpcClient {
                 client.start_notify(listener_id, Scope::UtxosChanged(UtxosChangedScope { addresses })).await?;
                 Ok(())
             }}
-         } else {
+        } else {
             Err(PyErr::new::<PyException, _>("RPC subscribe on a closed connection"))
         }
     }
@@ -392,7 +381,7 @@ impl RpcClient {
             py_async! {py, async move {
                 client.stop_notify(listener_id, Scope::UtxosChanged(UtxosChangedScope { addresses })).await?;
                 Ok(())
-            }} 
+            }}
         } else {
             Err(PyErr::new::<PyException, _>("RPC unsubscribe on a closed connection"))
         }
@@ -429,6 +418,18 @@ impl RpcClient {
         self.inner.client.is_connected()
     }
 }
+
+build_wrpc_python_subscriptions!([
+    // UtxosChanged - added above due to parameter `addresses: Vec<Address>``
+    // VirtualChainChanged - added above due to paramter `include_accepted_transaction_ids: bool`
+    BlockAdded,
+    FinalityConflict,
+    FinalityConflictResolved,
+    NewBlockTemplate,
+    PruningPointUtxoSetOverride,
+    SinkBlueScoreChanged,
+    VirtualDaaScoreChanged,
+]);
 
 build_wrpc_python_interface!([
     AddPeer,
