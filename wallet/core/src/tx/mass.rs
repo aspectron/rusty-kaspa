@@ -4,8 +4,9 @@
 
 use crate::utxo::NetworkParams;
 use kaspa_consensus_client::UtxoEntryReference;
+use kaspa_consensus_core::mass::Kip9Version;
 use kaspa_consensus_core::tx::{Transaction, TransactionInput, TransactionOutput, SCRIPT_VECTOR_SIZE};
-use kaspa_consensus_core::{config::params::Params, constants::*, subnets::SUBNETWORK_ID_SIZE, Kip9Version};
+use kaspa_consensus_core::{config::params::Params, constants::*, subnets::SUBNETWORK_ID_SIZE};
 use kaspa_hashes::HASH_SIZE;
 
 // pub const ECDSA_SIGNATURE_SIZE: u64 = 64;
@@ -350,10 +351,10 @@ impl MassCalculator {
                  Hence, we transform the condition to |O| = 1 OR |I| = 1 OR |O| = |I| = 2 which is equivalent (and faster).
         */
 
-        if version == Kip9Version::Beta && (outs_len == 1 || ins_len == 1 || (outs_len == 2 && ins_len == 2)) {
-            let harmonic_ins = tx
-                .populated_inputs()
-                .map(|(_, entry)| self.storage_mass_parameter / entry.amount)
+        if self.kip9_version == Kip9Version::Beta && (outs_len == 1 || ins_len == 1 || (outs_len == 2 && ins_len == 2)) {
+            let harmonic_ins = inputs
+                .iter()
+                .map(|entry| self.storage_mass_parameter / entry.amount())
                 .fold(0u64, |total, current| total.saturating_add(current)); // C·|I|/H(I)
             return Some(harmonic_outs.saturating_sub(harmonic_ins)); // max( 0 , C·( |O|/H(O) - |I|/H(I) ) );
         }

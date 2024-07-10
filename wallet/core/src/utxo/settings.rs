@@ -4,6 +4,7 @@
 //!
 
 use crate::imports::*;
+use kaspa_consensus_core::mass::Kip9Version;
 
 #[derive(Debug)]
 pub struct Inner {
@@ -72,7 +73,7 @@ lazy_static::lazy_static! {
             coinbase_transaction_maturity_period_daa: AtomicU64::new(100),
             coinbase_transaction_stasis_period_daa: 50,
             user_transaction_maturity_period_daa: AtomicU64::new(10),
-            kip9_version: MassCombinationStrategy::Max,
+            kip9_version: Kip9Version::Beta,
             additional_compound_transaction_mass: 0,
         }),
     };
@@ -84,7 +85,7 @@ lazy_static::lazy_static! {
             coinbase_transaction_maturity_period_daa: AtomicU64::new(1_000),
             coinbase_transaction_stasis_period_daa: 500,
             user_transaction_maturity_period_daa: AtomicU64::new(100),
-            kip9_version: MassCombinationStrategy::Max,
+            kip9_version: Kip9Version::Alpha,
             additional_compound_transaction_mass: 100,
         }),
     };
@@ -96,7 +97,7 @@ lazy_static::lazy_static! {
             coinbase_transaction_maturity_period_daa: AtomicU64::new(100),
             coinbase_transaction_stasis_period_daa: 50,
             user_transaction_maturity_period_daa: AtomicU64::new(10),
-            kip9_version: MassCombinationStrategy::Max,
+            kip9_version: Kip9Version::Alpha,
             additional_compound_transaction_mass: 0,
         }),
     };
@@ -108,7 +109,7 @@ lazy_static::lazy_static! {
             coinbase_transaction_maturity_period_daa: AtomicU64::new(100),
             coinbase_transaction_stasis_period_daa: 50,
             user_transaction_maturity_period_daa: AtomicU64::new(10),
-            kip9_version: MassCombinationStrategy::Max,
+            kip9_version: Kip9Version::Beta,
             additional_compound_transaction_mass: 0,
         }),
     };
