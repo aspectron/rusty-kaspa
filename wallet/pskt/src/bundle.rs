@@ -1,5 +1,6 @@
 use crate::error::Error;
 use crate::pskt::{Inner as PSKTInner, PSKT};
+// use crate::wasm::bundle;
 use hex;
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
@@ -37,7 +38,7 @@ impl Bundle {
         }
     }
 
-    // todo: field support for bincode
+    // todo: field support for bincode to directly bincode
     pub fn to_hex(&self) -> Result<String, Box<dyn std::error::Error>> {
         // Serialize the bundle to JSON
         let json_string = serde_json::to_string(self)?;
@@ -51,8 +52,32 @@ impl Bundle {
         let json_string = hex::decode(hex_data)?;
 
         // Deserialize the JSON string to a bundle
-        let bundle: Bundle = serde_json::from_slice(&json_string).unwrap();
+        let bundle: Bundle = serde_json::from_slice(&json_string)?;
+
         Ok(bundle)
+    }
+}
+
+impl TryFrom<String> for Bundle {
+    type Error = Error;
+    fn try_from(value: String) -> Result<Self, Error> {
+        Bundle::from_hex(&value)
+    }
+}
+
+impl TryFrom<&str> for Bundle {
+    type Error = Error;
+    fn try_from(value: &str) -> Result<Self, Error> {
+        Bundle::from_hex(value)
+    }
+}
+impl TryFrom<Bundle> for String {
+    type Error = Error;
+    fn try_from(value: Bundle) -> Result<String, Error> {
+        match Bundle::to_hex(&value) {
+            Ok(output) => Ok(output.to_owned()),
+            Err(e) => Err(Error::PskbSerializeError(e.to_string())),
+        }
     }
 }
 

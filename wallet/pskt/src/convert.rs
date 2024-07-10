@@ -59,7 +59,6 @@ impl From<(cctx::Transaction, Vec<(&cctx::TransactionInput, &cctx::UtxoEntry)>)>
         let inputs = populated_inputs
             .into_iter()
             .map(|(input, utxo)| {
-                println!("Populated utxo");
                 InputBuilder::default()
                     .utxo_entry(utxo.to_owned().clone())
                     .previous_outpoint(input.previous_outpoint)

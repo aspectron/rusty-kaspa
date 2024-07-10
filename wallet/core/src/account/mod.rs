@@ -354,7 +354,7 @@ pub trait Account: AnySync + Send + Sync + 'static {
         Ok((generator.summary(), ids))
     }
 
-    async fn send_as_unsigned_pskb(
+    async fn pskb_from_send_generator(
         self: Arc<Self>,
         destination: PaymentDestination,
         priority_fee_sompi: Fees,
@@ -371,7 +371,7 @@ pub trait Account: AnySync + Send + Sync + 'static {
         bundle_from_pskt_generator(pskt_generator).await
     }
 
-    async fn sign_pskb(
+    async fn pskb_sign(
         self: Arc<Self>,
         bundle: &Bundle,
         wallet_secret: Secret,
@@ -386,22 +386,7 @@ pub trait Account: AnySync + Send + Sync + 'static {
         }
     }
 
-    async fn sign_pskb_json(
-        self: Arc<Self>,
-        pskb_ser: &str,
-        wallet_secret: Secret,
-        payment_secret: Option<Secret>,
-    ) -> Result<Bundle, Error> {
-        let pskbp: Bundle = Bundle::from_hex(pskb_ser)?;
-        Ok(self.sign_pskb(&pskbp, wallet_secret, payment_secret).await.unwrap())
-    }
-
-    async fn broadcast_pskb_json(self: Arc<Self>, pskb_ser: &str) -> Result<Vec<Hash>, Error> {
-        let pskbp: Bundle = Bundle::from_hex(pskb_ser)?;
-        self.broadcast_pskb(pskbp).await
-    }
-
-    async fn broadcast_pskb(self: Arc<Self>, bundle: Bundle) -> Result<Vec<Hash>, Error> {
+    async fn pskb_broadcast(self: Arc<Self>, bundle: &Bundle) -> Result<Vec<Hash>, Error> {
         let mut ids = Vec::new();
         let mut stream = bundle_to_finalizer_stream(bundle);
 

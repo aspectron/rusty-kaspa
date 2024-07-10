@@ -16,6 +16,10 @@ pub enum Error {
     SerializationError(#[from] bincode::Error),
     #[error("Hex decode error: {0}")]
     HexDecodeError(#[from] hex::FromHexError),
+    #[error("Json deserialize error: {0}")]
+    JsonDeserializeError(#[from] serde_json::Error),
+    #[error("Serialize error")]
+    PskbSerializeError(String),
 }
 
 #[derive(thiserror::Error, Debug)]

@@ -11,7 +11,7 @@ use kaspa_txscript::extract_script_pub_key_address;
 use kaspa_txscript::opcodes::codes::OpData65;
 use kaspa_txscript::script_builder::ScriptBuilder;
 use kaspa_wallet_core::tx::{Generator, GeneratorSettings, PaymentDestination, PendingTransaction};
-use kaspa_wallet_pskt::bundle::Bundle;
+pub use kaspa_wallet_pskt::bundle::Bundle;
 use kaspa_wallet_pskt::prelude::{Creator, Finalizer, Inner, SignInputOk, Signature, Signer, PSKT};
 use secp256k1::schnorr;
 use secp256k1::{Message, PublicKey};
@@ -228,8 +228,8 @@ pub async fn pskb_signer(bundle: &Bundle, signer: Arc<PSKBSigner>, network_id: N
     Ok(signed_bundle)
 }
 
-pub fn bundle_to_finalizer_stream(bundle: Bundle) -> Pin<Box<dyn Stream<Item = Result<PSKT<Finalizer>, Error>> + Send>> {
-    let stream = stream::iter(bundle.inner_list).map(move |pskt_inner| {
+pub fn bundle_to_finalizer_stream(bundle: &Bundle) -> Pin<Box<dyn Stream<Item = Result<PSKT<Finalizer>, Error>> + Send>> {
+    let stream = stream::iter(bundle.inner_list.clone()).map(move |pskt_inner| {
         let pskt: PSKT<Creator> = PSKT::from(pskt_inner);
         let pskt_finalizer = pskt.constructor().updater().signer().finalizer();
 

@@ -42,34 +42,6 @@ impl Send {
         tprintln!(ctx, "\nSending {} KAS to {address}, tx ids:", sompi_to_kaspa_string(amount_sompi));
         // tprintln!(ctx, "{}\n", ids.into_iter().map(|a| a.to_string()).collect::<Vec<_>>().join("\n"));
 
-        // todo remove
-        // PSKB playground ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-        // let signer = account
-        //     .clone()
-        //     .send_as_unsigned_pskb(
-        //         outputs.into(),
-        //         priority_fee_sompi.into(),
-        //         None,
-        //         wallet_secret.clone(),
-        //         payment_secret.clone(),
-        //         &abortable,
-        //     )
-        //     .await?;
-
-        // let enc = signer.to_hex().unwrap();
-        // tprintln!(ctx, "PKSB signer - {}", &enc);
-
-        // let signed_bundle = account.clone().sign_pskb_json(&enc, wallet_secret.clone(), payment_secret.clone()).await?;
-
-        // let enc = signed_bundle.to_hex().unwrap();
-        // tprintln!(ctx, "PKSB signed - {}", &enc);
-
-        // if let Ok(sent) = account.clone().broadcast_pskb_json(&enc).await {
-        //     tprintln!(ctx, "Sent transactions {:?}", sent);
-        // }
-        // PSKB playground ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
         Ok(())
     }
 }
