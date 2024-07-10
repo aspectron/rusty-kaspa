@@ -187,7 +187,7 @@ impl RpcClient {
 
     fn disconnect(&self, py: Python) -> PyResult<Py<PyAny>> {
         let client = self.clone();
-        
+
         py_async! {py, async move {
             client.inner.client.disconnect().await?;
             client.stop_notification_task().await?;
@@ -235,7 +235,43 @@ impl RpcClient {
         Ok(())
     }
 
-    // fn remove_event_listener() TODO
+    fn remove_event_listener(&self, py: Python, event: String, callback: Option<PyObject>) -> PyResult<()> {
+        let event = NotificationEvent::from_str(event.as_str()).unwrap();
+        let mut callbacks = self.inner.callbacks.lock().unwrap();
+
+        match (&event, callback) {
+            (NotificationEvent::All, None) => {
+                // Remove all callbacks from "all" events
+                callbacks.clear();
+            }
+            (NotificationEvent::All, Some(callback)) => {
+                // Remove given callback from "all" events
+                for callbacks in callbacks.values_mut() {
+                    callbacks.retain(|c| {
+                        let cb_ref = c.callback.bind(py);
+                        let callback_ref = callback.bind(py);
+                        cb_ref.as_ref().ne(callback_ref.as_ref()).unwrap_or(true)
+                    });
+                }
+            }
+            (_, None) => {
+                // Remove all callbacks from given event
+                callbacks.remove(&event);
+            }
+            (_, Some(callback)) => {
+                // Remove given callback from given event
+                if let Some(callbacks) = callbacks.get_mut(&event) {
+                    callbacks.retain(|c| {
+                        let cb_ref = c.callback.bind(py);
+                        let callback_ref = callback.bind(py);
+                        cb_ref.as_ref().ne(callback_ref.as_ref()).unwrap_or(true)
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+
     // fn clear_event_listener() TODO
 
     fn remove_all_event_listeners(&self) -> PyResult<()> {
