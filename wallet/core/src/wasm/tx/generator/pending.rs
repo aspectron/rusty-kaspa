@@ -5,7 +5,7 @@ use crate::wasm::PrivateKeyArrayT;
 use kaspa_consensus_client::{numeric, string};
 use kaspa_consensus_client::{Transaction, TransactionT};
 use kaspa_wallet_keys::privatekey::PrivateKey;
-use kaspa_wasm_core::types::BinaryT;
+use kaspa_wasm_core::types::{BinaryT, HexString};
 use kaspa_wrpc_wasm::RpcClient;
 
 /// @category Wallet SDK
@@ -71,28 +71,28 @@ impl PendingTransaction {
         self.inner.utxo_entries().values().map(|utxo_entry| JsValue::from(utxo_entry.clone())).collect()
     }
 
-    #[wasm_bindgen(js_name = calculateSighash)]
-    pub fn calculate_sig_hash(&self, input_index: u8) -> Result<String> {
-        let sighash = self.inner.calculate_sighash(input_index.into())?;
+    #[wasm_bindgen(js_name = signInput)]
+    pub fn sign_input(&self, input_index: u8, private_key: &PrivateKey) -> Result<HexString> {
+        let signature = self.inner.sign_input(input_index.into(), &private_key.secret_bytes())?;
 
-        Ok(sighash.to_hex())
+        Ok(signature.to_hex().into())
     }
 
-    #[wasm_bindgen(js_name = signInput)]
-    pub fn sign_input(&self, input_index: u8, signature_script: BinaryT) -> Result<()> {
-        self.inner.sign_input(input_index.into(), signature_script.try_as_vec_u8()?)
+    #[wasm_bindgen(js_name = fillInput)]
+    pub fn fill_input(&self, input_index: u8, signature_script: BinaryT) -> Result<()> {
+        self.inner.fill_input(input_index.into(), signature_script.try_as_vec_u8()?)
     }
 
     /// Sign transaction with supplied [`Array`] or [`PrivateKey`] or an array of
     /// raw private key bytes (encoded as `Uint8Array` or as hex strings)
-    pub fn sign(&self, js_value: PrivateKeyArrayT) -> Result<()> {
+    pub fn sign(&self, js_value: PrivateKeyArrayT, check_fully_signed: Option<bool>) -> Result<()> {
         if let Ok(keys) = js_value.dyn_into::<Array>() {
             let keys = keys
                 .iter()
                 .map(PrivateKey::try_cast_from)
                 .collect::<std::result::Result<Vec<_>, kaspa_wallet_keys::error::Error>>()?;
             let mut keys = keys.iter().map(|key| key.as_ref().secret_bytes()).collect::<Vec<_>>();
-            self.inner.try_sign_with_keys(&keys)?;
+            self.inner.try_sign_with_keys(&keys, check_fully_signed)?;
             keys.zeroize();
             Ok(())
         } else {

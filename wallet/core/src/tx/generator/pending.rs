@@ -8,7 +8,7 @@ use crate::result::Result;
 use crate::rpc::DynRpcApi;
 use crate::tx::{DataKind, Generator};
 use crate::utxo::{UtxoContext, UtxoEntryId, UtxoEntryReference};
-use kaspa_consensus_core::sign::sign_with_multiple_v2;
+use kaspa_consensus_core::sign::{sign_with_multiple_v2, Signed};
 use kaspa_consensus_core::hashing::sighash::{calc_schnorr_signature_hash, SigHashReusedValues};
 use kaspa_consensus_core::hashing::sighash_type;
 use kaspa_consensus_core::tx::{SignableTransaction, Transaction, TransactionId};
@@ -226,15 +226,20 @@ impl PendingTransaction {
         Ok(())
     }
 
-    pub fn calculate_sighash(&self, input_index: usize) -> Result<Hash> {
+    pub fn sign_input(&self, input_index: usize, private_key: &[u8; 32]) -> Result<Vec<u8>> { // TODO: Move to sign.rs
         let mutable_tx = self.inner.signable_tx.lock()?.clone();
         let mut reused_values = SigHashReusedValues::new();
+
         let hash = calc_schnorr_signature_hash(&mutable_tx.as_verifiable(), input_index, sighash_type::SIG_HASH_SINGLE, &mut reused_values);
-    
-        Ok(hash)
+        let msg = secp256k1::Message::from_digest_slice(hash.as_bytes().as_slice()).unwrap();
+        let schnorr_key = secp256k1::Keypair::from_seckey_slice(secp256k1::SECP256K1, private_key).unwrap();
+        let sig: [u8; 64] = *schnorr_key.sign_schnorr(msg).as_ref();
+
+        // This represents OP_DATA_65 <SIGNATURE+SIGHASH_TYPE> (since signature length is 64 bytes and SIGHASH_TYPE is one byte)
+        Ok(std::iter::once(65u8).chain(sig).chain([sighash_type::SIG_HASH_SINGLE.to_u8()]).collect())
     }
 
-    pub fn sign_input(&self, input_index: usize, signature_script: Vec<u8>) -> Result<()> {
+    pub fn fill_input(&self, input_index: usize, signature_script: Vec<u8>) -> Result<()> {
         let mut mutable_tx = self.inner.signable_tx.lock()?.clone();
         mutable_tx.tx.inputs[input_index].signature_script = signature_script;
         *self.inner.signable_tx.lock().unwrap() = mutable_tx;
@@ -242,9 +247,21 @@ impl PendingTransaction {
         Ok(())
     }
 
-    pub fn try_sign_with_keys(&self, privkeys: &[[u8; 32]]) -> Result<()> {
+    pub fn try_sign_with_keys(&self, privkeys: &[[u8; 32]], check_fully_signed: Option<bool>) -> Result<()> {
         let mutable_tx = self.inner.signable_tx.lock()?.clone();
-        let signed_tx = sign_with_multiple_v2(mutable_tx, privkeys).fully_signed()?;
+        let signed = sign_with_multiple_v2(mutable_tx, privkeys);
+
+        let signed_tx = match signed {
+            Signed::Fully(tx) => tx,
+            Signed::Partially(_) => {
+                if check_fully_signed.unwrap_or(true) {
+                    signed.fully_signed()?
+                } else {
+                    signed.unwrap()
+                }
+            }
+        };
+    
         *self.inner.signable_tx.lock().unwrap() = signed_tx;
         Ok(())
     }
