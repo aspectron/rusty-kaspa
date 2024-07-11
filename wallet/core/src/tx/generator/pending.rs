@@ -8,9 +8,9 @@ use crate::result::Result;
 use crate::rpc::DynRpcApi;
 use crate::tx::{DataKind, Generator};
 use crate::utxo::{UtxoContext, UtxoEntryId, UtxoEntryReference};
-use kaspa_consensus_core::sign::{sign_with_multiple_v2, Signed};
 use kaspa_consensus_core::hashing::sighash::{calc_schnorr_signature_hash, SigHashReusedValues};
 use kaspa_consensus_core::hashing::sighash_type::{self, SigHashType};
+use kaspa_consensus_core::sign::{sign_with_multiple_v2, Signed};
 use kaspa_consensus_core::tx::{SignableTransaction, Transaction, TransactionId};
 use kaspa_rpc_core::{RpcTransaction, RpcTransactionId};
 
@@ -225,7 +225,8 @@ impl PendingTransaction {
         Ok(())
     }
 
-    pub fn sign_input(&self, input_index: usize, private_key: &[u8; 32], hash_type: SigHashType) -> Result<Vec<u8>> { // TODO: Move to sign.rs
+    pub fn sign_input(&self, input_index: usize, private_key: &[u8; 32], hash_type: SigHashType) -> Result<Vec<u8>> {
+        // TODO: Move to sign.rs
         let mutable_tx = self.inner.signable_tx.lock()?.clone();
         let mut reused_values = SigHashReusedValues::new();
 
@@ -235,7 +236,7 @@ impl PendingTransaction {
         let sig: [u8; 64] = *schnorr_key.sign_schnorr(msg).as_ref();
 
         // This represents OP_DATA_65 <SIGNATURE+SIGHASH_TYPE> (since signature length is 64 bytes and SIGHASH_TYPE is one byte)
-        Ok(std::iter::once(65u8).chain(sig).chain([sighash_type::SIG_HASH_SINGLE.to_u8()]).collect())
+        Ok(std::iter::once(65u8).chain(sig).chain([hash_type.to_u8()]).collect())
     }
 
     pub fn fill_input(&self, input_index: usize, signature_script: Vec<u8>) -> Result<()> {
@@ -260,7 +261,7 @@ impl PendingTransaction {
                 }
             }
         };
-    
+
         *self.inner.signable_tx.lock().unwrap() = signed_tx;
         Ok(())
     }

@@ -74,7 +74,8 @@ impl PendingTransaction {
 
     #[wasm_bindgen(js_name = signInput)]
     pub fn sign_input(&self, input_index: u8, private_key: &PrivateKey, sighash_type: Option<SighashType>) -> Result<HexString> {
-        let signature = self.inner.sign_input(input_index.into(), &private_key.secret_bytes(), sighash_type.unwrap_or(SighashType::All).into())?;
+        let signature =
+            self.inner.sign_input(input_index.into(), &private_key.secret_bytes(), sighash_type.unwrap_or(SighashType::All).into())?;
 
         Ok(signature.to_hex().into())
     }
