@@ -11,7 +11,8 @@ use kaspa_hashes::Hash;
 use kaspa_wallet_pskt::bundle::Bundle;
 pub use kind::*;
 use pskb::{
-    bundle_from_pskt_generator, bundle_to_finalizer_stream, create_pending_transaction, pskb_signer, PSKBSigner, PSKTGenerator,
+    bundle_from_pskt_generator, bundle_to_finalizer_stream, pskb_signer_for_address, pskt_to_pending_transaction, PSKBSigner,
+    PSKTGenerator,
 };
 pub use variants::*;
 
@@ -376,11 +377,12 @@ pub trait Account: AnySync + Send + Sync + 'static {
         bundle: &Bundle,
         wallet_secret: Secret,
         payment_secret: Option<Secret>,
+        sign_for_address: Option<&Address>,
     ) -> Result<Bundle, Error> {
         let keydata = self.prv_key_data(wallet_secret).await?;
         let signer = Arc::new(PSKBSigner::new(self.clone().as_dyn_arc(), keydata, payment_secret));
 
-        match pskb_signer(bundle, signer, self.wallet().network_id()?).await {
+        match pskb_signer_for_address(bundle, signer, self.wallet().network_id()?, sign_for_address).await {
             Ok(signer) => Ok(signer),
             Err(e) => Err(Error::from(e.to_string())),
         }
@@ -392,9 +394,9 @@ pub trait Account: AnySync + Send + Sync + 'static {
 
         while let Some(result) = stream.next().await {
             match result {
-                Ok(transaction) => {
+                Ok(pskt) => {
                     let change = self.wallet().account()?.change_address()?;
-                    let transaction = create_pending_transaction(transaction, self.wallet().network_id()?, change)?;
+                    let transaction = pskt_to_pending_transaction(pskt, self.wallet().network_id()?, change)?;
                     ids.push(transaction.try_submit(&self.wallet().rpc_api()).await?);
                 }
                 Err(e) => {

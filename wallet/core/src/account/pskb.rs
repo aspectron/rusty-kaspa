@@ -12,7 +12,8 @@ use kaspa_txscript::opcodes::codes::OpData65;
 use kaspa_txscript::script_builder::ScriptBuilder;
 use kaspa_wallet_core::tx::{Generator, GeneratorSettings, PaymentDestination, PendingTransaction};
 pub use kaspa_wallet_pskt::bundle::Bundle;
-use kaspa_wallet_pskt::prelude::{Creator, Finalizer, Inner, SignInputOk, Signature, Signer, PSKT};
+use kaspa_wallet_pskt::prelude::{Finalizer, Inner, SignInputOk, Signature, Signer};
+pub use kaspa_wallet_pskt::pskt::{Creator, PSKT};
 use secp256k1::schnorr;
 use secp256k1::{Message, PublicKey};
 use std::iter;
@@ -186,12 +187,22 @@ pub async fn bundle_from_pskt_generator(generator: PSKTGenerator) -> Result<Bund
 }
 
 pub async fn pskb_signer(bundle: &Bundle, signer: Arc<PSKBSigner>, network_id: NetworkId) -> Result<Bundle, Error> {
+    pskb_signer_for_address(bundle, signer, network_id, None).await
+}
+
+pub async fn pskb_signer_for_address(
+    bundle: &Bundle,
+    signer: Arc<PSKBSigner>,
+    network_id: NetworkId,
+    sign_for_address: Option<&Address>,
+) -> Result<Bundle, Error> {
     let mut signed_bundle = Bundle::new();
     let mut reused_values = SigHashReusedValues::new();
 
     for pskt_inner in bundle.inner_list.clone() {
         let pskt: PSKT<Signer> = PSKT::from(pskt_inner);
 
+        //
         let addresses: Vec<Address> = pskt.inputs.iter()
             .filter_map(|input| input.utxo_entry.as_ref()) // Filter out None and get a reference to UtxoEntry if it exists
             .map(|utxo_entry| extract_script_pub_key_address(&utxo_entry.script_public_key.clone(), network_id.into()).unwrap()) // Clone the ScriptPublicKey
@@ -210,8 +221,19 @@ pub async fn pskb_signer(bundle: &Bundle, signer: Arc<PSKBSigner>, network_id: N
                         .map(|(idx, _input)| {
                             let hash = calc_schnorr_signature_hash(&tx.as_verifiable(), idx, sighash[idx], &mut reused_values);
                             let msg = secp256k1::Message::from_digest_slice(hash.as_bytes().as_slice()).unwrap();
-                            let address = addresses.get(idx).expect("Input indexed address");
+
+                            let address: &Address = match sign_for_address {
+                                Some(given_address) => given_address,
+                                None => addresses.get(idx).expect("Input indexed address"),
+                            };
+
+                            // when address is a lock utxo, no private key will be available for that
+                            // instead, use the account receive address private key
+
                             let public_key = signer.public_key(address).expect("Public key for input indexed address");
+
+                            // sign for pubkeys the signer has the private key for
+
                             Ok(SignInputOk {
                                 signature: Signature::Schnorr(signer.sign_schnorr(address, msg).unwrap()),
                                 pub_key: public_key,
@@ -271,7 +293,7 @@ pub fn bundle_to_finalizer_stream(bundle: &Bundle) -> Pin<Box<dyn Stream<Item = 
 }
 
 // todo: discuss conversion to pending transaction
-pub fn create_pending_transaction(
+pub fn pskt_to_pending_transaction(
     finalized_pskt: PSKT<Finalizer>,
     network_id: NetworkId,
     change_address: Address,

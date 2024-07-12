@@ -1,9 +1,97 @@
 use crate::error::Error;
+use crate::prelude::*;
 use crate::pskt::{Inner as PSKTInner, PSKT};
-// use crate::wasm::bundle;
+
+use kaspa_addresses::Address;
+use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, UtxoEntry};
+
 use hex;
+use kaspa_txscript::{extract_script_pub_key_address, pay_to_script_hash_script};
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
+
+pub fn lock_script_sig(payload: String, pubkey: Option<String>) -> Result<Vec<u8>, Error> {
+    let mut payload_bytes: Vec<u8> = hex::decode(payload)?;
+
+    if let Some(pubkey_hex) = pubkey {
+        let pubkey_bytes: Vec<u8> = hex::decode(pubkey_hex)?;
+
+        let placeholder = b"{{pubkey}}";
+
+        // Search for the placeholder in payload bytes
+        if let Some(pos) = payload_bytes.windows(placeholder.len()).position(|window| window == placeholder) {
+            payload_bytes.splice(pos..pos + placeholder.len(), pubkey_bytes.iter().cloned());
+        }
+    }
+
+    Ok(payload_bytes)
+}
+
+pub fn script_addr(script_sig: &[u8], prefix: kaspa_addresses::Prefix) -> Result<Address, Error> {
+    let spk = pay_to_script_hash_script(script_sig);
+    let p2sh = extract_script_pub_key_address(&spk, prefix).unwrap();
+    Ok(p2sh)
+}
+
+pub fn script_public_key(script_sig: &[u8]) -> Result<ScriptPublicKey, Error> {
+    let spk = pay_to_script_hash_script(script_sig);
+    Ok(spk)
+}
+
+pub fn unlock_utxos(
+    utxo_references: Vec<(UtxoEntry, TransactionOutpoint)>,
+    script_public_key: ScriptPublicKey,
+    script_sig: Vec<u8>,
+    priority_fee_sompi: u64,
+) -> Result<Bundle, Error> {
+    let (successes, errors): (Vec<_>, Vec<_>) = utxo_references
+        .into_iter()
+        .map(|(utxo_entry, outpoint)| unlock_utxo(&utxo_entry, &outpoint, &script_public_key, &script_sig, priority_fee_sompi))
+        .partition(Result::is_ok);
+
+    let successful_bundles: Vec<_> = successes.into_iter().filter_map(Result::ok).collect();
+    let error_list: Vec<_> = errors.into_iter().filter_map(Result::err).collect();
+
+    if !error_list.is_empty() {
+        return Err(Error::MultipleUnlockUtxoError(error_list));
+    }
+
+    let merged_bundle = successful_bundles.into_iter().fold(None, |acc: Option<Bundle>, bundle| match acc {
+        Some(mut merged_bundle) => {
+            merged_bundle.merge(bundle);
+            Some(merged_bundle)
+        }
+        None => Some(bundle),
+    });
+
+    match merged_bundle {
+        None => Err("Generating an empty PSKB".into()),
+        Some(bundle) => Ok(bundle),
+    }
+}
+
+pub fn unlock_utxo(
+    utxo_entry: &UtxoEntry,
+    outpoint: &TransactionOutpoint,
+    script_public_key: &ScriptPublicKey,
+    script_sig: &[u8],
+    priority_fee_sompi: u64,
+) -> Result<Bundle, Error> {
+    let input = InputBuilder::default()
+        .utxo_entry(utxo_entry.to_owned())
+        .previous_outpoint(outpoint.to_owned())
+        .sig_op_count(1)
+        .redeem_script(script_sig.to_vec())
+        .build()?;
+
+    let output = OutputBuilder::default()
+        .amount(utxo_entry.amount - priority_fee_sompi)
+        .script_public_key(script_public_key.clone())
+        .build()?;
+
+    let pskt: PSKT<Constructor> = PSKT::<Creator>::default().constructor().input(input).output(output);
+    Ok(pskt.into())
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Bundle {
@@ -13,6 +101,13 @@ pub struct Bundle {
 impl<ROLE> From<PSKT<ROLE>> for Bundle {
     fn from(pskt: PSKT<ROLE>) -> Self {
         Bundle { inner_list: vec![pskt.deref().clone()] }
+    }
+}
+
+impl<ROLE> From<Vec<PSKT<ROLE>>> for Bundle {
+    fn from(pskts: Vec<PSKT<ROLE>>) -> Self {
+        let inner_list = pskts.into_iter().map(|pskt| pskt.deref().clone()).collect();
+        Bundle { inner_list }
     }
 }
 
@@ -38,23 +133,52 @@ impl Bundle {
         }
     }
 
-    // todo: field support for bincode to directly bincode
     pub fn to_hex(&self) -> Result<String, Box<dyn std::error::Error>> {
-        // Serialize the bundle to JSON
-        let json_string = serde_json::to_string(self)?;
-
-        // Encode the JSON string to hexadecimal
-        Ok(hex::encode(json_string))
+        let type_marked = TypeMarked::new(self, Marker::Pskb).unwrap();
+        Ok(hex::encode(serde_json::to_string(&type_marked)?))
     }
 
     pub fn from_hex(hex_data: &str) -> Result<Self, Error> {
-        // Decode the hexadecimal string to JSON string
-        let json_string = hex::decode(hex_data)?;
+        let bundle: TypeMarked<Bundle> = serde_json::from_slice(hex::decode(hex_data)?.as_slice())?;
+        Ok(bundle.data)
+    }
+}
 
-        // Deserialize the JSON string to a bundle
-        let bundle: Bundle = serde_json::from_slice(&json_string)?;
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+enum Marker {
+    Pskb,
+}
 
-        Ok(bundle)
+impl Marker {
+    fn as_str(&self) -> &str {
+        match self {
+            Marker::Pskb => "pskb",
+        }
+    }
+
+    fn from_str(marker: &str) -> Result<Self, Error> {
+        match marker {
+            "pskb" => Ok(Marker::Pskb),
+            _ => Err("Invalid pskb type marker".into()),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct TypeMarked<T> {
+    type_marker: String,
+    #[serde(flatten)]
+    data: T,
+}
+
+impl<T> TypeMarked<T> {
+    fn new(data: T, marker: Marker) -> Result<Self, Error> {
+        let type_marker = marker.as_str().to_string();
+        if Marker::from_str(&type_marker)? == marker {
+            Ok(Self { type_marker, data })
+        } else {
+            Err("Invalid pskb type marker".into())
+        }
     }
 }
 
