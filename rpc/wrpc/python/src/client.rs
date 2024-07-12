@@ -167,12 +167,10 @@ impl RpcClient {
         self.inner.client.encoding().to_string()
     }
 
-    fn connect(&self, py: Python) -> PyResult<Py<PyAny>> {
-        // TODO expose args to Python similar to WASM wRPC Client IConnectOptions
+    fn connect(&self, py: Python, timeout: Option<u64>) -> PyResult<Py<PyAny>> {
+        // TODO expose args to Python similar to WASM wRPC Client IConnectOptions?
         let options = ConnectOptions {
-            block_async_connect: true,
-            connect_timeout: Some(Duration::from_millis(5_000)),
-            strategy: ConnectStrategy::Fallback,
+            connect_timeout: Some(Duration::from_millis(timeout.unwrap_or(5_000))),
             ..Default::default()
         };
 
@@ -338,7 +336,7 @@ impl RpcClient {
                                     Python::with_gil(|py| {
                                         let event = PyDict::new_bound(py);
                                         event.set_item("type", ctl.to_string()).unwrap();
-                                        // objectdict.set_item("rpc", ).unwrap(); TODO
+                                        event.set_item("rpc", this.url()).unwrap();
 
                                         handler.execute(py, event).unwrap();
                                     });
