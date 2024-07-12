@@ -1,3 +1,4 @@
+use crate::resolver::Resolver;
 use ahash::AHashMap;
 use futures::*;
 use kaspa_addresses::Address;
@@ -10,13 +11,7 @@ use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_rpc_core::model::*;
 use kaspa_rpc_core::notify::connection::ChannelConnection;
 use kaspa_rpc_macros::{build_wrpc_python_interface, build_wrpc_python_subscriptions};
-use kaspa_wrpc_client::{
-    client::{ConnectOptions, ConnectStrategy},
-    error::Error,
-    prelude::*,
-    result::Result,
-    KaspaRpcClient, WrpcEncoding,
-};
+use kaspa_wrpc_client::{client::ConnectOptions, error::Error, prelude::*, result::Result, KaspaRpcClient, WrpcEncoding};
 use pyo3::{
     exceptions::PyException,
     prelude::*,
@@ -94,7 +89,7 @@ impl PyCallback {
 
 pub struct Inner {
     client: Arc<KaspaRpcClient>,
-    // resolver TODO
+    resolver: Option<Resolver>,
     notification_task: Arc<AtomicBool>,
     notification_ctl: DuplexChannel,
     callbacks: Arc<Mutex<AHashMap<NotificationEvent, Vec<PyCallback>>>>,
@@ -126,7 +121,7 @@ pub struct RpcClient {
 }
 
 impl RpcClient {
-    fn new(url: Option<String>, encoding: Option<WrpcEncoding>) -> Result<RpcClient> {
+    pub fn new(resolver: Option<Resolver>, url: Option<String>, encoding: Option<WrpcEncoding>) -> Result<RpcClient> {
         let encoding = encoding.unwrap_or(WrpcEncoding::Borsh);
 
         let client = Arc::new(KaspaRpcClient::new(encoding, url.as_deref(), None, None, None).unwrap());
@@ -134,6 +129,7 @@ impl RpcClient {
         let rpc_client = RpcClient {
             inner: Arc::new(Inner {
                 client,
+                resolver,
                 notification_task: Arc::new(AtomicBool::new(false)),
                 notification_ctl: DuplexChannel::oneshot(),
                 callbacks: Arc::new(Default::default()),
@@ -149,15 +145,26 @@ impl RpcClient {
 #[pymethods]
 impl RpcClient {
     #[new]
-    fn ctor(url: Option<String>) -> PyResult<RpcClient> {
+    fn ctor(resolver: Option<Resolver>, url: Option<String>) -> PyResult<RpcClient> {
         // TODO expose args to Python similar to WASM wRPC Client IRpcConfig
 
-        Ok(Self::new(url, None)?)
+        Ok(Self::new(resolver, url, None)?)
     }
 
     fn url(&self) -> Option<String> {
         self.inner.client.url()
     }
+
+    fn resolver(&self) -> Option<Resolver> {
+        self.inner.resolver.clone()
+    }
+
+    fn set_resolver(&self, resolver: Resolver) -> PyResult<()> {
+        self.inner.client.set_resolver(resolver.into())?;
+        Ok(())
+    }
+
+    // fn set_network_id() TODO
 
     fn is_connected(&self) -> bool {
         self.inner.client.is_connected()
@@ -167,12 +174,13 @@ impl RpcClient {
         self.inner.client.encoding().to_string()
     }
 
-    fn connect(&self, py: Python, timeout: Option<u64>) -> PyResult<Py<PyAny>> {
+    // fn resolver_node_id() TODO
+    // fn resolver_node_provider_name() TODO
+    // fn resolver_node_provider_url() TODO
+
+    pub fn connect(&self, py: Python, timeout: Option<u64>) -> PyResult<Py<PyAny>> {
         // TODO expose args to Python similar to WASM wRPC Client IConnectOptions?
-        let options = ConnectOptions {
-            connect_timeout: Some(Duration::from_millis(timeout.unwrap_or(5_000))),
-            ..Default::default()
-        };
+        let options = ConnectOptions { connect_timeout: Some(Duration::from_millis(timeout.unwrap_or(5_000))), ..Default::default() };
 
         self.start_notification_task(py).unwrap();
 
@@ -193,25 +201,9 @@ impl RpcClient {
         }}
     }
 
-    fn get_server_info(&self, py: Python) -> PyResult<Py<PyAny>> {
-        let client = self.inner.client.clone();
-        py_async! {py, async move {
-            let response = client.get_server_info_call(GetServerInfoRequest { }).await?;
-            Python::with_gil(|py| {
-                Ok(serde_pyobject::to_pyobject(py, &response).unwrap().to_object(py))
-            })
-        }}
-    }
-
-    fn get_block_dag_info(&self, py: Python) -> PyResult<Py<PyAny>> {
-        let client = self.inner.client.clone();
-        py_async! {py, async move {
-            let response = client.get_block_dag_info_call(GetBlockDagInfoRequest { }).await?;
-            Python::with_gil(|py| {
-                Ok(serde_pyobject::to_pyobject(py, &response).unwrap().to_object(py))
-            })
-        }}
-    }
+    // fn start() TODO
+    // fn stop() TODO
+    // fn trigger_abort() TODO
 
     #[pyo3(signature = (event, callback, *args, **kwargs))]
     fn add_event_listener(
@@ -279,9 +271,13 @@ impl RpcClient {
 }
 
 impl RpcClient {
+    // fn new_with_rpc_client() TODO
+
     pub fn listener_id(&self) -> Option<ListenerId> {
         *self.inner.listener_id.lock().unwrap()
     }
+
+    // fn client() TODO
 
     async fn stop_notification_task(&self) -> Result<()> {
         if self.inner.notification_task.load(Ordering::SeqCst) {
@@ -406,6 +402,29 @@ impl RpcClient {
         });
 
         Ok(())
+    }
+}
+
+#[pymethods]
+impl RpcClient {
+    fn get_server_info(&self, py: Python) -> PyResult<Py<PyAny>> {
+        let client = self.inner.client.clone();
+        py_async! {py, async move {
+            let response = client.get_server_info_call(GetServerInfoRequest { }).await?;
+            Python::with_gil(|py| {
+                Ok(serde_pyobject::to_pyobject(py, &response).unwrap().to_object(py))
+            })
+        }}
+    }
+
+    fn get_block_dag_info(&self, py: Python) -> PyResult<Py<PyAny>> {
+        let client = self.inner.client.clone();
+        py_async! {py, async move {
+            let response = client.get_block_dag_info_call(GetBlockDagInfoRequest { }).await?;
+            Python::with_gil(|py| {
+                Ok(serde_pyobject::to_pyobject(py, &response).unwrap().to_object(py))
+            })
+        }}
     }
 }
 
