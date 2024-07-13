@@ -127,9 +127,6 @@ impl RpcClient {
         encoding: Option<WrpcEncoding>,
         network_id: Option<NetworkId>,
     ) -> Result<RpcClient> {
-        // let encoding = encoding.unwrap_or(WrpcEncoding::Borsh);
-        // let resolver = resolver.unwrap_or(Resolver::ctor(None).unwrap());
-
         let client = Arc::new(
             KaspaRpcClient::new(encoding.unwrap(), url.as_deref(), Some(resolver.as_ref().unwrap().clone().into()), network_id, None)
                 .unwrap(),
@@ -162,11 +159,12 @@ impl RpcClient {
         network_suffix: Option<u32>,
     ) -> PyResult<RpcClient> {
         // TODO expose args to Python similar to WASM wRPC Client IRpcConfig
-        let encoding = WrpcEncoding::from_str(encoding.unwrap_or(String::from("borsh")).as_str()).unwrap();
         let resolver = resolver.unwrap_or(Resolver::ctor(None).unwrap());
+        let encoding = WrpcEncoding::from_str(encoding.unwrap_or(String::from("borsh")).as_str()).unwrap();
+        let network = network.unwrap_or(String::from("mainnet"));
 
         // TODO find better way of accepting NetworkId type from Python
-        let network_id = into_network_id(&network.unwrap(), network_suffix)?;
+        let network_id = into_network_id(&network, network_suffix)?;
 
         Ok(Self::new(Some(resolver), url, Some(encoding), Some(network_id))?)
     }

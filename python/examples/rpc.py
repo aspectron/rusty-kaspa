@@ -49,9 +49,8 @@ async def rpc_calls(client):
 
 async def main():
     rpc_host = os.environ.get("KASPA_RPC_HOST")
-    client = RpcClient(url=f"ws://{rpc_host}:17210")
-
-    # client = RpcClient(resolver=Resolver(), network="testnet", network_suffix=10)
+    # client = RpcClient(url=f"ws://{rpc_host}:17210")
+    client = RpcClient(resolver=Resolver(), network="testnet", network_suffix=10)
     await client.connect()
     print(f"Client is connected: {client.is_connected()}")
 
