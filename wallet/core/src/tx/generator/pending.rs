@@ -9,7 +9,7 @@ use crate::rpc::DynRpcApi;
 use crate::tx::{DataKind, Generator};
 use crate::utxo::{UtxoContext, UtxoEntryId, UtxoEntryReference};
 use kaspa_consensus_core::hashing::sighash::{calc_schnorr_signature_hash, SigHashReusedValues};
-use kaspa_consensus_core::hashing::sighash_type::{self, SigHashType};
+use kaspa_consensus_core::hashing::sighash_type::SigHashType;
 use kaspa_consensus_core::sign::{sign_with_multiple_v2, Signed};
 use kaspa_consensus_core::tx::{SignableTransaction, Transaction, TransactionId};
 use kaspa_rpc_core::{RpcTransaction, RpcTransactionId};
