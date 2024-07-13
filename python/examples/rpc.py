@@ -3,7 +3,7 @@ import json
 import time
 import os
 
-from kaspa import RpcClient
+from kaspa import RpcClient, Resolver
 
 
 def subscription_callback(event, name, **kwargs):
@@ -48,8 +48,9 @@ async def rpc_calls(client):
     print(get_balances_by_addresses_response)
 
 async def main():
-    rpc_host = os.environ.get("KASPA_RPC_HOST")
-    client = RpcClient(url = f"ws://{rpc_host}:17210")
+    # rpc_host = os.environ.get("KASPA_RPC_HOST")
+
+    client = RpcClient(resolver=Resolver())
     await client.connect()
     print(f'Client is connected: {client.is_connected()}')
 

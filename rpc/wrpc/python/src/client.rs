@@ -121,15 +121,22 @@ pub struct RpcClient {
 }
 
 impl RpcClient {
-    pub fn new(resolver: Option<Resolver>, url: Option<String>, encoding: Option<WrpcEncoding>) -> Result<RpcClient> {
+    pub fn new(resolver: Option<Resolver>, url: Option<String>, encoding: Option<WrpcEncoding>, network_id: Option<NetworkId>) -> Result<RpcClient> {
         let encoding = encoding.unwrap_or(WrpcEncoding::Borsh);
+        let resolver = resolver.unwrap_or(Resolver::ctor(None).unwrap());
 
-        let client = Arc::new(KaspaRpcClient::new(encoding, url.as_deref(), None, None, None).unwrap());
+        let client = Arc::new(
+            KaspaRpcClient::new(encoding, 
+                url.as_deref(), 
+                Some(resolver.clone().into()), 
+                network_id,
+                None
+            ).unwrap());
 
         let rpc_client = RpcClient {
             inner: Arc::new(Inner {
                 client,
-                resolver,
+                resolver: Some(resolver),
                 notification_task: Arc::new(AtomicBool::new(false)),
                 notification_ctl: DuplexChannel::oneshot(),
                 callbacks: Arc::new(Default::default()),
@@ -145,10 +152,23 @@ impl RpcClient {
 #[pymethods]
 impl RpcClient {
     #[new]
-    fn ctor(resolver: Option<Resolver>, url: Option<String>) -> PyResult<RpcClient> {
+    fn ctor(resolver: Option<Resolver>, url: Option<String>, encoding: Option<String>, network: Option<String>, network_suffix: Option<u32>) -> PyResult<RpcClient> {
         // TODO expose args to Python similar to WASM wRPC Client IRpcConfig
+        let encoding = WrpcEncoding::from_str(encoding.unwrap_or(String::from("borsh")).as_str()).unwrap();
+        
+        // TODO find better way of accepting NetworkId type from Python
+        let network_type = NetworkType::from_str(network.unwrap_or(String::from("mainnet")).as_str()).unwrap();
+        let network_id = match NetworkId::try_from(network_type) {
+            Ok(network_id) => network_id,
+            Err(_) => {
+                if network_suffix == None {
+                    return Err(PyErr::new::<PyException, _>("Network suffix required for this network"));
+                };
+                NetworkId::with_suffix(network_type, network_suffix.unwrap())
+            } 
+        };
 
-        Ok(Self::new(resolver, url, None)?)
+        Ok(Self::new(resolver, url, Some(encoding), Some(network_id))?)
     }
 
     fn url(&self) -> Option<String> {

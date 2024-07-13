@@ -22,7 +22,7 @@ impl Resolver {
 #[pymethods]
 impl Resolver {
     #[new]
-    fn ctor(urls: Option<Vec<String>>) -> PyResult<Resolver> {
+    pub fn ctor(urls: Option<Vec<String>>) -> PyResult<Resolver> {
         if let Some(urls) = urls {
             Ok(Self { resolver: NativeResolver::new(urls.into_iter().map(|url| Arc::new(url)).collect::<Vec<_>>()) })
         } else {
@@ -40,9 +40,7 @@ impl Resolver {
     fn get_node(&self, py: Python, encoding: String, network: String, network_suffix: Option<u32>) -> PyResult<Py<PyAny>> {
         let encoding = WrpcEncoding::from_str(encoding.as_str()).unwrap();
 
-        // TODO find better way of handling NetworkId type.
-        // Functions exposed to Python need to accept NetworkId type in a few places
-        // This is lazy implementation
+        // TODO find better way of accepting NetworkId type from Python
         let network_type = NetworkType::from_str(network.as_str()).unwrap();
         let network_id = NetworkId::try_from(network_type).unwrap_or({
             if network_suffix == None {
@@ -61,9 +59,7 @@ impl Resolver {
     fn get_url(&self, py: Python, encoding: String, network: String, network_suffix: Option<u32>) -> PyResult<Py<PyAny>> {
         let encoding = WrpcEncoding::from_str(encoding.as_str()).unwrap();
 
-        // TODO find better way of handling NetworkId type.
-        // Functions exposed to Python need to accept NetworkId type in a few places
-        // This is lazy implementation
+        // TODO find better way of accepting NetworkId type from Python
         let network_type = NetworkType::from_str(network.as_str()).unwrap();
         let network_id = NetworkId::try_from(network_type).unwrap_or({
             if network_suffix == None {
@@ -79,17 +75,7 @@ impl Resolver {
         }}
     }
 
-    fn connect(&self, py: Python) -> PyResult<Py<PyAny>> {
-        // TODO config args similar to WASM implementation. Temporarily hardcoded
-
-        // TODO construct RpcClient according to args
-        let client = RpcClient::new(Some(self.clone()), None, None)?;
-
-        // TODO make async
-        client.connect(py, None)?;
-
-        Ok(client.into_py(py))
-    }
+    // fn connect() TODO
 }
 
 impl From<Resolver> for NativeResolver {
