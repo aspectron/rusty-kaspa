@@ -214,7 +214,88 @@ impl Default for Bundle {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prelude::*;
     use crate::role::Creator;
+    use crate::role::*;
+    // hashing::sighash::{calc_schnorr_signature_hash, SigHashReusedValues},
+    use kaspa_consensus_core::tx::{TransactionId, TransactionOutpoint, UtxoEntry};
+    use kaspa_txscript::{multisig_redeem_script, pay_to_script_hash_script};
+    // use kaspa_txscript::{multisig_redeem_script, opcodes::codes::OpData65, pay_to_script_hash_script, script_builder::ScriptBuilder};
+    use rmp_serde::{decode, encode};
+    use secp256k1::Secp256k1;
+    use secp256k1::{rand::thread_rng, Keypair};
+    use std::str::FromStr;
+    use std::sync::Once;
+
+    static INIT: Once = Once::new();
+    static mut CONTEXT: Option<Box<([Keypair; 2], Vec<u8>)>> = None;
+
+    fn mock_context() -> &'static ([Keypair; 2], Vec<u8>) {
+        unsafe {
+            INIT.call_once(|| {
+                let kps = [Keypair::new(&Secp256k1::new(), &mut thread_rng()), Keypair::new(&Secp256k1::new(), &mut thread_rng())];
+                let redeem_script: Vec<u8> =
+                    multisig_redeem_script(kps.iter().map(|pk| pk.x_only_public_key().0.serialize()), 2).unwrap();
+
+                CONTEXT = Some(Box::new((kps, redeem_script)));
+            });
+
+            CONTEXT.as_ref().unwrap()
+        }
+    }
+
+    // Mock multisig PSKT from example
+    fn mock_pskt_constructor() -> PSKT<Constructor> {
+        let (_, redeem_script) = mock_context();
+        let pskt = PSKT::<Creator>::default().inputs_modifiable().outputs_modifiable();
+        let input_0 = InputBuilder::default()
+            .utxo_entry(UtxoEntry {
+                amount: 12793000000000,
+                script_public_key: pay_to_script_hash_script(redeem_script),
+                block_daa_score: 36151168,
+                is_coinbase: false,
+            })
+            .previous_outpoint(TransactionOutpoint {
+                transaction_id: TransactionId::from_str("63020db736215f8b1105a9281f7bcbb6473d965ecc45bb2fb5da59bd35e6ff84").unwrap(),
+                index: 0,
+            })
+            .sig_op_count(2)
+            .redeem_script(redeem_script.to_owned())
+            .build()
+            .unwrap();
+
+        pskt.constructor().input(input_0)
+    }
+
+    #[test]
+    fn test_serialization() {
+        let constructor = mock_pskt_constructor();
+        let bundle = Bundle::from(constructor.clone());
+
+        // Serialize to MessagePack
+        let mut buf = Vec::new();
+        encode::write(&mut buf, &bundle).unwrap();
+        println!("Serialized: {:?}", buf);
+
+        assert!(!bundle.inner_list.is_empty());
+
+        // Deserialize from MessagePack
+        match decode::from_slice::<Bundle>(&buf) {
+            Ok(bundle_constructor_deser) => {
+                println!("Deserialized: {:?}", bundle_constructor_deser);
+                let pskt_constructor_deser: Option<PSKT<Constructor>> =
+                    bundle_constructor_deser.inner_list.first().map(|inner| PSKT::from(inner.clone()));
+                match pskt_constructor_deser {
+                    Some(_) => println!("PSKT<Constructor> deserialized successfully"),
+                    None => println!("No elements in inner_list to deserialize"),
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to deserialize: {}", e);
+                assert!(false);
+            }
+        }
+    }
 
     #[test]
     fn test_bundle_creation() {
