@@ -126,6 +126,10 @@ impl Context {
         self.addresses.clear();
         self.balance = None;
     }
+
+    pub fn pending_outgoing_transactions(&self) -> Vec<OutgoingTransaction> {
+        self.outgoing.values().cloned().collect()
+    }
 }
 
 struct Inner {

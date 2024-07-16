@@ -4,6 +4,7 @@ use crate::imports::*;
 use crate::result::Result;
 use crate::utxo as native;
 use crate::wasm::notify::{UtxoProcessorEventTarget, UtxoProcessorNotificationCallback, UtxoProcessorNotificationTypeOrCallback};
+use crate::wasm::PendingTransaction;
 use kaspa_consensus_core::network::NetworkIdT;
 use kaspa_wallet_macros::declare_typescript_wasm_interface as declare;
 use kaspa_wasm_core::events::{get_event_targets, Sink};
@@ -175,6 +176,15 @@ impl UtxoProcessor {
         let network_id = NetworkId::try_cast_from(network_id)?.into_owned();
         crate::utxo::set_coinbase_transaction_maturity_period_daa(&network_id, value);
         Ok(())
+    }
+
+    /// Returns all pending outgoing transactions that are currently managed by the UtxoProcessor.
+    #[wasm_bindgen(js_name = "getPendingOutgoingTransactions")]
+    pub fn pending_transactions(&self) -> Vec<PendingTransaction> {
+        let processor = &self.inner.processor;
+        let outgoing_transactions = processor.outgoing();
+
+        outgoing_transactions.into_iter().map(|outgoing_tx| outgoing_tx.pending_transaction().clone().into()).collect()
     }
 
     ///

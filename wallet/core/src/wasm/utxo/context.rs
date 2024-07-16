@@ -3,6 +3,7 @@ use crate::result::Result;
 use crate::utxo as native;
 use crate::utxo::{UtxoContextBinding, UtxoContextId};
 use crate::wasm::utxo::UtxoProcessor;
+use crate::wasm::PendingTransaction;
 use crate::wasm::{Balance, BalanceStrings};
 use kaspa_addresses::AddressOrStringArrayT;
 use kaspa_consensus_client::UtxoEntryReferenceArrayT;
@@ -217,6 +218,15 @@ impl UtxoContext {
             array.push(&JsValue::from(entry.clone()));
         }
         Ok(array.unchecked_into())
+    }
+
+    /// Returns pending outgoing transactions that are currently managed by the UtxoContext.
+    #[wasm_bindgen(js_name = "getPendingOutgoingTransactions")]
+    pub fn pending_transactions(&self) -> Vec<PendingTransaction> {
+        let context = self.context();
+        let outgoing_transactions = context.pending_outgoing_transactions();
+        
+        outgoing_transactions.into_iter().map(|outgoing_tx| outgoing_tx.pending_transaction().clone().into()).collect()
     }
 
     /// Current {@link Balance} of the UtxoContext.
