@@ -5,6 +5,8 @@ use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 use std::{str::FromStr, sync::Arc};
 
+use crate::client::RpcClient;
+
 #[derive(Debug, Clone)]
 #[pyclass]
 pub struct Resolver {
@@ -61,7 +63,23 @@ impl Resolver {
         }}
     }
 
-    // fn connect() TODO
+    fn connect(
+        &self,
+        py: Python,
+        encoding: Option<String>,
+        network: Option<String>,
+        network_suffix: Option<u32>,
+    ) -> PyResult<Py<PyAny>> {
+        let encoding = WrpcEncoding::from_str(encoding.unwrap_or(String::from("borsh")).as_str()).unwrap();
+        let network_id = into_network_id(&network.unwrap(), network_suffix)?;
+        let client = RpcClient::new(Some(self.clone()), None, Some(encoding), Some(network_id))?;
+
+        let client = client.clone();
+        py_async! {py, async move {
+            let _ = client.connect(Some(options)).await.map_err(|e| pyo3::exceptions::PyException::new_err(e.to_string()));
+            Ok(())
+        }}
+    }
 }
 
 impl From<Resolver> for NativeResolver {

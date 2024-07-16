@@ -204,7 +204,15 @@ impl RpcClient {
         self.inner.client.node_descriptor().and_then(|node| node.provider_url.clone())
     }
 
-    pub fn connect(&self, py: Python, block_async_connect: Option<bool>, strategy: Option<String>, url: Option<String>, connect_timeout: Option<u64>, retry_interval: Option<u64>) -> PyResult<Py<PyAny>> {
+    pub fn connect(
+        &self,
+        py: Python,
+        block_async_connect: Option<bool>,
+        strategy: Option<String>,
+        url: Option<String>,
+        connect_timeout: Option<u64>,
+        retry_interval: Option<u64>,
+    ) -> PyResult<Py<PyAny>> {
         // TODO expose args to Python similar to WASM wRPC Client IConnectOptions?
 
         let block_async_connect = block_async_connect.unwrap_or(true);
@@ -214,14 +222,8 @@ impl RpcClient {
         };
         let connect_timeout: Option<Duration> = connect_timeout.and_then(|ms| Some(Duration::from_millis(ms)));
         let retry_interval: Option<Duration> = retry_interval.and_then(|ms| Some(Duration::from_millis(ms)));
-        
-        let options = ConnectOptions { 
-            block_async_connect,
-            strategy,
-            url,
-            connect_timeout,
-            retry_interval
-        };
+
+        let options = ConnectOptions { block_async_connect, strategy, url, connect_timeout, retry_interval };
 
         self.start_notification_task(py).unwrap();
 
