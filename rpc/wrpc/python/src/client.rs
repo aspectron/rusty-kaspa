@@ -74,14 +74,13 @@ impl PyCallback {
     }
 
     fn execute(&self, py: Python, event: Bound<PyDict>) -> PyResult<PyObject> {
-        let args = self.append_to_args(py, event).unwrap();
+        let args = self.append_to_args(py, event)?;
         let kwargs = self.kwargs.as_ref().map(|kw| kw.bind(py));
 
         let result = self
             .callback
             .call_bound(py, args.bind(py), kwargs)
-            .map_err(|e| pyo3::exceptions::PyException::new_err(format!("Error while executing RPC notification callback: {}", e)))
-            .unwrap();
+            .map_err(|e| pyo3::exceptions::PyException::new_err(format!("Error while executing RPC notification callback: {}", e)))?;
 
         Ok(result)
     }
@@ -124,13 +123,11 @@ impl RpcClient {
     pub fn new(
         resolver: Option<Resolver>,
         url: Option<String>,
-        encoding: Option<WrpcEncoding>,
+        encoding: WrpcEncoding,
         network_id: Option<NetworkId>,
     ) -> Result<RpcClient> {
         let client = Arc::new(
-            KaspaRpcClient::new(encoding.unwrap(), url.as_deref(), Some(resolver.as_ref().unwrap().clone().into()), network_id, None)
-                .unwrap(),
-        );
+            KaspaRpcClient::new(encoding, url.as_deref(), Some(resolver.as_ref().unwrap().clone().into()), network_id, None)?);
 
         let rpc_client = RpcClient {
             inner: Arc::new(Inner {
@@ -159,14 +156,14 @@ impl RpcClient {
         network_suffix: Option<u32>,
     ) -> PyResult<RpcClient> {
         // TODO expose args to Python similar to WASM wRPC Client IRpcConfig
-        let resolver = resolver.unwrap_or(Resolver::ctor(None).unwrap());
+        let resolver = resolver.unwrap_or(Resolver::ctor(None)?);
         let encoding = WrpcEncoding::from_str(encoding.unwrap_or(String::from("borsh")).as_str()).unwrap();
         let network = network.unwrap_or(String::from("mainnet"));
 
         // TODO find better way of accepting NetworkId type from Python
         let network_id = into_network_id(&network, network_suffix)?;
 
-        Ok(Self::new(Some(resolver), url, Some(encoding), Some(network_id))?)
+        Ok(Self::new(Some(resolver), url, encoding, Some(network_id))?)
     }
 
     fn url(&self) -> Option<String> {
@@ -229,7 +226,7 @@ impl RpcClient {
 
         let options = ConnectOptions { block_async_connect, strategy, url, connect_timeout, retry_interval };
 
-        self.start_notification_task(py).unwrap();
+        self.start_notification_task(py)?;
 
         let client = self.inner.client.clone();
         py_async! {py, async move {
@@ -263,8 +260,8 @@ impl RpcClient {
     ) -> PyResult<()> {
         let event = NotificationEvent::from_str(event.as_str()).unwrap();
 
-        let args = args.to_object(py).extract::<Py<PyTuple>>(py).unwrap();
-        let kwargs = kwargs.unwrap().to_object(py).extract::<Py<PyDict>>(py).unwrap();
+        let args = args.to_object(py).extract::<Py<PyTuple>>(py)?;
+        let kwargs = kwargs.unwrap().to_object(py).extract::<Py<PyDict>>(py)?;
 
         let py_callback = PyCallback { callback, args: Some(args), kwargs: Some(kwargs) };
 
@@ -459,7 +456,7 @@ impl RpcClient {
         py_async! {py, async move {
             let response = client.get_server_info_call(GetServerInfoRequest { }).await?;
             Python::with_gil(|py| {
-                Ok(serde_pyobject::to_pyobject(py, &response).unwrap().to_object(py))
+                Ok(serde_pyobject::to_pyobject(py, &response)?.to_object(py))
             })
         }}
     }
@@ -469,7 +466,7 @@ impl RpcClient {
         py_async! {py, async move {
             let response = client.get_block_dag_info_call(GetBlockDagInfoRequest { }).await?;
             Python::with_gil(|py| {
-                Ok(serde_pyobject::to_pyobject(py, &response).unwrap().to_object(py))
+                Ok(serde_pyobject::to_pyobject(py, &response)?.to_object(py))
             })
         }}
     }
