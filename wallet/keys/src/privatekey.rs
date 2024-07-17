@@ -135,11 +135,10 @@ impl PrivateKey {
         Ok(address)
     }
 
-    // TODO
-    // #[wasm_bindgen(js_name = toKeypair)]
-    // pub fn to_keypair(&self) -> Result<Keypair, JsError> {
-    //     Keypair::from_private_key(self)
-    // }
+    #[pyo3(name = "to_keypair")]
+    pub fn to_keypair_py(&self) -> PyResult<Keypair> {
+        Keypair::from_private_key_py(self)
+    }
 }
 
 impl TryCastFromJs for PrivateKey {
