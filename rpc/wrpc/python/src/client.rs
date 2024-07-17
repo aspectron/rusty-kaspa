@@ -182,7 +182,11 @@ impl RpcClient {
         Ok(())
     }
 
-    // fn set_network_id() TODO
+    fn set_network_id(&self, network: String, network_suffix: Option<u32>) -> PyResult<()> {
+        let network_id = into_network_id(&network, network_suffix)?;
+        self.inner.client.set_network_id(&network_id)?;
+        Ok(())
+    }
 
     fn is_connected(&self) -> bool {
         self.inner.client.is_connected()
