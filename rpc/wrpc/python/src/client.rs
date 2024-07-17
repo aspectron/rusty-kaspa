@@ -126,8 +126,13 @@ impl RpcClient {
         encoding: WrpcEncoding,
         network_id: Option<NetworkId>,
     ) -> Result<RpcClient> {
-        let client = Arc::new(
-            KaspaRpcClient::new(encoding, url.as_deref(), Some(resolver.as_ref().unwrap().clone().into()), network_id, None)?);
+        let client = Arc::new(KaspaRpcClient::new(
+            encoding,
+            url.as_deref(),
+            Some(resolver.as_ref().unwrap().clone().into()),
+            network_id,
+            None,
+        )?);
 
         let rpc_client = RpcClient {
             inner: Arc::new(Inner {
