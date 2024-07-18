@@ -6,92 +6,9 @@ use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, UtxoEntry};
 
 use hex;
-use kaspa_txscript::{extract_script_pub_key_address, pay_to_script_hash_script};
+use kaspa_txscript::{extract_script_pub_key_address, pay_to_address_script, pay_to_script_hash_script};
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
-
-pub fn lock_script_sig(payload: String, pubkey: Option<String>) -> Result<Vec<u8>, Error> {
-    let mut payload_bytes: Vec<u8> = hex::decode(payload)?;
-
-    if let Some(pubkey_hex) = pubkey {
-        let pubkey_bytes: Vec<u8> = hex::decode(pubkey_hex)?;
-
-        let placeholder = b"{{pubkey}}";
-
-        // Search for the placeholder in payload bytes
-        if let Some(pos) = payload_bytes.windows(placeholder.len()).position(|window| window == placeholder) {
-            payload_bytes.splice(pos..pos + placeholder.len(), pubkey_bytes.iter().cloned());
-        }
-    }
-
-    Ok(payload_bytes)
-}
-
-pub fn script_addr(script_sig: &[u8], prefix: kaspa_addresses::Prefix) -> Result<Address, Error> {
-    let spk = pay_to_script_hash_script(script_sig);
-    let p2sh = extract_script_pub_key_address(&spk, prefix).unwrap();
-    Ok(p2sh)
-}
-
-pub fn script_public_key(script_sig: &[u8]) -> Result<ScriptPublicKey, Error> {
-    let spk = pay_to_script_hash_script(script_sig);
-    Ok(spk)
-}
-
-pub fn unlock_utxos(
-    utxo_references: Vec<(UtxoEntry, TransactionOutpoint)>,
-    script_public_key: ScriptPublicKey,
-    script_sig: Vec<u8>,
-    priority_fee_sompi: u64,
-) -> Result<Bundle, Error> {
-    let (successes, errors): (Vec<_>, Vec<_>) = utxo_references
-        .into_iter()
-        .map(|(utxo_entry, outpoint)| unlock_utxo(&utxo_entry, &outpoint, &script_public_key, &script_sig, priority_fee_sompi))
-        .partition(Result::is_ok);
-
-    let successful_bundles: Vec<_> = successes.into_iter().filter_map(Result::ok).collect();
-    let error_list: Vec<_> = errors.into_iter().filter_map(Result::err).collect();
-
-    if !error_list.is_empty() {
-        return Err(Error::MultipleUnlockUtxoError(error_list));
-    }
-
-    let merged_bundle = successful_bundles.into_iter().fold(None, |acc: Option<Bundle>, bundle| match acc {
-        Some(mut merged_bundle) => {
-            merged_bundle.merge(bundle);
-            Some(merged_bundle)
-        }
-        None => Some(bundle),
-    });
-
-    match merged_bundle {
-        None => Err("Generating an empty PSKB".into()),
-        Some(bundle) => Ok(bundle),
-    }
-}
-
-pub fn unlock_utxo(
-    utxo_entry: &UtxoEntry,
-    outpoint: &TransactionOutpoint,
-    script_public_key: &ScriptPublicKey,
-    script_sig: &[u8],
-    priority_fee_sompi: u64,
-) -> Result<Bundle, Error> {
-    let input = InputBuilder::default()
-        .utxo_entry(utxo_entry.to_owned())
-        .previous_outpoint(outpoint.to_owned())
-        .sig_op_count(1)
-        .redeem_script(script_sig.to_vec())
-        .build()?;
-
-    let output = OutputBuilder::default()
-        .amount(utxo_entry.amount - priority_fee_sompi)
-        .script_public_key(script_public_key.clone())
-        .build()?;
-
-    let pskt: PSKT<Constructor> = PSKT::<Creator>::default().constructor().input(input).output(output);
-    Ok(pskt.into())
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Bundle {
@@ -134,7 +51,7 @@ impl Bundle {
     }
 
     pub fn to_hex(&self) -> Result<String, Box<dyn std::error::Error>> {
-        let type_marked = TypeMarked::new(self, Marker::Pskb).unwrap();
+        let type_marked = TypeMarked::new(self, Marker::Pskb)?;
         Ok(hex::encode(serde_json::to_string(&type_marked)?))
     }
 
@@ -211,6 +128,92 @@ impl Default for Bundle {
     }
 }
 
+pub fn lock_script_sig(payload: String, pubkey_bytes: Option<&[u8]>) -> Result<Vec<u8>, Error> {
+    let mut payload_bytes: Vec<u8> = hex::decode(payload)?;
+
+    if let Some(pubkey) = pubkey_bytes {
+        let placeholder = b"{{pubkey}}";
+
+        // Search for the placeholder in payload bytes to be replaced by public key.
+        if let Some(pos) = payload_bytes.windows(placeholder.len()).position(|window| window == placeholder) {
+            payload_bytes.splice(pos..pos + placeholder.len(), pubkey.iter().cloned());
+        }
+    }
+    Ok(payload_bytes)
+}
+
+pub fn script_addr(script_sig: &[u8], prefix: kaspa_addresses::Prefix) -> Result<Address, Error> {
+    extract_script_pub_key_address(&pay_to_script_hash_script(script_sig), prefix).map_err(Error::P2SHExtractError)
+}
+
+pub fn unlock_utxos(
+    utxo_references: Vec<(UtxoEntry, TransactionOutpoint)>,
+    recipient: &Address,
+    script_sig: Vec<u8>,
+    priority_fee_sompi: u64,
+) -> Result<Bundle, Error> {
+    // Check if any UTXO amount can cover priority fee.
+    utxo_references
+        .iter()
+        .map(|(entry, _)| {
+            // todo: discuss if this is sufficient
+            if entry.amount <= priority_fee_sompi {
+                return Err(Error::ExcessUnlockFeeError);
+            }
+            Ok(())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let recipient_spk = pay_to_address_script(recipient);
+    let (successes, errors): (Vec<_>, Vec<_>) = utxo_references
+        .into_iter()
+        .map(|(utxo_entry, outpoint)| unlock_utxo(&utxo_entry, &outpoint, &recipient_spk, &script_sig, priority_fee_sompi))
+        .partition(Result::is_ok);
+
+    let successful_bundles: Vec<_> = successes.into_iter().filter_map(Result::ok).collect();
+    let error_list: Vec<_> = errors.into_iter().filter_map(Result::err).collect();
+
+    if !error_list.is_empty() {
+        return Err(Error::MultipleUnlockUtxoError(error_list));
+    }
+
+    let merged_bundle = successful_bundles.into_iter().fold(None, |acc: Option<Bundle>, bundle| match acc {
+        Some(mut merged_bundle) => {
+            merged_bundle.merge(bundle);
+            Some(merged_bundle)
+        }
+        None => Some(bundle),
+    });
+
+    match merged_bundle {
+        None => Err("Generating an empty PSKB".into()),
+        Some(bundle) => Ok(bundle),
+    }
+}
+
+pub fn unlock_utxo(
+    utxo_entry: &UtxoEntry,
+    outpoint: &TransactionOutpoint,
+    script_public_key: &ScriptPublicKey,
+    script_sig: &[u8],
+    priority_fee_sompi: u64,
+) -> Result<Bundle, Error> {
+    let input = InputBuilder::default()
+        .utxo_entry(utxo_entry.to_owned())
+        .previous_outpoint(outpoint.to_owned())
+        .sig_op_count(1)
+        .redeem_script(script_sig.to_vec())
+        .build()?;
+
+    let output = OutputBuilder::default()
+        .amount(utxo_entry.amount - priority_fee_sompi)
+        .script_public_key(script_public_key.clone())
+        .build()?;
+
+    let pskt: PSKT<Constructor> = PSKT::<Creator>::default().constructor().input(input).output(output);
+    Ok(pskt.into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -234,8 +237,8 @@ mod tests {
         unsafe {
             INIT.call_once(|| {
                 let kps = [Keypair::new(&Secp256k1::new(), &mut thread_rng()), Keypair::new(&Secp256k1::new(), &mut thread_rng())];
-                let redeem_script: Vec<u8> =
-                    multisig_redeem_script(kps.iter().map(|pk| pk.x_only_public_key().0.serialize()), 2).unwrap();
+                let redeem_script: Vec<u8> = multisig_redeem_script(kps.iter().map(|pk| pk.x_only_public_key().0.serialize()), 2)
+                    .expect("Test multisig redeem script");
 
                 CONTEXT = Some(Box::new((kps, redeem_script)));
             });
@@ -262,7 +265,7 @@ mod tests {
             .sig_op_count(2)
             .redeem_script(redeem_script.to_owned())
             .build()
-            .unwrap();
+            .expect("Mock PSKT constructor");
 
         pskt.constructor().input(input_0)
     }
@@ -274,12 +277,12 @@ mod tests {
 
         // Serialize to MessagePack
         let mut buf = Vec::new();
-        encode::write(&mut buf, &bundle).unwrap();
+        encode::write(&mut buf, &bundle).expect("Serialize PSKB");
         println!("Serialized: {:?}", buf);
 
         assert!(!bundle.inner_list.is_empty());
 
-        // Deserialize from MessagePack
+        // todo: discuss why deserializing from MessagePack errors
         match decode::from_slice::<Bundle>(&buf) {
             Ok(bundle_constructor_deser) => {
                 println!("Deserialized: {:?}", bundle_constructor_deser);
@@ -292,7 +295,7 @@ mod tests {
             }
             Err(e) => {
                 eprintln!("Failed to deserialize: {}", e);
-                assert!(false);
+                panic!()
             }
         }
     }

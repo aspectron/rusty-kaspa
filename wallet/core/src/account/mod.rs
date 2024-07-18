@@ -380,9 +380,17 @@ pub trait Account: AnySync + Send + Sync + 'static {
         sign_for_address: Option<&Address>,
     ) -> Result<Bundle, Error> {
         let keydata = self.prv_key_data(wallet_secret).await?;
-        let signer = Arc::new(PSKBSigner::new(self.clone().as_dyn_arc(), keydata, payment_secret));
+        let signer = Arc::new(PSKBSigner::new(self.clone().as_dyn_arc(), keydata.clone(), payment_secret.clone()));
 
-        match pskb_signer_for_address(bundle, signer, self.wallet().network_id()?, sign_for_address).await {
+        let network_id = self.wallet().clone().network_id()?;
+        let derivation = self.as_derivation_capable()?;
+
+        let (derivation_path, _) =
+            build_derivate_paths(&derivation.account_kind(), derivation.account_index(), derivation.cosigner_index())?;
+
+        let key_fingerprint = keydata.get_xprv(payment_secret.clone().as_ref())?.public_key().fingerprint();
+
+        match pskb_signer_for_address(bundle, signer, network_id, sign_for_address, derivation_path, key_fingerprint).await {
             Ok(signer) => Ok(signer),
             Err(e) => Err(Error::from(e.to_string())),
         }

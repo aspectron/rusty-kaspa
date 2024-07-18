@@ -2,9 +2,12 @@ pub use crate::error::Error;
 use crate::imports::*;
 use crate::tx::PaymentOutputs;
 use futures::stream;
-use kaspa_bip32::PrivateKey;
+use kaspa_bip32::{DerivationPath, KeyFingerprint, PrivateKey};
+use kaspa_wallet_pskt::prelude::KeySource;
+
 use kaspa_consensus_client::UtxoEntry as ClientUTXO;
 use kaspa_consensus_core::hashing::sighash::{calc_schnorr_signature_hash, SigHashReusedValues};
+// use kaspa_consensus_core::sign;
 use kaspa_consensus_core::tx::VerifiableTransaction;
 use kaspa_consensus_core::tx::{TransactionInput, UtxoEntry};
 use kaspa_txscript::extract_script_pub_key_address;
@@ -17,6 +20,7 @@ pub use kaspa_wallet_pskt::pskt::{Creator, PSKT};
 use secp256k1::schnorr;
 use secp256k1::{Message, PublicKey};
 use std::iter;
+// use std::ops::Add;
 
 struct PSKBSignerInner {
     keydata: PrvKeyData,
@@ -36,7 +40,8 @@ impl PSKBSigner {
 
     pub fn ingest(&self, addresses: &[Address]) -> Result<()> {
         let mut keys = self.inner.keys.lock().unwrap();
-        // skip address that are already present in the key map
+
+        // Skip addresses that are already present in the key map.
         let addresses = addresses.iter().filter(|a| !keys.contains_key(a)).collect::<Vec<_>>();
         if !addresses.is_empty() {
             let account = self.inner.account.clone().as_derivation_capable().expect("expecting derivation capable account");
@@ -46,7 +51,6 @@ impl PSKBSigner {
                 keys.insert(address.clone(), private_key.to_bytes());
             }
         }
-
         Ok(())
     }
 
@@ -130,11 +134,13 @@ fn convert_pending_tx_to_pskt(pending_tx: PendingTransaction, persist_signatures
 
     let populated_inputs: Vec<(&TransactionInput, &UtxoEntry)> = verifiable_tx.populated_inputs().collect();
 
-    let pskt_inner = Inner::from((pending_tx.transaction(), populated_inputs.to_owned()));
+    let pskt_inner = Inner::try_from((pending_tx.transaction(), populated_inputs.to_owned()))?;
 
     let signer = PSKT::<Signer>::from(pskt_inner);
 
     // todo: detection and depending on PSKT type
+    // discuss if there is an use case for signed PSKTs converted from pending tx
+    // for now it is used to create unsigned PSKTs.
     if persist_signatures {
         let signed_pskt = signer
             .pass_signature_sync(|tx, _| -> Result<Vec<SignInputOk>, String> {
@@ -158,6 +164,7 @@ fn convert_pending_tx_to_pskt(pending_tx: PendingTransaction, persist_signatures
                                     signature: Signature::Schnorr(signature),
                                     pub_key: public_key,
                                     key_source: None,
+                                    // todo KeySource
                                 }));
                             }
                         }
@@ -168,7 +175,6 @@ fn convert_pending_tx_to_pskt(pending_tx: PendingTransaction, persist_signatures
             .unwrap();
         return Ok(signed_pskt);
     }
-
     Ok(signer)
 }
 
@@ -186,31 +192,46 @@ pub async fn bundle_from_pskt_generator(generator: PSKTGenerator) -> Result<Bund
     Ok(bundle)
 }
 
-pub async fn pskb_signer(bundle: &Bundle, signer: Arc<PSKBSigner>, network_id: NetworkId) -> Result<Bundle, Error> {
-    pskb_signer_for_address(bundle, signer, network_id, None).await
-}
+// pub async fn pskb_signer(bundle: &Bundle, signer: Arc<PSKBSigner>, network_id: NetworkId) -> Result<Bundle, Error> {
+//     pskb_signer_for_address(bundle, signer, network_id, None).await
+// }
 
 pub async fn pskb_signer_for_address(
     bundle: &Bundle,
     signer: Arc<PSKBSigner>,
     network_id: NetworkId,
     sign_for_address: Option<&Address>,
+    derivation_path: DerivationPath,
+    key_fingerprint: KeyFingerprint,
 ) -> Result<Bundle, Error> {
     let mut signed_bundle = Bundle::new();
     let mut reused_values = SigHashReusedValues::new();
 
+    // If set, sign-for address is used for signing.
+    // Else, all addresses from inputs are.
+    let addresses: Vec<Address> = match sign_for_address {
+        Some(signer) => vec![signer.clone()],
+        None => bundle
+            .inner_list
+            .iter()
+            .flat_map(|inner| {
+                inner.inputs
+                    .iter()
+                    .filter_map(|input| input.utxo_entry.as_ref()) // Filter out None and get a reference to UtxoEntry if it exists
+                    .filter_map(|utxo_entry| {
+                        extract_script_pub_key_address(&utxo_entry.script_public_key.clone(), network_id.into()).ok()
+                    })
+                    .collect::<Vec<Address>>()
+            })
+            .collect(),
+    };
+
+    // Prepare the signer.
+    signer.ingest(addresses.as_ref())?;
+
     for pskt_inner in bundle.inner_list.clone() {
         let pskt: PSKT<Signer> = PSKT::from(pskt_inner);
 
-        //
-        let addresses: Vec<Address> = pskt.inputs.iter()
-            .filter_map(|input| input.utxo_entry.as_ref()) // Filter out None and get a reference to UtxoEntry if it exists
-            .map(|utxo_entry| extract_script_pub_key_address(&utxo_entry.script_public_key.clone(), network_id.into()).unwrap()) // Clone the ScriptPublicKey
-            .collect();
-
-        signer.ingest(addresses.as_ref())?;
-
-        // Define the signing function
         let mut sign = |signer_pskt: PSKT<Signer>| {
             signer_pskt
                 .pass_signature_sync(|tx, sighash| -> Result<Vec<SignInputOk>, String> {
@@ -222,74 +243,90 @@ pub async fn pskb_signer_for_address(
                             let hash = calc_schnorr_signature_hash(&tx.as_verifiable(), idx, sighash[idx], &mut reused_values);
                             let msg = secp256k1::Message::from_digest_slice(hash.as_bytes().as_slice()).unwrap();
 
+                            // When address represents a lock utxo, no private key is available.
+                            // Instead, use the account receive address private key.
                             let address: &Address = match sign_for_address {
-                                Some(given_address) => given_address,
+                                Some(address) => address,
                                 None => addresses.get(idx).expect("Input indexed address"),
                             };
 
-                            // when address is a lock utxo, no private key will be available for that
-                            // instead, use the account receive address private key
-
                             let public_key = signer.public_key(address).expect("Public key for input indexed address");
-
-                            // sign for pubkeys the signer has the private key for
 
                             Ok(SignInputOk {
                                 signature: Signature::Schnorr(signer.sign_schnorr(address, msg).unwrap()),
                                 pub_key: public_key,
-                                key_source: None,
+                                key_source: Some(KeySource { key_fingerprint, derivation_path: derivation_path.clone() }),
                             })
                         })
                         .collect()
                 })
                 .unwrap()
         };
-
         signed_bundle.add_pskt(sign(pskt.clone()));
     }
     Ok(signed_bundle)
 }
 
-pub fn bundle_to_finalizer_stream(bundle: &Bundle) -> Pin<Box<dyn Stream<Item = Result<PSKT<Finalizer>, Error>> + Send>> {
-    let stream = stream::iter(bundle.inner_list.clone()).map(move |pskt_inner| {
-        let pskt: PSKT<Creator> = PSKT::from(pskt_inner);
-        let pskt_finalizer = pskt.constructor().updater().signer().finalizer();
+pub fn finalize_pskt_one_or_more_sig_and_redeem_script(pskt: PSKT<Finalizer>) -> Result<PSKT<Finalizer>, Error> {
+    let result = pskt.finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
+        Ok(inner
+            .inputs
+            .iter()
+            .map(|input| -> Vec<u8> {
+                let signatures: Vec<_> = input
+                    .partial_sigs
+                    .clone()
+                    .into_iter()
+                    .flat_map(|(_, signature)| iter::once(OpData65).chain(signature.into_bytes()).chain([input.sighash_type.to_u8()]))
+                    .collect();
 
-        let result = pskt_finalizer.finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
-            Ok(inner
-                .inputs
-                .iter()
-                .map(|input| -> Vec<u8> {
-                    let signatures: Vec<_> = input
-                        .partial_sigs
-                        .clone()
-                        .into_iter()
-                        .flat_map(|(_, signature)| {
-                            iter::once(OpData65).chain(signature.into_bytes()).chain([input.sighash_type.to_u8()])
-                        })
-                        .collect();
-
-                    signatures
-                        .into_iter()
-                        .chain(
-                            input
-                                .redeem_script
-                                .as_ref()
-                                .map(|redeem_script| ScriptBuilder::new().add_data(redeem_script.as_slice()).unwrap().drain().to_vec())
-                                .unwrap_or_default(),
-                        )
-                        .collect()
-                })
-                .collect())
-        });
-
-        match result {
-            Ok(finalized_pskt) => Ok(finalized_pskt),
-            Err(e) => Err(Error::from(e.to_string())),
-        }
+                signatures
+                    .into_iter()
+                    .chain(
+                        input
+                            .redeem_script
+                            .as_ref()
+                            .map(|redeem_script| ScriptBuilder::new().add_data(redeem_script.as_slice()).unwrap().drain().to_vec())
+                            .unwrap_or_default(),
+                    )
+                    .collect()
+            })
+            .collect())
     });
 
-    Box::pin(stream)
+    match result {
+        Ok(finalized_pskt) => Ok(finalized_pskt),
+        Err(e) => Err(Error::from(e.to_string())),
+    }
+}
+
+pub fn finalize_pskt_no_sig_and_redeem_script(pskt: PSKT<Finalizer>) -> Result<PSKT<Finalizer>, Error> {
+    let result = pskt.finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
+        Ok(inner
+            .inputs
+            .iter()
+            .map(|input| -> Vec<u8> {
+                input
+                    .redeem_script
+                    .as_ref()
+                    .map(|redeem_script| ScriptBuilder::new().add_data(redeem_script.as_slice()).unwrap().drain().to_vec())
+                    .unwrap_or_default()
+            })
+            .collect())
+    });
+
+    match result {
+        Ok(finalized_pskt) => Ok(finalized_pskt),
+        Err(e) => Err(Error::from(e.to_string())),
+    }
+}
+
+pub fn bundle_to_finalizer_stream(bundle: &Bundle) -> impl Stream<Item = Result<PSKT<Finalizer>, Error>> + Send {
+    stream::iter(bundle.inner_list.clone()).map(move |pskt_inner| {
+        let pskt: PSKT<Creator> = PSKT::from(pskt_inner);
+        let pskt_finalizer = pskt.constructor().updater().signer().finalizer();
+        finalize_pskt_one_or_more_sig_and_redeem_script(pskt_finalizer)
+    })
 }
 
 // todo: discuss conversion to pending transaction

@@ -5,10 +5,10 @@ use crate::pskt::{Global, Inner};
 use kaspa_consensus_client::{Transaction, TransactionInput, TransactionInputInner, TransactionOutput, TransactionOutputInner};
 use kaspa_consensus_core::tx as cctx;
 
-impl From<Transaction> for Inner {
-    fn from(_transaction: Transaction) -> Inner {
-        let transaction = cctx::Transaction::from(&_transaction);
-        Inner::from(transaction)
+impl TryFrom<Transaction> for Inner {
+    type Error = Error;
+    fn try_from(_transaction: Transaction) -> Result<Self, Self::Error> {
+        Inner::try_from(cctx::Transaction::from(&_transaction))
     }
 }
 
@@ -54,9 +54,13 @@ impl TryFrom<TransactionOutput> for Output {
     }
 }
 
-impl From<(cctx::Transaction, Vec<(&cctx::TransactionInput, &cctx::UtxoEntry)>)> for Inner {
-    fn from((transaction, populated_inputs): (cctx::Transaction, Vec<(&cctx::TransactionInput, &cctx::UtxoEntry)>)) -> Inner {
-        let inputs = populated_inputs
+impl TryFrom<(cctx::Transaction, Vec<(&cctx::TransactionInput, &cctx::UtxoEntry)>)> for Inner {
+    type Error = Error; // Define your error type
+
+    fn try_from(
+        (transaction, populated_inputs): (cctx::Transaction, Vec<(&cctx::TransactionInput, &cctx::UtxoEntry)>),
+    ) -> Result<Self, Self::Error> {
+        let inputs: Result<Vec<Input>, Self::Error> = populated_inputs
             .into_iter()
             .map(|(input, utxo)| {
                 InputBuilder::default()
@@ -64,43 +68,42 @@ impl From<(cctx::Transaction, Vec<(&cctx::TransactionInput, &cctx::UtxoEntry)>)>
                     .previous_outpoint(input.previous_outpoint)
                     .sig_op_count(input.sig_op_count)
                     .build()
-                    .unwrap()
+                    .map_err(Error::TxToInnerConversionInputBuildingError)
+                // Handle the error
             })
-            .collect();
+            .collect::<Result<_, _>>();
 
-        let outputs: Vec<Output> = transaction
+        let outputs: Result<Vec<Output>, Self::Error> = transaction
             .outputs
             .iter()
-            .filter_map(|output| Output::try_from(TransactionOutput::from(output.to_owned())).ok())
-            .collect();
+            .map(|output| {
+                Output::try_from(TransactionOutput::from(output.to_owned())).map_err(|e| Error::TxToInnerConversionError(Box::new(e)))
+            })
+            .collect::<Result<_, _>>();
 
-        Inner { global: Global::default(), inputs, outputs }
+        Ok(Inner { global: Global::default(), inputs: inputs?, outputs: outputs? })
     }
 }
 
-impl From<cctx::Transaction> for Inner {
-    fn from(transaction: cctx::Transaction) -> Inner {
-        let inputs: Vec<Input> = transaction
+impl TryFrom<cctx::Transaction> for Inner {
+    type Error = Error;
+    fn try_from(transaction: cctx::Transaction) -> Result<Self, self::Error> {
+        let inputs = transaction
             .inputs
             .iter()
-            .filter_map(|input| {
-                let tx_input = TransactionInput::from(input.to_owned());
-                match Input::try_from(tx_input) {
-                    Ok(input) => Some(input),
-                    Err(e) => {
-                        println!("Error converting input: {:?}", e);
-                        None
-                    }
-                }
+            .map(|input| {
+                Input::try_from(TransactionInput::from(input.to_owned())).map_err(|e| Error::TxToInnerConversionError(Box::new(e)))
             })
-            .collect();
+            .collect::<Result<_, _>>()?;
 
-        let outputs: Vec<Output> = transaction
+        let outputs = transaction
             .outputs
             .iter()
-            .filter_map(|output| Output::try_from(TransactionOutput::from(output.to_owned())).ok())
-            .collect();
+            .map(|output| {
+                Output::try_from(TransactionOutput::from(output.to_owned())).map_err(|e| Error::TxToInnerConversionError(Box::new(e)))
+            })
+            .collect::<Result<_, _>>()?;
 
-        Inner { global: Global::default(), inputs, outputs }
+        Ok(Inner { global: Global::default(), inputs, outputs })
     }
 }
