@@ -103,7 +103,7 @@ impl Pskb {
                         }
 
                         // Get locked UTXO set.
-                        let spend_utxos = ctx.wallet().rpc_api().get_utxos_by_addresses(vec![script_p2sh.clone()]).await?;
+                        let spend_utxos: Vec<kaspa_rpc_core::RpcUtxosByAddressesEntry> = ctx.wallet().rpc_api().get_utxos_by_addresses(vec![script_p2sh.clone()]).await?;
                         let priority_fee_sompi = try_parse_optional_kaspa_as_sompi_i64(argv.first())?.unwrap_or(0) as u64;
 
                         if spend_utxos.is_empty() {
@@ -125,7 +125,7 @@ impl Pskb {
                         );
 
                         // Sweep UTXO set.
-                        match unlock_utxos(references, &receive_address, script_sig, priority_fee_sompi as u64) {
+                        match unlock_utxos_fee_per_transaction(references, &receive_address, script_sig, priority_fee_sompi as u64) {
                             Ok(pskb) => {
                                 let pskb_hex = pskb.to_hex().unwrap();
                                 tprintln!(ctx, "{pskb_hex}");
@@ -246,7 +246,7 @@ impl Pskb {
                 ("pskb send <pskb>", "Broadcast bundled transactions"),
                 ("pskb debug <payload>", "Print PSKB debug view"),
                 ("pskb script lock <payload> <amount> [priority fee]", "Generate a PSKB with one send transaction to given P2SH payload. Optional public key placeholder in payload: {{pubkey}}"),
-                ("pskb script unlock <payload> <fee>", "Generate a PSKB to unlock UTXOS one by one from given P2SH payload. Fee amount will be applied to every UTXO spent. Optional public key placeholder in payload: {{pubkey}}"),
+                ("pskb script unlock <payload> <fee>", "Generate a PSKB to unlock UTXOS one by one from given P2SH payload. Fee amount will be applied to every spent UTXO, meaning every transaction. Optional public key placeholder in payload: {{pubkey}}"),
                 ("pskb script sign <pskb>", "Sign all PSKB's P2SH locked inputs"),
                 ("pskb script sign <pskb>", "Sign all PSKB's P2SH locked inputs"),
                 ("pskb script address <pskb>", "Prints P2SH address"),

@@ -146,13 +146,15 @@ pub fn script_addr(script_sig: &[u8], prefix: kaspa_addresses::Prefix) -> Result
     extract_script_pub_key_address(&pay_to_script_hash_script(script_sig), prefix).map_err(Error::P2SHExtractError)
 }
 
-pub fn unlock_utxos(
+pub fn unlock_utxos_fee_per_transaction(
     utxo_references: Vec<(UtxoEntry, TransactionOutpoint)>,
     recipient: &Address,
     script_sig: Vec<u8>,
     priority_fee_sompi: u64,
 ) -> Result<Bundle, Error> {
-    // Check if any UTXO amount can cover priority fee.
+
+    // Fee per transaction.
+    // Check if each UTXO's amounts can cover priority fee.
     utxo_references
         .iter()
         .map(|(entry, _)| {

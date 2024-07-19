@@ -179,7 +179,7 @@ fn convert_pending_tx_to_pskt(pending_tx: PendingTransaction, persist_signatures
 }
 
 pub async fn bundle_from_pskt_generator(generator: PSKTGenerator) -> Result<Bundle, Error> {
-    let mut bundle = Bundle::new();
+    let mut bundle: Bundle = Bundle::new();
     let mut stream = generator.stream();
 
     while let Some(pskt_result) = stream.next().await {
