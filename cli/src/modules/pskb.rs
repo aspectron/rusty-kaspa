@@ -125,7 +125,7 @@ impl Pskb {
                         );
 
                         // Sweep UTXO set.
-                        match unlock_utxos_fee_per_transaction(references, &receive_address, script_sig, priority_fee_sompi as u64) {
+                        match unlock_utxos(references, &receive_address, script_sig, priority_fee_sompi as u64) {
                             Ok(pskb) => {
                                 let pskb_hex = pskb.to_hex().unwrap();
                                 tprintln!(ctx, "{pskb_hex}");
