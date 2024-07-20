@@ -1,6 +1,7 @@
 use crate::error::Error;
 use crate::prelude::*;
 use crate::pskt::{Inner as PSKTInner, PSKT};
+use crate::wasm::result;
 
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, UtxoEntry};
@@ -50,9 +51,14 @@ impl Bundle {
         }
     }
 
-    pub fn to_hex(&self) -> Result<String, Box<dyn std::error::Error>> {
-        let type_marked = TypeMarked::new(self, Marker::Pskb)?;
-        Ok(hex::encode(serde_json::to_string(&type_marked)?))
+    pub fn to_hex(&self) -> Result<String, Error> {
+        match TypeMarked::new(self, Marker::Pskb) {
+            Ok(type_marked) => match serde_json::to_string(&type_marked) {
+                Ok(result) => Ok(hex::encode(result)),
+                Err(e) => Err(Error::PskbSerializeToHexError(e.to_string())),
+            },
+            Err(e) => Err(Error::PskbSerializeToHexError(e.to_string())),
+        }
     }
 
     pub fn from_hex(hex_data: &str) -> Result<Self, Error> {
@@ -128,7 +134,7 @@ impl Default for Bundle {
     }
 }
 
-pub fn lock_script_sig(payload: String, pubkey_bytes: Option<&[u8]>) -> Result<Vec<u8>, Error> {
+pub fn lock_script_sig_templating(payload: String, pubkey_bytes: Option<&[u8]>) -> Result<Vec<u8>, Error> {
     let mut payload_bytes: Vec<u8> = hex::decode(payload)?;
 
     if let Some(pubkey) = pubkey_bytes {
@@ -142,23 +148,21 @@ pub fn lock_script_sig(payload: String, pubkey_bytes: Option<&[u8]>) -> Result<V
     Ok(payload_bytes)
 }
 
-pub fn script_addr(script_sig: &[u8], prefix: kaspa_addresses::Prefix) -> Result<Address, Error> {
+pub fn script_sig_to_address(script_sig: &[u8], prefix: kaspa_addresses::Prefix) -> Result<Address, Error> {
     extract_script_pub_key_address(&pay_to_script_hash_script(script_sig), prefix).map_err(Error::P2SHExtractError)
 }
 
-pub fn unlock_utxos(
+pub fn unlock_utxos_as_pskb(
     utxo_references: Vec<(UtxoEntry, TransactionOutpoint)>,
     recipient: &Address,
     script_sig: Vec<u8>,
     priority_fee_sompi_per_transaction: u64,
 ) -> Result<Bundle, Error> {
-
     // Fee per transaction.
     // Check if each UTXO's amounts can cover priority fee.
     utxo_references
         .iter()
         .map(|(entry, _)| {
-            // todo: discuss if this is sufficient
             if entry.amount <= priority_fee_sompi_per_transaction {
                 return Err(Error::ExcessUnlockFeeError);
             }
@@ -169,7 +173,9 @@ pub fn unlock_utxos(
     let recipient_spk = pay_to_address_script(recipient);
     let (successes, errors): (Vec<_>, Vec<_>) = utxo_references
         .into_iter()
-        .map(|(utxo_entry, outpoint)| unlock_utxo(&utxo_entry, &outpoint, &recipient_spk, &script_sig, priority_fee_sompi_per_transaction))
+        .map(|(utxo_entry, outpoint)| {
+            unlock_utxo(&utxo_entry, &outpoint, &recipient_spk, &script_sig, priority_fee_sompi_per_transaction)
+        })
         .partition(Result::is_ok);
 
     let successful_bundles: Vec<_> = successes.into_iter().filter_map(Result::ok).collect();

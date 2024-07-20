@@ -329,6 +329,9 @@ pub enum Error {
 
     #[error(transparent)]
     Pskt(#[from] kaspa_wallet_pskt::error::Error),
+
+    #[error("Error generating pending transaction from PSKT: {0}")]
+    PendingTransactionFromPSKTError(String),
 }
 
 impl From<Aborted> for Error {

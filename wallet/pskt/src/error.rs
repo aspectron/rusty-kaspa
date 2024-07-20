@@ -30,13 +30,12 @@ pub enum Error {
     ExcessUnlockFeeError,
     #[error("Transaction output to output conversion error")]
     TxToInnerConversionError(#[source] Box<Error>),
-    #[error("Transaction output to output conversion error")]
-    OutputConversionError(#[source] Box<Error>),
     #[error("Transaction input building error in conversion")]
     TxToInnerConversionInputBuildingError(#[source] InputBuilderError),
-
     #[error("P2SH extraction error")]
     P2SHExtractError(#[source] TxScriptError),
+    #[error("PSKB hex serialization error: {0}")]
+    PskbSerializeToHexError(String),
 }
 #[derive(thiserror::Error, Debug)]
 pub enum ConstructorError {

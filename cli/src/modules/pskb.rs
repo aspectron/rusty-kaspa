@@ -1,7 +1,7 @@
 use crate::imports::*;
 use kaspa_consensus_core::tx::{TransactionOutpoint, UtxoEntry};
 use kaspa_wallet_core::account::pskb::finalize_pskt_one_or_more_sig_and_redeem_script;
-use kaspa_wallet_pskt::prelude::*;
+use kaspa_wallet_pskt::prelude::{lock_script_sig_templating, script_sig_to_address, unlock_utxos_as_pskb, Bundle, Signer, PSKT};
 
 #[derive(Default, Handler)]
 #[help("Send a Kaspa transaction to a public address")]
@@ -10,6 +10,10 @@ pub struct Pskb;
 impl Pskb {
     async fn main(self: Arc<Self>, ctx: &Arc<dyn Context>, mut argv: Vec<String>, _cmd: &str) -> Result<()> {
         let ctx = ctx.clone().downcast_arc::<KaspaCli>()?;
+
+        if !ctx.wallet().is_open() {
+            return Err(Error::WalletIsNotOpen);
+        }
 
         let account = ctx.wallet().account()?;
 
@@ -44,8 +48,10 @@ impl Pskb {
                         )
                         .await?;
 
-                    let pskb = signer.to_hex().unwrap();
-                    tprintln!(ctx, "{pskb}");
+                    match signer.to_hex() {
+                        Ok(encoded) => tprintln!(ctx, "{encoded}"),
+                        Err(e) => return Err(e.into()),
+                    }
                 }
             }
             "script" => {
@@ -56,11 +62,11 @@ impl Pskb {
                 let subcommand = argv.remove(0);
                 let payload = argv.remove(0);
 
-                let receive_address = account.receive_address().unwrap(); // todo exception
+                let receive_address = account.receive_address()?;
                 let (wallet_secret, payment_secret) = ctx.ask_wallet_secret(None).await?;
                 let _ = ctx.notifier().show(Notification::Processing).await;
 
-                let script_sig = match lock_script_sig(payload.clone(), Some(&receive_address.payload)) {
+                let script_sig = match lock_script_sig_templating(payload.clone(), Some(&receive_address.payload)) {
                     Ok(value) => value,
                     Err(e) => {
                         terrorln!(ctx, "{}", e.to_string());
@@ -68,7 +74,7 @@ impl Pskb {
                     }
                 };
 
-                let script_p2sh = match script_addr(&script_sig, ctx.wallet().address_prefix()?) {
+                let script_p2sh = match script_sig_to_address(&script_sig, ctx.wallet().address_prefix()?) {
                     Ok(p2sh) => p2sh,
                     Err(e) => {
                         terrorln!(ctx, "Error generating script address: {}", e.to_string());
@@ -94,8 +100,10 @@ impl Pskb {
                             )
                             .await?;
 
-                        let pskb = signer.to_hex().unwrap(); //  todo exception
-                        tprintln!(ctx, "{pskb}");
+                        match signer.to_hex() {
+                            Ok(encoded) => tprintln!(ctx, "{encoded}"),
+                            Err(e) => return Err(e.into()),
+                        }
                     }
                     "unlock" => {
                         if argv.len() != 1 {
@@ -103,7 +111,8 @@ impl Pskb {
                         }
 
                         // Get locked UTXO set.
-                        let spend_utxos: Vec<kaspa_rpc_core::RpcUtxosByAddressesEntry> = ctx.wallet().rpc_api().get_utxos_by_addresses(vec![script_p2sh.clone()]).await?;
+                        let spend_utxos: Vec<kaspa_rpc_core::RpcUtxosByAddressesEntry> =
+                            ctx.wallet().rpc_api().get_utxos_by_addresses(vec![script_p2sh.clone()]).await?;
                         let priority_fee_sompi = try_parse_optional_kaspa_as_sompi_i64(argv.first())?.unwrap_or(0) as u64;
 
                         if spend_utxos.is_empty() {
@@ -118,34 +127,28 @@ impl Pskb {
 
                         tprintln!(
                             ctx,
-                            "{} locked UTXO{} found with total amount of {} Kaspa",
+                            "{} locked UTXO{} found with total amount of {} KAS",
                             spend_utxos.len(),
-                            if spend_utxos.is_empty() { "" } else { "s" },
+                            if spend_utxos.len() == 1 { "" } else { "s" },
                             sompi_to_kaspa(total_locked_sompi)
                         );
 
                         // Sweep UTXO set.
-                        match unlock_utxos(references, &receive_address, script_sig, priority_fee_sompi as u64) {
+                        match unlock_utxos_as_pskb(references, &receive_address, script_sig, priority_fee_sompi as u64) {
                             Ok(pskb) => {
-                                let pskb_hex = pskb.to_hex().unwrap();
+                                let pskb_hex = pskb.to_hex()?;
                                 tprintln!(ctx, "{pskb_hex}");
                             }
                             Err(e) => tprintln!(ctx, "Error generating unlock PSKB: {}", e.to_string()),
                         }
                     }
                     "sign" => {
-                        let bundle = match Bundle::try_from(payload) {
-                            Ok(bundle) => bundle,
-                            Err(e) => {
-                                terrorln!(ctx, "Error while parsing bundle{}", e.to_string());
-                                return Err(e.into());
-                            }
-                        };
+                        let pskb = Self::parse_input_pskb(argv.first().unwrap().as_str())?;
 
                         // Sign PSKB using the account's receiver address.
-                        match account.pskb_sign(&bundle, wallet_secret.clone(), payment_secret.clone(), Some(&receive_address)).await {
+                        match account.pskb_sign(&pskb, wallet_secret.clone(), payment_secret.clone(), Some(&receive_address)).await {
                             Ok(signed_pskb) => {
-                                let pskb_pack = String::try_from(signed_pskb).unwrap(); // todo exception
+                                let pskb_pack = String::try_from(signed_pskb)?;
                                 tprintln!(ctx, "{pskb_pack}");
                             }
                             Err(e) => terrorln!(ctx, "{}", e.to_string()),
@@ -165,19 +168,11 @@ impl Pskb {
                     return self.display_help(ctx, argv).await;
                 } else {
                     let (wallet_secret, payment_secret) = ctx.ask_wallet_secret(None).await?;
+                    let pskb = Self::parse_input_pskb(argv.first().unwrap().as_str())?;
 
-                    let bundle_raw = argv.first().unwrap().as_str();
-                    let bundle = match Bundle::try_from(bundle_raw) {
-                        Ok(bundle) => bundle,
-                        Err(e) => {
-                            terrorln!(ctx, "Error while parsing bundle{}", e.to_string());
-                            return Err(e.into());
-                        }
-                    };
-
-                    match account.pskb_sign(&bundle, wallet_secret.clone(), payment_secret.clone(), None).await {
+                    match account.pskb_sign(&pskb, wallet_secret.clone(), payment_secret.clone(), None).await {
                         Ok(signed_pskb) => {
-                            let pskb_pack = String::try_from(signed_pskb).unwrap();
+                            let pskb_pack = String::try_from(signed_pskb)?;
                             tprintln!(ctx, "{pskb_pack}");
                         }
                         Err(e) => terrorln!(ctx, "{}", e.to_string()),
@@ -188,46 +183,42 @@ impl Pskb {
                 if argv.len() != 1 {
                     return self.display_help(ctx, argv).await;
                 } else {
-                    let bundle_raw = argv.first().unwrap().as_str();
-                    let bundle = match Bundle::try_from(bundle_raw) {
-                        Ok(bundle) => bundle,
-                        Err(e) => {
-                            terrorln!(ctx, "Error while parsing bundle{ }", e.to_string());
-                            return Err(e.into());
-                        }
-                    };
-                    match account.pskb_broadcast(&bundle).await {
+                    let pskb = Self::parse_input_pskb(argv.first().unwrap().as_str())?;
+
+                    match account.pskb_broadcast(&pskb).await {
                         Ok(sent) => tprintln!(ctx, "Sent transactions {:?}", sent),
                         Err(e) => terrorln!(ctx, "Send error {:?}", e),
                     }
                 }
             }
             "debug" => {
-                let bundle_raw = argv.first().unwrap().as_str();
-                let bundle = match Bundle::try_from(bundle_raw) {
-                    Ok(bundle) => bundle,
-                    Err(e) => {
-                        terrorln!(ctx, "Error while parsing bundle{}", e.to_string());
-                        return Err(e.into());
-                    }
-                };
+                let pskb = Self::parse_input_pskb(argv.first().unwrap().as_str())?;
 
                 // Debug bundle view.
-                tprintln!(ctx, "{:?}", bundle);
-                let rust = bundle.inner_list.first().unwrap();
+                tprintln!(ctx, "{:?}", pskb);
 
-                let pskt: PSKT<Signer> = PSKT::<Signer>::from(rust.to_owned());
-                let mut fin = pskt.finalizer();
+                match pskb.inner_list.first() {
+                    Some(bundle_inner) => {
+                        let pskt: PSKT<Signer> = PSKT::<Signer>::from(bundle_inner.to_owned());
+                        let mut fin = pskt.finalizer();
 
-                fin = finalize_pskt_one_or_more_sig_and_redeem_script(fin).expect("Finalized PSKT");
+                        fin = finalize_pskt_one_or_more_sig_and_redeem_script(fin).expect("Finalized PSKT");
 
-                // Verify if extraction is possible.
-                match fin.extractor() {
-                    Ok(ex) => match ex.extract_tx() {
-                        Ok(_) => tprintln!(ctx, "Transaction extracted successfuly"),
-                        Err(e) => terrorln!(ctx, "Extraction error {}", e.to_string()),
-                    },
-                    Err(_) => twarnln!(ctx, "PSKB not finalized"),
+                        // Verify if extraction is possible.
+                        match fin.extractor() {
+                            Ok(ex) => match ex.extract_tx() {
+                                Ok(_) => tprintln!(
+                                    ctx,
+                                    "Transaction extracted successfuly meaning it is finalized with a valid script signature."
+                                ),
+                                Err(e) => terrorln!(ctx, "Transaction extraction error: {}", e.to_string()),
+                            },
+                            Err(_) => twarnln!(ctx, "PSKB not finalized"),
+                        }
+                    }
+                    None => {
+                        twarnln!(ctx, "Debugging an empty PSKB");
+                    }
                 }
             }
             v => {
@@ -236,6 +227,13 @@ impl Pskb {
             }
         }
         Ok(())
+    }
+
+    fn parse_input_pskb(input: &str) -> Result<Bundle> {
+        match Bundle::try_from(input) {
+            Ok(bundle) => Ok(bundle),
+            Err(e) => Err(Error::custom(format!("Error while parsing input PSKB {}", e))),
+        }
     }
 
     async fn display_help(self: Arc<Self>, ctx: Arc<KaspaCli>, _argv: Vec<String>) -> Result<()> {

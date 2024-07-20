@@ -125,6 +125,9 @@ pub enum Error {
 
     #[error(transparent)]
     PskbLockScriptSigError(#[from] kaspa_wallet_pskt::error::Error),
+
+    #[error("To hex serialization error")]
+    PskbSerializeToHexError,
 }
 
 impl Error {
