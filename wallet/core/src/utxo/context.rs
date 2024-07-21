@@ -533,7 +533,7 @@ impl UtxoContext {
                 utxos.first().map(|utxo| matches!(utxo.maturity(&params, current_daa_score), Maturity::Stasis)).unwrap_or_default();
 
             for utxo in utxos.iter() {
-                if let Err(err) = self.insert(utxo.clone(), current_daa_score, force_maturity_if_outgoing).await {
+                if let Err(err) = self.insert(utxo.clone(), current_daa_score, false).await {
                     // TODO - remove `Result<>` from insert at a later date once
                     // we are confident that the insert will never result in an error.
                     log_error!("{}", err);
