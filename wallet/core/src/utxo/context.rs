@@ -382,10 +382,6 @@ impl UtxoContext {
                 }
             }
 
-            if self.context().outgoing.get(&txid).is_some() {
-                unreachable!("Error: promotion of the outgoing transaction!");
-            }
-
             let record = TransactionRecord::new_incoming(self, txid, &utxos);
             self.processor().notify(Events::Maturity { record }).await?;
         }
