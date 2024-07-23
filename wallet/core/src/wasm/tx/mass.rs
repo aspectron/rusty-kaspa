@@ -21,7 +21,7 @@ impl MassCalculator {
     pub fn new(cp: ConsensusParams) -> Self {
         let consensus_params = Params::from(cp);
         let network_params = NetworkParams::from(consensus_params.net);
-        Self { mc: Arc::new(mass::MassCalculator::new(&consensus_params, &network_params)) }
+        Self { mc: Arc::new(mass::MassCalculator::new(&consensus_params, network_params)) }
     }
 
     #[wasm_bindgen(js_name=isDust)]

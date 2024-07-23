@@ -6,7 +6,7 @@
 use crate::imports::*;
 
 #[derive(Debug)]
-pub struct Inner {
+pub struct NetworkParams {
     pub coinbase_transaction_maturity_period_daa: AtomicU64,
     pub coinbase_transaction_stasis_period_daa: u64,
     pub user_transaction_maturity_period_daa: AtomicU64,
@@ -14,43 +14,38 @@ pub struct Inner {
     pub additional_compound_transaction_mass: u64,
 }
 
-#[derive(Debug, Clone)]
-pub struct NetworkParams {
-    inner: Arc<Inner>,
-}
-
 impl NetworkParams {
     #[inline]
     pub fn coinbase_transaction_maturity_period_daa(&self) -> u64 {
-        self.inner.coinbase_transaction_maturity_period_daa.load(Ordering::Relaxed)
+        self.coinbase_transaction_maturity_period_daa.load(Ordering::Relaxed)
     }
 
     #[inline]
     pub fn coinbase_transaction_stasis_period_daa(&self) -> u64 {
-        self.inner.coinbase_transaction_stasis_period_daa
+        self.coinbase_transaction_stasis_period_daa
     }
 
     #[inline]
     pub fn user_transaction_maturity_period_daa(&self) -> u64 {
-        self.inner.user_transaction_maturity_period_daa.load(Ordering::Relaxed)
+        self.user_transaction_maturity_period_daa.load(Ordering::Relaxed)
     }
 
     #[inline]
     pub fn mass_combination_strategy(&self) -> MassCombinationStrategy {
-        self.inner.mass_combination_strategy
+        self.mass_combination_strategy
     }
 
     #[inline]
     pub fn additional_compound_transaction_mass(&self) -> u64 {
-        self.inner.additional_compound_transaction_mass
+        self.additional_compound_transaction_mass
     }
 
     pub fn set_coinbase_transaction_maturity_period_daa(&self, value: u64) {
-        self.inner.coinbase_transaction_maturity_period_daa.store(value, Ordering::Relaxed);
+        self.coinbase_transaction_maturity_period_daa.store(value, Ordering::Relaxed);
     }
 
     pub fn set_user_transaction_maturity_period_daa(&self, value: u64) {
-        self.inner.user_transaction_maturity_period_daa.store(value, Ordering::Relaxed);
+        self.user_transaction_maturity_period_daa.store(value, Ordering::Relaxed);
     }
 }
 
@@ -58,13 +53,11 @@ static MAINNET_NETWORK_PARAMS: OnceLock<NetworkParams> = OnceLock::new();
 
 pub fn mainnet_network_params() -> &'static NetworkParams {
     MAINNET_NETWORK_PARAMS.get_or_init(|| NetworkParams {
-        inner: Arc::new(Inner {
-            coinbase_transaction_maturity_period_daa: AtomicU64::new(100),
-            coinbase_transaction_stasis_period_daa: 50,
-            user_transaction_maturity_period_daa: AtomicU64::new(10),
-            mass_combination_strategy: MassCombinationStrategy::Max,
-            additional_compound_transaction_mass: 0,
-        }),
+        coinbase_transaction_maturity_period_daa: AtomicU64::new(100),
+        coinbase_transaction_stasis_period_daa: 50,
+        user_transaction_maturity_period_daa: AtomicU64::new(10),
+        mass_combination_strategy: MassCombinationStrategy::Max,
+        additional_compound_transaction_mass: 0,
     })
 }
 
@@ -72,13 +65,11 @@ static TESTNET10_NETWORK_PARAMS: OnceLock<NetworkParams> = OnceLock::new();
 
 pub fn testnet10_network_params() -> &'static NetworkParams {
     TESTNET10_NETWORK_PARAMS.get_or_init(|| NetworkParams {
-        inner: Arc::new(Inner {
-            coinbase_transaction_maturity_period_daa: AtomicU64::new(100),
-            coinbase_transaction_stasis_period_daa: 50,
-            user_transaction_maturity_period_daa: AtomicU64::new(10),
-            mass_combination_strategy: MassCombinationStrategy::Max,
-            additional_compound_transaction_mass: 0,
-        }),
+        coinbase_transaction_maturity_period_daa: AtomicU64::new(100),
+        coinbase_transaction_stasis_period_daa: 50,
+        user_transaction_maturity_period_daa: AtomicU64::new(10),
+        mass_combination_strategy: MassCombinationStrategy::Max,
+        additional_compound_transaction_mass: 0,
     })
 }
 
@@ -86,13 +77,11 @@ static TESTNET11_NETWORK_PARAMS: OnceLock<NetworkParams> = OnceLock::new();
 
 pub fn testnet11_network_params() -> &'static NetworkParams {
     TESTNET11_NETWORK_PARAMS.get_or_init(|| NetworkParams {
-        inner: Arc::new(Inner {
-            coinbase_transaction_maturity_period_daa: AtomicU64::new(1_000),
-            coinbase_transaction_stasis_period_daa: 500,
-            user_transaction_maturity_period_daa: AtomicU64::new(100),
-            mass_combination_strategy: MassCombinationStrategy::Max,
-            additional_compound_transaction_mass: 0,
-        }),
+        coinbase_transaction_maturity_period_daa: AtomicU64::new(1_000),
+        coinbase_transaction_stasis_period_daa: 500,
+        user_transaction_maturity_period_daa: AtomicU64::new(100),
+        mass_combination_strategy: MassCombinationStrategy::Max,
+        additional_compound_transaction_mass: 0,
     })
 }
 
@@ -100,13 +89,11 @@ static SIMNET_NETWORK_PARAMS: OnceLock<NetworkParams> = OnceLock::new();
 
 pub fn simnet_network_params() -> &'static NetworkParams {
     SIMNET_NETWORK_PARAMS.get_or_init(|| NetworkParams {
-        inner: Arc::new(Inner {
-            coinbase_transaction_maturity_period_daa: AtomicU64::new(100),
-            coinbase_transaction_stasis_period_daa: 50,
-            user_transaction_maturity_period_daa: AtomicU64::new(10),
-            mass_combination_strategy: MassCombinationStrategy::Max,
-            additional_compound_transaction_mass: 0,
-        }),
+        coinbase_transaction_maturity_period_daa: AtomicU64::new(100),
+        coinbase_transaction_stasis_period_daa: 50,
+        user_transaction_maturity_period_daa: AtomicU64::new(10),
+        mass_combination_strategy: MassCombinationStrategy::Max,
+        additional_compound_transaction_mass: 0,
     })
 }
 
@@ -114,28 +101,26 @@ static DEVNET_NETWORK_PARAMS: OnceLock<NetworkParams> = OnceLock::new();
 
 pub fn devnet_network_params() -> &'static NetworkParams {
     DEVNET_NETWORK_PARAMS.get_or_init(|| NetworkParams {
-        inner: Arc::new(Inner {
-            coinbase_transaction_maturity_period_daa: AtomicU64::new(100),
-            coinbase_transaction_stasis_period_daa: 50,
-            user_transaction_maturity_period_daa: AtomicU64::new(10),
-            mass_combination_strategy: MassCombinationStrategy::Max,
-            additional_compound_transaction_mass: 0,
-        }),
+        coinbase_transaction_maturity_period_daa: AtomicU64::new(100),
+        coinbase_transaction_stasis_period_daa: 50,
+        user_transaction_maturity_period_daa: AtomicU64::new(10),
+        mass_combination_strategy: MassCombinationStrategy::Max,
+        additional_compound_transaction_mass: 0,
     })
 }
 
-impl From<NetworkId> for NetworkParams {
-    fn from(value: NetworkId) -> Self {
+impl NetworkParams {
+    pub fn from(value: NetworkId) -> &'static NetworkParams {
         match value.network_type {
-            NetworkType::Mainnet => mainnet_network_params().clone(),
+            NetworkType::Mainnet => mainnet_network_params(),
             NetworkType::Testnet => match value.suffix {
-                Some(10) => testnet10_network_params().clone(),
-                Some(11) => testnet11_network_params().clone(),
+                Some(10) => testnet10_network_params(),
+                Some(11) => testnet11_network_params(),
                 Some(x) => panic!("Testnet suffix {} is not supported", x),
                 None => panic!("Testnet suffix not provided"),
             },
-            NetworkType::Devnet => devnet_network_params().clone(),
-            NetworkType::Simnet => simnet_network_params().clone(),
+            NetworkType::Devnet => devnet_network_params(),
+            NetworkType::Simnet => simnet_network_params(),
         }
     }
 }
