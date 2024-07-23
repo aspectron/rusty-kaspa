@@ -1,4 +1,4 @@
-use kaspa_bip32::{Prefix, ChainCode, KeyFingerprint};
+use kaspa_bip32::{ChainCode, KeyFingerprint, Prefix};
 use std::{fmt, str::FromStr};
 
 use crate::imports::*;
@@ -71,17 +71,17 @@ impl XPub {
     pub fn depth(&self) -> u8 {
         self.inner.attrs().depth
     }
-    
+
     #[wasm_bindgen(getter, js_name = parentFingerprint)]
     pub fn parent_fingerprint_as_hex_string(&self) -> String {
         self.inner.attrs().parent_fingerprint.to_vec().to_hex()
     }
-    
+
     #[wasm_bindgen(getter, js_name = childNumber)]
     pub fn child_number(&self) -> u32 {
         self.inner.attrs().child_number.into()
     }
-    
+
     #[wasm_bindgen(getter, js_name = chainCode)]
     pub fn chain_code_as_hex_string(&self) -> String {
         self.inner.attrs().chain_code.to_vec().to_hex()
@@ -89,7 +89,6 @@ impl XPub {
 }
 
 impl XPub {
-
     pub fn parent_fingerprint(&self) -> KeyFingerprint {
         self.inner.attrs().parent_fingerprint
     }
@@ -97,7 +96,6 @@ impl XPub {
     pub fn chain_code(&self) -> ChainCode {
         self.inner.attrs().chain_code
     }
-
 }
 
 impl From<ExtendedPublicKey<secp256k1::PublicKey>> for XPub {

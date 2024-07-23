@@ -95,12 +95,12 @@ impl XPrv {
     pub fn parent_fingerprint_as_hex_string(&self) -> String {
         self.inner.attrs().parent_fingerprint.to_vec().to_hex()
     }
-    
+
     #[wasm_bindgen(getter, js_name = childNumber)]
     pub fn child_number(&self) -> u32 {
         self.inner.attrs().child_number.into()
     }
-    
+
     #[wasm_bindgen(getter, js_name = chainCode)]
     pub fn chain_code_as_hex_string(&self) -> String {
         self.inner.attrs().chain_code.to_vec().to_hex()
@@ -108,7 +108,6 @@ impl XPrv {
 }
 
 impl XPrv {
-
     pub fn private_key(&self) -> &SecretKey {
         self.inner.private_key()
     }
@@ -120,7 +119,6 @@ impl XPrv {
     pub fn chain_code(&self) -> ChainCode {
         self.inner.attrs().chain_code
     }
-
 }
 
 impl<'a> From<&'a XPrv> for &'a ExtendedPrivateKey<SecretKey> {
