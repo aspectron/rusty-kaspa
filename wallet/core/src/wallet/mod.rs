@@ -792,7 +792,13 @@ impl Wallet {
         let account_index = if let Some(account_index) = account_index {
             account_index
         } else {
-            account_store.clone().len(Some(prv_key_data_id)).await? as u64
+            let accounts = account_store.clone().iter(Some(prv_key_data_id)).await?.collect::<Vec<_>>().await;
+
+            accounts
+                .into_iter()
+                .filter(|a| a.as_ref().ok().and_then(|(a, _)| (a.kind == BIP32_ACCOUNT_KIND).then_some(true)).unwrap_or(false))
+                .collect::<Vec<_>>()
+                .len() as u64
         };
 
         let xpub_key = prv_key_data.create_xpub(payment_secret, BIP32_ACCOUNT_KIND.into(), account_index).await?;
