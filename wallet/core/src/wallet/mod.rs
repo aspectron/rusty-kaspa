@@ -378,12 +378,8 @@ impl Wallet {
         if let Some(accounts) = &accounts {
             for account in accounts.iter() {
                 if let Ok(legacy_account) = account.clone().as_legacy_account() {
-                    // if let Ok(descriptor) = account.descriptor(){
-                    //     legacy_account.create_private_context(wallet_secret, None, index)
-                    // }
-
                     legacy_account.create_private_context(wallet_secret, None, None).await?;
-                    log_info!("create_private_context: receive_address: {:?}", account.receive_address());
+                    log_info!("create_private_context, open_impl: receive_address: {:?}", account.receive_address());
                     self.legacy_accounts().insert(account.clone());
                 }
             }
@@ -862,6 +858,12 @@ impl Wallet {
             .ok_or_else(|| Error::PrivateKeyNotFound(prv_key_data_id))?;
 
         let account: Arc<dyn Account> = Arc::new(legacy::Legacy::try_new(self, account_name, prv_key_data.id).await?);
+        if let Ok(legacy_account) = account.clone().as_legacy_account() {
+            legacy_account.create_private_context(wallet_secret, None, None).await?;
+            log_info!("create_private_context: create_account_legacy, receive_address: {:?}", account.receive_address());
+            self.legacy_accounts().insert(account.clone());
+            //legacy_account.clear_private_context().await?;
+        }
 
         if account_store.load_single(account.id()).await?.is_some() {
             return Err(Error::AccountAlreadyExists(*account.id()));
