@@ -67,10 +67,10 @@ pub fn sign(tx: Transaction, privkeys: &[[u8; 32]]) -> Result<Transaction> {
     Ok(sign_with_multiple_v3(tx, privkeys)?.unwrap())
 }
 
-/// `signTransactionInput()` is a helper function to sign a transaction input with a specific SigHash type using a private key.
+/// `createInputSignature()` is a helper function to sign a transaction input with a specific SigHash type using a private key.
 /// @category Wallet SDK
-#[wasm_bindgen(js_name = "signTransactionInput")]
-pub fn sign_transaction_input(
+#[wasm_bindgen(js_name = "createInputSignature")]
+pub fn create_input_signature(
     tx: Transaction,
     input_index: u8,
     private_key: &PrivateKey,
