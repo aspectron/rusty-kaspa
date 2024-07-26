@@ -266,7 +266,7 @@ struct Inner {
     // Current network id
     network_id: NetworkId,
     // Current network params
-    network_params: NetworkParams,
+    network_params: &'static NetworkParams,
 
     // Source Utxo Context (Used for source UtxoEntry aggregation)
     source_utxo_context: Option<UtxoContext>,
@@ -357,7 +357,7 @@ impl Generator {
 
         let network_type = NetworkType::from(network_id);
         let network_params = NetworkParams::from(network_id);
-        let mass_calculator = MassCalculator::new(&network_id.into(), &network_params);
+        let mass_calculator = MassCalculator::new(&network_id.into(), network_params);
 
         let (final_transaction_outputs, final_transaction_amount) = match final_transaction_destination {
             PaymentDestination::Change => {
@@ -477,7 +477,7 @@ impl Generator {
 
     /// Returns current [`NetworkParams`]
     pub fn network_params(&self) -> &NetworkParams {
-        &self.inner.network_params
+        self.inner.network_params
     }
 
     /// The underlying [`UtxoContext`] (if available).
