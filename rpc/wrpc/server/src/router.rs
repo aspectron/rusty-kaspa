@@ -61,6 +61,7 @@ impl Router {
                 GetSink,
                 GetSubnetwork,
                 GetSyncStatus,
+                GetSystemInfo,
                 GetUtxosByAddresses,
                 GetSinkBlueScore,
                 GetVirtualChainFromBlock,
@@ -68,6 +69,7 @@ impl Router {
                 Shutdown,
                 SubmitBlock,
                 SubmitTransaction,
+                SubmitTransactionReplacement,
                 Unban,
             ]
         );

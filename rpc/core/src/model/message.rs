@@ -732,6 +732,69 @@ impl Deserializer for SubmitTransactionResponse {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SubmitTransactionReplacementRequest {
+    pub transaction: RpcTransaction,
+}
+
+impl SubmitTransactionReplacementRequest {
+    pub fn new(transaction: RpcTransaction) -> Self {
+        Self { transaction }
+    }
+}
+
+impl Serializer for SubmitTransactionReplacementRequest {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        store!(u16, &1, writer)?;
+        serialize!(RpcTransaction, &self.transaction, writer)?;
+
+        Ok(())
+    }
+}
+
+impl Deserializer for SubmitTransactionReplacementRequest {
+    fn deserialize<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let _version = load!(u16, reader)?;
+        let transaction = deserialize!(RpcTransaction, reader)?;
+
+        Ok(Self { transaction })
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubmitTransactionReplacementResponse {
+    pub transaction_id: RpcTransactionId,
+    pub replaced_transaction: RpcTransaction,
+}
+
+impl SubmitTransactionReplacementResponse {
+    pub fn new(transaction_id: RpcTransactionId, replaced_transaction: RpcTransaction) -> Self {
+        Self { transaction_id, replaced_transaction }
+    }
+}
+
+impl Serializer for SubmitTransactionReplacementResponse {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        store!(u16, &1, writer)?;
+        store!(RpcTransactionId, &self.transaction_id, writer)?;
+        serialize!(RpcTransaction, &self.replaced_transaction, writer)?;
+
+        Ok(())
+    }
+}
+
+impl Deserializer for SubmitTransactionReplacementResponse {
+    fn deserialize<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let _version = load!(u16, reader)?;
+        let transaction_id = load!(RpcTransactionId, reader)?;
+        let replaced_transaction = deserialize!(RpcTransaction, reader)?;
+
+        Ok(Self { transaction_id, replaced_transaction })
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GetSubnetworkRequest {
     pub subnetwork_id: RpcSubnetworkId,
 }
@@ -1806,6 +1869,7 @@ impl Deserializer for GetSystemInfoRequest {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetSystemInfoResponse {
+    pub version: String,
     pub system_id: Option<Vec<u8>>,
     pub git_hash: Option<Vec<u8>>,
     pub cpu_physical_cores: u16,
@@ -1816,6 +1880,7 @@ pub struct GetSystemInfoResponse {
 impl Serializer for GetSystemInfoResponse {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         store!(u16, &1, writer)?;
+        store!(String, &self.version, writer)?;
         store!(Option<Vec<u8>>, &self.system_id, writer)?;
         store!(Option<Vec<u8>>, &self.git_hash, writer)?;
         store!(u16, &self.cpu_physical_cores, writer)?;
@@ -1829,13 +1894,14 @@ impl Serializer for GetSystemInfoResponse {
 impl Deserializer for GetSystemInfoResponse {
     fn deserialize<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let _version = load!(u16, reader)?;
+        let version = load!(String, reader)?;
         let system_id = load!(Option<Vec<u8>>, reader)?;
         let git_hash = load!(Option<Vec<u8>>, reader)?;
         let cpu_physical_cores = load!(u16, reader)?;
         let total_memory = load!(u64, reader)?;
         let fd_limit = load!(u32, reader)?;
 
-        Ok(Self { system_id, git_hash, cpu_physical_cores, total_memory, fd_limit })
+        Ok(Self { version, system_id, git_hash, cpu_physical_cores, total_memory, fd_limit })
     }
 }
 

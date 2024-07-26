@@ -307,6 +307,21 @@ message SubmitTransactionResponseMessage{
   RPCError error = 1000;
 }
 
+// SubmitTransactionReplacementRequestMessage submits a transaction to the mempool, applying a mandatory Replace by Fee policy
+message SubmitTransactionReplacementRequestMessage{
+  RpcTransaction transaction = 1;
+}
+
+message SubmitTransactionReplacementResponseMessage{
+  // The transaction ID of the submitted transaction
+  string transactionId = 1;
+
+  // The previous transaction replaced in the mempool by the newly submitted one
+  RpcTransaction replacedTransaction = 2;
+
+  RPCError error = 1000;
+}
+
 // NotifyVirtualChainChangedRequestMessage registers this connection for virtualChainChanged notifications.
 //
 // See: VirtualChainChangedNotificationMessage
@@ -822,11 +837,12 @@ message GetSystemInfoRequestMessage{
 }
 
 message GetSystemInfoResponseMessage{
-  string systemId = 1;
-  string gitHash = 2;
-  uint32 coreNum = 3;
-  uint64 totalMemory = 4;
-  uint32 fdLimit = 5;
+  string version = 1;
+  string systemId = 2;
+  string gitHash = 3;
+  uint32 coreNum = 4;
+  uint64 totalMemory = 5;
+  uint32 fdLimit = 6;
   RPCError error = 1000;
 }
 
@@ -872,10 +888,10 @@ message GetSyncStatusResponseMessage{
 }
 
 message GetDaaScoreTimestampEstimateRequestMessage {
-        repeated uint64 daa_scores = 1;
+  repeated uint64 daa_scores = 1;
 }
 
 message GetDaaScoreTimestampEstimateResponseMessage{
-        repeated uint64 timestamps = 1;
-        RPCError error = 1000;
+  repeated uint64 timestamps = 1;
+  RPCError error = 1000;
 }

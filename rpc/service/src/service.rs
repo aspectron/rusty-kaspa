@@ -536,6 +536,23 @@ NOTE: This error usually indicates an RPC conversion error between the node and 
         Ok(SubmitTransactionResponse::new(transaction_id))
     }
 
+    async fn submit_transaction_replacement_call(
+        &self,
+        _connection: Option<&DynRpcConnection>,
+        request: SubmitTransactionReplacementRequest,
+    ) -> RpcResult<SubmitTransactionReplacementResponse> {
+        let transaction: Transaction = (&request.transaction).try_into()?;
+        let transaction_id = transaction.id();
+        let session = self.consensus_manager.consensus().unguarded_session();
+        let replaced_transaction =
+            self.flow_context.submit_rpc_transaction_replacement(&session, transaction).await.map_err(|err| {
+                let err = RpcError::RejectedTransaction(transaction_id, err.to_string());
+                debug!("{err}");
+                err
+            })?;
+        Ok(SubmitTransactionReplacementResponse::new(transaction_id, (&*replaced_transaction).into()))
+    }
+
     async fn get_current_network_call(
         &self,
         _connection: Option<&DynRpcConnection>,
@@ -982,8 +999,9 @@ NOTE: This error usually indicates an RPC conversion error between the node and 
         _request: GetSystemInfoRequest,
     ) -> RpcResult<GetSystemInfoResponse> {
         let response = GetSystemInfoResponse {
+            version: self.system_info.version.clone(),
             system_id: self.system_info.system_id.clone(),
-            git_hash: self.system_info.git_hash.clone(),
+            git_hash: self.system_info.git_short_hash.clone(),
             cpu_physical_cores: self.system_info.cpu_physical_cores,
             total_memory: self.system_info.total_memory,
             fd_limit: self.system_info.fd_limit,

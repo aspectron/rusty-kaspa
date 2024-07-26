@@ -249,6 +249,13 @@ from!(item: RpcResult<&kaspa_rpc_core::SubmitTransactionResponse>, protowire::Su
     Self { transaction_id: item.transaction_id.to_string(), error: None }
 });
 
+from!(item: &kaspa_rpc_core::SubmitTransactionReplacementRequest, protowire::SubmitTransactionReplacementRequestMessage, {
+    Self { transaction: Some((&item.transaction).into()) }
+});
+from!(item: RpcResult<&kaspa_rpc_core::SubmitTransactionReplacementResponse>, protowire::SubmitTransactionReplacementResponseMessage, {
+    Self { transaction_id: item.transaction_id.to_string(), replaced_transaction: Some((&item.replaced_transaction).into()), error: None }
+});
+
 from!(item: &kaspa_rpc_core::GetSubnetworkRequest, protowire::GetSubnetworkRequestMessage, {
     Self { subnetwork_id: item.subnetwork_id.to_string() }
 });
@@ -436,6 +443,7 @@ from!(item: RpcResult<&kaspa_rpc_core::GetConnectionsResponse>, protowire::GetCo
 from!(&kaspa_rpc_core::GetSystemInfoRequest, protowire::GetSystemInfoRequestMessage);
 from!(item: RpcResult<&kaspa_rpc_core::GetSystemInfoResponse>, protowire::GetSystemInfoResponseMessage, {
     Self {
+        version : item.version.clone(),
         system_id : item.system_id.as_ref().map(|system_id|system_id.to_hex()).unwrap_or_default(),
         git_hash : item.git_hash.as_ref().map(|git_hash|git_hash.to_hex()).unwrap_or_default(),
         total_memory : item.total_memory,
@@ -678,6 +686,26 @@ try_from!(item: &protowire::SubmitTransactionResponseMessage, RpcResult<kaspa_rp
     Self { transaction_id: RpcHash::from_str(&item.transaction_id)? }
 });
 
+try_from!(item: &protowire::SubmitTransactionReplacementRequestMessage, kaspa_rpc_core::SubmitTransactionReplacementRequest, {
+    Self {
+        transaction: item
+            .transaction
+            .as_ref()
+            .ok_or_else(|| RpcError::MissingRpcFieldError("SubmitTransactionReplacementRequestMessage".to_string(), "transaction".to_string()))?
+            .try_into()?,
+    }
+});
+try_from!(item: &protowire::SubmitTransactionReplacementResponseMessage, RpcResult<kaspa_rpc_core::SubmitTransactionReplacementResponse>, {
+    Self {
+        transaction_id: RpcHash::from_str(&item.transaction_id)?,
+        replaced_transaction: item
+            .replaced_transaction
+            .as_ref()
+            .ok_or_else(|| RpcError::MissingRpcFieldError("SubmitTransactionReplacementRequestMessage".to_string(), "replaced_transaction".to_string()))?
+            .try_into()?,
+    }
+});
+
 try_from!(item: &protowire::GetSubnetworkRequestMessage, kaspa_rpc_core::GetSubnetworkRequest, {
     Self { subnetwork_id: kaspa_rpc_core::RpcSubnetworkId::from_str(&item.subnetwork_id)? }
 });
@@ -860,6 +888,7 @@ try_from!(item: &protowire::GetConnectionsResponseMessage, RpcResult<kaspa_rpc_c
 try_from!(&protowire::GetSystemInfoRequestMessage, kaspa_rpc_core::GetSystemInfoRequest);
 try_from!(item: &protowire::GetSystemInfoResponseMessage, RpcResult<kaspa_rpc_core::GetSystemInfoResponse>, {
     Self {
+        version: item.version.clone(),
         system_id: (!item.system_id.is_empty()).then(|| FromHex::from_hex(&item.system_id)).transpose()?,
         git_hash: (!item.git_hash.is_empty()).then(|| FromHex::from_hex(&item.git_hash)).transpose()?,
         total_memory: item.total_memory,
