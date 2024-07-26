@@ -392,23 +392,28 @@ impl Transaction {
             .inputs
             .clone()
             .into_iter()
-            .map(|input| {
-                input.get_utxo().ok_or(Error::MissingUtxoEntry)
-            })
+            .map(|input| input.get_utxo().ok_or(Error::MissingUtxoEntry))
             .collect::<Result<Vec<UtxoEntryReference>>>()?;
         Ok(utxo_entry_references)
     }
 
     pub fn outputs(&self) -> Vec<cctx::TransactionOutput> {
         let inner = self.inner();
-        let outputs = inner
-            .outputs
-            .iter()
-            .map(|output| {
-                output.into()
-            })
-            .collect::<Vec<cctx::TransactionOutput>>();
+        let outputs = inner.outputs.iter().map(|output| output.into()).collect::<Vec<cctx::TransactionOutput>>();
         outputs
+    }
+
+    pub fn inputs(&self) -> Vec<cctx::TransactionInput> {
+        let inner = self.inner();
+        let inputs = inner.inputs.iter().map(Into::into).collect::<Vec<cctx::TransactionInput>>();
+        inputs
+    }
+
+    pub fn inputs_outputs(&self) -> (Vec<cctx::TransactionInput>, Vec<cctx::TransactionOutput>) {
+        let inner = self.inner();
+        let inputs = inner.inputs.iter().map(Into::into).collect::<Vec<cctx::TransactionInput>>();
+        let outputs = inner.outputs.iter().map(Into::into).collect::<Vec<cctx::TransactionOutput>>();
+        (inputs, outputs)
     }
 
     pub fn set_signature_script(&self, input_index: usize, signature_script: Vec<u8>) -> Result<()> {
@@ -417,6 +422,14 @@ impl Transaction {
         }
         self.inner().inputs[input_index].set_signature_script(signature_script);
         Ok(())
+    }
+
+    pub fn payload(&self) -> Vec<u8> {
+        self.inner().payload.clone()
+    }
+
+    pub fn payload_len(&self) -> usize {
+        self.inner().payload.len()
     }
 }
 

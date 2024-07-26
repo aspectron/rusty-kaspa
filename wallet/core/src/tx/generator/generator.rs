@@ -215,7 +215,7 @@ struct Data {
 
 impl Data {
     fn new(calc: &MassCalculator) -> Self {
-        let aggregate_mass = calc.blank_transaction_mass();
+        let aggregate_mass = calc.blank_transaction_compute_mass();
 
         Data {
             inputs: vec![],
@@ -402,11 +402,11 @@ impl Generator {
         }
 
         let standard_change_output_mass =
-            mass_calculator.calc_mass_for_output(&TransactionOutput::new(0, pay_to_address_script(&change_address)));
-        let signature_mass_per_input = mass_calculator.calc_signature_mass(minimum_signatures);
-        let final_transaction_outputs_compute_mass = mass_calculator.calc_mass_for_outputs(&final_transaction_outputs);
+            mass_calculator.calc_compute_mass_for_output(&TransactionOutput::new(0, pay_to_address_script(&change_address)));
+        let signature_mass_per_input = mass_calculator.calc_compute_mass_for_signature(minimum_signatures);
+        let final_transaction_outputs_compute_mass = mass_calculator.calc_compute_mass_for_outputs(&final_transaction_outputs);
         let final_transaction_payload = final_transaction_payload.unwrap_or_default();
-        let final_transaction_payload_mass = mass_calculator.calc_mass_for_payload(final_transaction_payload.len());
+        let final_transaction_payload_mass = mass_calculator.calc_compute_mass_for_payload(final_transaction_payload.len());
         let final_transaction_outputs_harmonic =
             mass_calculator.calc_storage_mass_output_harmonic(&final_transaction_outputs).ok_or(Error::MassCalculationError)?;
 
@@ -660,7 +660,7 @@ impl Generator {
 
         let input = TransactionInput::new(utxo.outpoint.clone().into(), vec![], 0, self.inner.sig_op_count);
         let input_amount = utxo.amount();
-        let input_compute_mass = calc.calc_mass_for_input(&input) + self.inner.signature_mass_per_input;
+        let input_compute_mass = calc.calc_compute_mass_for_input(&input) + self.inner.signature_mass_per_input;
 
         // NOTE: relay transactions have no storage mass
         // mass threshold reached, yield transaction

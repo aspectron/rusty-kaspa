@@ -2,7 +2,9 @@
 //! Transaction mass calculator.
 //!
 
+use crate::result::Result;
 use crate::utxo::NetworkParams;
+use kaspa_consensus_client as kcc;
 use kaspa_consensus_client::UtxoEntryReference;
 use kaspa_consensus_core::mass::Kip9Version;
 use kaspa_consensus_core::tx::{Transaction, TransactionInput, TransactionOutput, SCRIPT_VECTOR_SIZE};
@@ -236,44 +238,45 @@ impl MassCalculator {
         }
     }
 
-    pub fn calc_compute_mass_for_transaction(&self, tx: &Transaction) -> u64 {
-        self.blank_transaction_mass()
-            + self.calc_mass_for_payload(tx.payload.len())
-            + self.calc_mass_for_outputs(&tx.outputs)
-            + self.calc_mass_for_inputs(&tx.inputs)
+    pub fn calc_transaction_compute_mass(&self, tx: &Transaction) -> u64 {
+        let payload_len = tx.payload.len();
+        self.blank_transaction_compute_mass()
+            + self.calc_compute_mass_for_payload(payload_len)
+            + self.calc_compute_mass_for_outputs(&tx.outputs)
+            + self.calc_compute_mass_for_inputs(&tx.inputs)
     }
 
-    pub fn blank_transaction_mass(&self) -> u64 {
+    pub(crate) fn blank_transaction_compute_mass(&self) -> u64 {
         blank_transaction_serialized_byte_size() * self.mass_per_tx_byte
     }
 
-    pub fn calc_mass_for_payload(&self, payload_byte_size: usize) -> u64 {
+    pub(crate) fn calc_compute_mass_for_payload(&self, payload_byte_size: usize) -> u64 {
         payload_byte_size as u64 * self.mass_per_tx_byte
     }
 
-    pub fn calc_mass_for_outputs(&self, outputs: &[TransactionOutput]) -> u64 {
-        outputs.iter().map(|output| self.calc_mass_for_output(output)).sum()
+    pub(crate) fn calc_compute_mass_for_outputs(&self, outputs: &[TransactionOutput]) -> u64 {
+        outputs.iter().map(|output| self.calc_compute_mass_for_output(output)).sum()
     }
 
-    pub fn calc_mass_for_inputs(&self, inputs: &[TransactionInput]) -> u64 {
-        inputs.iter().map(|input| self.calc_mass_for_input(input)).sum::<u64>()
+    pub(crate) fn calc_compute_mass_for_inputs(&self, inputs: &[TransactionInput]) -> u64 {
+        inputs.iter().map(|input| self.calc_compute_mass_for_input(input)).sum::<u64>()
     }
 
-    pub fn calc_mass_for_output(&self, output: &TransactionOutput) -> u64 {
+    pub(crate) fn calc_compute_mass_for_output(&self, output: &TransactionOutput) -> u64 {
         self.mass_per_script_pub_key_byte * (2 + output.script_public_key.script().len() as u64)
             + transaction_output_serialized_byte_size(output) * self.mass_per_tx_byte
     }
 
-    pub fn calc_mass_for_input(&self, input: &TransactionInput) -> u64 {
+    pub(crate) fn calc_compute_mass_for_input(&self, input: &TransactionInput) -> u64 {
         input.sig_op_count as u64 * self.mass_per_sig_op + transaction_input_serialized_byte_size(input) * self.mass_per_tx_byte
     }
 
-    pub fn calc_signature_mass(&self, minimum_signatures: u16) -> u64 {
+    pub(crate) fn calc_compute_mass_for_signature(&self, minimum_signatures: u16) -> u64 {
         let minimum_signatures = std::cmp::max(1, minimum_signatures);
         SIGNATURE_SIZE * self.mass_per_tx_byte * minimum_signatures as u64
     }
 
-    pub fn calc_signature_mass_for_inputs(&self, number_of_inputs: usize, minimum_signatures: u16) -> u64 {
+    pub fn calc_signature_compute_mass_for_inputs(&self, number_of_inputs: usize, minimum_signatures: u16) -> u64 {
         let minimum_signatures = std::cmp::max(1, minimum_signatures);
         SIGNATURE_SIZE * self.mass_per_tx_byte * minimum_signatures as u64 * number_of_inputs as u64
     }
@@ -282,20 +285,21 @@ impl MassCalculator {
         calc_minimum_required_transaction_relay_fee(mass)
     }
 
-    pub fn calc_mass_for_signed_transaction(&self, tx: &Transaction, minimum_signatures: u16) -> u64 {
-        self.calc_compute_mass_for_transaction(tx) + self.calc_signature_mass_for_inputs(tx.inputs.len(), minimum_signatures)
+    pub fn calc_compute_mass_for_signed_transaction(&self, tx: &Transaction, minimum_signatures: u16) -> u64 {
+        self.calc_transaction_compute_mass(tx) + self.calc_signature_compute_mass_for_inputs(tx.inputs.len(), minimum_signatures)
     }
 
-    pub fn calc_minium_transaction_relay_fee(&self, tx: &Transaction, minimum_signatures: u16) -> u64 {
-        let mass = self.calc_compute_mass_for_transaction(tx) + self.calc_signature_mass_for_inputs(tx.inputs.len(), minimum_signatures);
-        calc_minimum_required_transaction_relay_fee(mass)
+    pub fn calc_transaction_storage_fee(&self, inputs: &[UtxoEntryReference], outputs: &[TransactionOutput]) -> u64 {
+        self.calc_fee_for_storage_mass(self.calc_storage_mass_for_transaction_parts(inputs, outputs).unwrap_or(u64::MAX))
     }
 
-    pub fn calc_tx_storage_fee(&self, inputs: &[UtxoEntryReference], outputs: &[TransactionOutput]) -> u64 {
-        self.calc_fee_for_storage_mass(self.calc_storage_mass_for_transaction(inputs, outputs).unwrap_or(u64::MAX))
-    }
-
+    // provisional
     pub fn calc_fee_for_storage_mass(&self, mass: u64) -> u64 {
+        mass
+    }
+
+    // provisional
+    pub fn calc_fee_for_mass(&self, mass: u64) -> u64 {
         mass
     }
 
@@ -306,14 +310,35 @@ impl MassCalculator {
         }
     }
 
-    pub fn calc_storage_mass_for_transaction(
+    /// Calculates the overall mass of this transaction, combining both compute and storage masses.
+    pub fn calc_tx_overall_mass(&self, tx: &kcc::Transaction) -> Result<Option<u64>> {
+        let cctx = Transaction::from(tx);
+        let mass = match self.kip9_version {
+            Kip9Version::Alpha => self
+                .calc_storage_mass_for_transaction(tx)?
+                .and_then(|mass| mass.checked_add(self.calc_transaction_compute_mass(&cctx))),
+            Kip9Version::Beta => {
+                self.calc_storage_mass_for_transaction(tx)?.map(|mass| mass.max(self.calc_transaction_compute_mass(&cctx)))
+            }
+        };
+
+        Ok(mass)
+    }
+
+    pub fn calc_storage_mass_for_transaction(&self, tx: &kcc::Transaction) -> Result<Option<u64>> {
+        let utxos = tx.utxo_entry_references()?;
+        let outputs = tx.outputs();
+        Ok(self.calc_storage_mass_for_transaction_parts(&utxos, &outputs))
+    }
+
+    pub fn calc_storage_mass_for_transaction_parts(
         &self,
         inputs: &[UtxoEntryReference],
         outputs: &[TransactionOutput],
     ) -> Option<u64> {
         /* The code below computes the following formula:
 
-                max( 0 , C·( |O|/H(O) - |I|/A(I) ) )
+            max( 0 , C·( |O|/H(O) - |I|/A(I) ) )
 
         where C is the mass storage parameter, O is the set of output values, I is the set of
         input values, H(S) := |S|/sum_{s in S} 1 / s is the harmonic mean over the set S and
@@ -340,11 +365,11 @@ impl MassCalculator {
         let ins_len = inputs.len() as u64;
 
         /*
-          KIP-0009 relaxed formula for the cases |O| = 1 OR |O| <= |I| <= 2:
-              max( 0 , C·( |O|/H(O) - |I|/H(I) ) )
+            KIP-0009 relaxed formula for the cases |O| = 1 OR |O| <= |I| <= 2:
+                max( 0 , C·( |O|/H(O) - |I|/H(I) ) )
 
-           Note: in the case |I| = 1 both formulas are equal, yet the following code (harmonic_ins) is a bit more efficient.
-                 Hence, we transform the condition to |O| = 1 OR |I| = 1 OR |O| = |I| = 2 which is equivalent (and faster).
+            Note: in the case |I| = 1 both formulas are equal, yet the following code (harmonic_ins) is a bit more efficient.
+                Hence, we transform the condition to |O| = 1 OR |I| = 1 OR |O| = |I| = 2 which is equivalent (and faster).
         */
 
         if self.kip9_version == Kip9Version::Beta && (outs_len == 1 || ins_len == 1 || (outs_len == 2 && ins_len == 2)) {
