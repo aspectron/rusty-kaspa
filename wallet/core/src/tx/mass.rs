@@ -243,7 +243,7 @@ impl MassCalculator {
         }
     }
 
-    pub fn calc_mass_for_transaction(&self, tx: &Transaction) -> u64 {
+    pub fn calc_compute_mass_for_transaction(&self, tx: &Transaction) -> u64 {
         self.blank_transaction_mass()
             + self.calc_mass_for_payload(tx.payload.len())
             + self.calc_mass_for_outputs(&tx.outputs)
@@ -290,16 +290,16 @@ impl MassCalculator {
     }
 
     pub fn calc_mass_for_signed_transaction(&self, tx: &Transaction, minimum_signatures: u16) -> u64 {
-        self.calc_mass_for_transaction(tx) + self.calc_signature_mass_for_inputs(tx.inputs.len(), minimum_signatures)
+        self.calc_compute_mass_for_transaction(tx) + self.calc_signature_mass_for_inputs(tx.inputs.len(), minimum_signatures)
     }
 
     pub fn calc_minium_transaction_relay_fee(&self, tx: &Transaction, minimum_signatures: u16) -> u64 {
-        let mass = self.calc_mass_for_transaction(tx) + self.calc_signature_mass_for_inputs(tx.inputs.len(), minimum_signatures);
+        let mass = self.calc_compute_mass_for_transaction(tx) + self.calc_signature_mass_for_inputs(tx.inputs.len(), minimum_signatures);
         calc_minimum_required_transaction_relay_fee(mass)
     }
 
-    pub fn calc_tx_storage_fee(&self, is_coinbase: bool, inputs: &[UtxoEntryReference], outputs: &[TransactionOutput]) -> u64 {
-        self.calc_fee_for_storage_mass(self.calc_storage_mass_for_transaction(is_coinbase, inputs, outputs).unwrap_or(u64::MAX))
+    pub fn calc_tx_storage_fee(&self, inputs: &[UtxoEntryReference], outputs: &[TransactionOutput]) -> u64 {
+        self.calc_fee_for_storage_mass(self.calc_storage_mass_for_transaction(inputs, outputs).unwrap_or(u64::MAX))
     }
 
     pub fn calc_fee_for_storage_mass(&self, mass: u64) -> u64 {
@@ -315,13 +315,9 @@ impl MassCalculator {
 
     pub fn calc_storage_mass_for_transaction(
         &self,
-        is_coinbase: bool,
         inputs: &[UtxoEntryReference],
         outputs: &[TransactionOutput],
     ) -> Option<u64> {
-        if is_coinbase {
-            return Some(0);
-        }
         /* The code below computes the following formula:
 
                 max( 0 , C·( |O|/H(O) - |I|/A(I) ) )

@@ -70,12 +70,32 @@ impl MassCalculator {
         mass::calc_minimum_required_transaction_relay_fee(mass as u64) as u32
     }
 
-    #[wasm_bindgen(js_name=calcMassForTransaction)]
-    pub fn calc_mass_for_transaction(&self, tx: &JsValue) -> Result<u32> {
+    #[wasm_bindgen(js_name=calcComputeMassForTransaction)]
+    pub fn calc_compute_mass_for_transaction(&self, tx: &TransactionT) -> Result<u32> {
         let tx = Transaction::try_cast_from(tx)?;
         let tx = cctx::Transaction::from(tx.as_ref());
-        Ok(self.mc.calc_mass_for_transaction(&tx) as u32)
+        Ok(self.mc.calc_compute_mass_for_transaction(&tx) as u32)
     }
+
+    pub fn calc_storage_mass_for_transaction(
+        &self,
+        tx: &TransactionT,
+    ) -> Result<u64> {
+        let tx = Transaction::try_owned_from(tx)?;
+        let utxos = tx.utxo_entry_references()?;
+        let outputs = tx.outputs();
+        Ok(self.mc.calc_storage_mass_for_transaction(&utxos, &outputs).unwrap_or_default())
+    }
+
+    // pub fn calc_tx_overall_mass(
+    //     &self,
+    //     // tx: &impl VerifiableTransaction,
+    //     cached_compute_mass: Option<u64>,
+    //     version: Kip9Version,
+    // ) -> Option<u64> {
+    //     let tx = cctx::Transaction::from(tx);
+    //     self.mc.calc_tx_overall_mass(&tx, cached_compute_mass, version)
+    // }
 
     #[wasm_bindgen(js_name=blankTransactionSerializedByteSize)]
     pub fn blank_transaction_serialized_byte_size() -> u32 {

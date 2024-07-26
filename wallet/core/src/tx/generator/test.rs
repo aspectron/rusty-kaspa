@@ -173,7 +173,7 @@ fn validate(pt: &PendingTransaction) {
     let compute_mass = calc.calc_mass_for_signed_transaction(&tx, 1);
 
     let utxo_entries = pt.utxo_entries().values().cloned().collect::<Vec<_>>();
-    let storage_mass = calc.calc_storage_mass_for_transaction(false, &utxo_entries, &tx.outputs).unwrap_or_default();
+    let storage_mass = calc.calc_storage_mass_for_transaction(&utxo_entries, &tx.outputs).unwrap_or_default();
 
     let calculated_mass = calc.combine_mass(compute_mass, storage_mass) + additional_mass;
 
@@ -204,7 +204,7 @@ where
     let compute_mass = calc.calc_mass_for_signed_transaction(&tx, 1);
 
     let utxo_entries = pt.utxo_entries().values().cloned().collect::<Vec<_>>();
-    let storage_mass = calc.calc_storage_mass_for_transaction(false, &utxo_entries, &tx.outputs).unwrap_or_default();
+    let storage_mass = calc.calc_storage_mass_for_transaction(&utxo_entries, &tx.outputs).unwrap_or_default();
     if DISPLAY_LOGS && storage_mass != 0 {
         println!(
             "calculated storage mass: {} calculated_compute_mass: {} total: {}",
