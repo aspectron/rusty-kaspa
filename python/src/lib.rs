@@ -11,6 +11,8 @@ cfg_if::cfg_if! {
             m.add_class::<kaspa_wallet_keys::privatekey::PrivateKey>()?;
             m.add_class::<kaspa_wallet_keys::publickey::PublicKey>()?;
             m.add_class::<kaspa_wallet_keys::pubkeygen::PublicKeyGenerator>()?;
+            m.add_class::<kaspa_wallet_keys::xprv::XPrv>()?;
+            m.add_class::<kaspa_wallet_keys::xpub::XPub>()?;
 
             m.add_class::<kaspa_wrpc_python::client::RpcClient>()?;
             m.add_class::<kaspa_wrpc_python::resolver::Resolver>()?;
