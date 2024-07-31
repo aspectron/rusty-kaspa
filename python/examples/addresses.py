@@ -34,7 +34,7 @@ def demo_generate_random():
     keypair = Keypair.random()
     print('\nRandom Generation')
     print(keypair.private_key())
-    print(keypair.public_key)
+    print(keypair.public_key())
     print(keypair.to_address('kaspa').to_string())
 
 if __name__ == "__main__":
@@ -59,5 +59,7 @@ if __name__ == "__main__":
 
     # Generates the first 10 Change Public Keys and their addresses
     compressed_public_keys = xpub.change_pubkeys(0, 10)
-    print('change address compressed_public_keys', compressed_public_keys)
+    print('change address compressed_public_keys')
+    for key in compressed_public_keys:
+        print(key.to_string())
 

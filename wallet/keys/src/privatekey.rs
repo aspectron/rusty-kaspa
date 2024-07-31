@@ -51,6 +51,19 @@ impl PrivateKey {
 // PY-NOTE: WASM specific fn implementations
 #[wasm_bindgen]
 impl PrivateKey {
+    /// Returns the [`PrivateKey`] key encoded as a hex string.
+    #[wasm_bindgen(js_name = toString)]
+    pub fn to_hex(&self) -> String {
+        use kaspa_utils::hex::ToHex;
+        self.secret_bytes().to_vec().to_hex()
+    }
+
+    /// Generate a [`Keypair`] from this [`PrivateKey`].
+    #[wasm_bindgen(js_name = toKeypair)]
+    pub fn to_keypair(&self) -> Result<Keypair, JsError> {
+        Keypair::from_private_key(self)
+    }
+
     #[wasm_bindgen(js_name = toPublicKey)]
     pub fn to_public_key(&self) -> Result<PublicKey, JsError> {
         Ok(PublicKey::from(secp256k1::PublicKey::from_secret_key_global(&self.inner)))
@@ -78,25 +91,6 @@ impl PrivateKey {
         let address = Address::new(network.try_into()?, AddressVersion::PubKeyECDSA, &payload);
         Ok(address)
     }
-
-    /// Generate a [`Keypair`] from this [`PrivateKey`].
-    #[wasm_bindgen(js_name = toKeypair)]
-    pub fn to_keypair(&self) -> Result<Keypair, JsError> {
-        Keypair::from_private_key(self)
-    }
-}
-
-// PY-NOTE: fns exposed to both WASM and Python
-#[cfg_attr(feature = "py-sdk", pymethods)]
-#[wasm_bindgen]
-impl PrivateKey {
-    // PY-NOTE: want to use `#[pyo3(name = "to_string")]` for this fn, but cannot use #[pyo3()] in block where pymethods is applied via cfg_attr
-    /// Returns the [`PrivateKey`] key encoded as a hex string.
-    #[wasm_bindgen(js_name = toString)]
-    pub fn to_hex(&self) -> String {
-        use kaspa_utils::hex::ToHex;
-        self.secret_bytes().to_vec().to_hex()
-    }
 }
 
 // PY-NOTE: Python specific fn implementations
@@ -106,6 +100,12 @@ impl PrivateKey {
     #[new]
     pub fn try_new_py(key: &str) -> Result<PrivateKey> {
         Ok(Self { inner: secp256k1::SecretKey::from_str(key)? })
+    }
+
+    #[pyo3(name = "to_string")]
+    pub fn to_hex_py(&self) -> String {
+        use kaspa_utils::hex::ToHex;
+        self.secret_bytes().to_vec().to_hex()
     }
 
     // PY-NOTE: #[pyo3()] can only be used in block that has #[pymethods] applied directly. applying via #[cfg_attr()] does not work (PyO3 limitation).
