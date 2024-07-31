@@ -229,19 +229,18 @@ impl Address {
     pub fn validate(address: &str) -> bool {
         Self::try_from(address).is_ok()
     }
+
+    /// Convert an address to a string.
+    #[wasm_bindgen(js_name = toString)]
+    pub fn address_to_string(&self) -> String {
+        self.into()
+    }
 }
 
 // PY-NOTE: fns exposed to both WASM and Python
 #[cfg_attr(feature = "py-sdk", pymethods)]
 #[wasm_bindgen]
 impl Address {
-    // PY-NOTE: want to use `#[pyo3(name = "to_string")]` for this fn, but cannot use #[pyo3()] in block where pymethods is applied via cfg_attr
-    /// Convert an address to a string.
-    #[wasm_bindgen(js_name = toString)]
-    pub fn address_to_string(&self) -> String {
-        self.into()
-    }
-
     // PY-NOTE: want to use `#[pyo3(name = "version")]` for this fn, but cannot use #[pyo3()] in block where pymethods is applied via cfg_attr
     #[wasm_bindgen(getter, js_name = "version")]
     pub fn version_to_string(&self) -> String {
@@ -288,6 +287,11 @@ impl Address {
     #[staticmethod]
     pub fn validate_py(address: &str) -> bool {
         Self::try_from(address).is_ok()
+    }
+
+    #[pyo3(name = "to_string")]
+    pub fn address_to_string_py(&self) -> String {
+        self.into()
     }
 }
 

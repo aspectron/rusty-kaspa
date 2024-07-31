@@ -45,6 +45,18 @@ impl Keypair {
         to_value(&self.xonly_public_key).unwrap()
     }
 
+    #[wasm_bindgen(getter = publicKey)]
+    pub fn get_public_key(&self) -> String {
+        PublicKey::from(&self.public_key).to_string()
+    }
+
+    // PY-NOTE: would want to rename to match JS
+    /// Get the [`PrivateKey`] of this [`Keypair`].
+    #[wasm_bindgen(getter = privateKey)]
+    pub fn get_private_key(&self) -> String {
+        PrivateKey::from(&self.secret_key).to_hex()
+    }
+
     /// Get the [`Address`] of this Keypair's [`PublicKey`].
     /// Receives a [`NetworkType`] to determine the prefix of the address.
     /// JavaScript: `let address = keypair.toAddress(NetworkType.MAINNET);`.
@@ -88,25 +100,6 @@ impl Keypair {
     }
 }
 
-// PY-NOTE: fns exposed to both WASM and Python
-#[cfg_attr(feature = "py-sdk", pymethods)]
-#[wasm_bindgen]
-impl Keypair {
-    // PY-NOTE: would want to rename to match JS
-    /// Get the [`PublicKey`] of this [`Keypair`].
-    #[wasm_bindgen(getter = publicKey)]
-    pub fn get_public_key(&self) -> String {
-        PublicKey::from(&self.public_key).to_string()
-    }
-
-    // PY-NOTE: would want to rename to match JS
-    /// Get the [`PrivateKey`] of this [`Keypair`].
-    #[wasm_bindgen(getter = privateKey)]
-    pub fn get_private_key(&self) -> String {
-        PrivateKey::from(&self.secret_key).to_hex()
-    }
-}
-
 // PY-NOTE: Python specific fn implementations
 #[cfg(feature = "py-sdk")]
 #[pymethods]
@@ -114,6 +107,16 @@ impl Keypair {
     #[pyo3(name = "xonly_public_key")]
     pub fn get_xonly_public_key_py(&self) -> String {
         self.xonly_public_key.to_string()
+    }
+
+    #[pyo3(name = "public_key")]
+    pub fn get_public_key_py(&self) -> String {
+        PublicKey::from(&self.public_key).to_string()
+    }
+
+    #[pyo3(name = "private_key")]
+    pub fn get_private_key_py(&self) -> String {
+        PrivateKey::from(&self.secret_key).to_hex()
     }
 
     #[pyo3(name = "to_address")]

@@ -46,6 +46,11 @@ impl PublicKey {
         }
     }
 
+    #[wasm_bindgen(js_name = "toString")]
+    pub fn to_string_impl(&self) -> String {
+        self.public_key.as_ref().map(|pk| pk.to_string()).unwrap_or_else(|| self.xonly_public_key.to_string())
+    }
+
     /// Get the [`Address`] of this PublicKey.
     /// Receives a [`NetworkType`] to determine the prefix of the address.
     /// JavaScript: `let address = publicKey.toAddress(NetworkType.MAINNET);`.
@@ -67,12 +72,6 @@ impl PublicKey {
 #[cfg_attr(feature = "py-sdk", pymethods)]
 #[wasm_bindgen]
 impl PublicKey {
-    // PY-NOTE: would like to `#[pyo3(name = "to_string")]` for this fn. But cannot use #[pyo3())] inside of a block that has pymethods applied via cfg_attr
-    #[wasm_bindgen(js_name = "toString")]
-    pub fn to_string_impl(&self) -> String {
-        self.public_key.as_ref().map(|pk| pk.to_string()).unwrap_or_else(|| self.xonly_public_key.to_string())
-    }
-
     #[wasm_bindgen(js_name = toXOnlyPublicKey)]
     pub fn to_x_only_public_key(&self) -> XOnlyPublicKey {
         self.xonly_public_key.into()
@@ -90,6 +89,11 @@ impl PublicKey {
             Ok(public_key) => Ok((&public_key).into()),
             Err(_e) => Ok(Self { xonly_public_key: secp256k1::XOnlyPublicKey::from_str(key)?, public_key: None }),
         }
+    }
+
+    #[pyo3(name = "to_string")]
+    pub fn to_string_impl_py(&self) -> String {
+        self.public_key.as_ref().map(|pk| pk.to_string()).unwrap_or_else(|| self.xonly_public_key.to_string())
     }
 
     // PY-NOTE: #[pyo3()] can only be used in block that has #[pymethods] applied directly. applying via #[cfg_attr()] does not work (PyO3 limitation).
