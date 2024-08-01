@@ -108,16 +108,13 @@ impl PrivateKey {
         self.secret_bytes().to_vec().to_hex()
     }
 
-    // PY-NOTE: #[pyo3()] can only be used in block that has #[pymethods] applied directly. applying via #[cfg_attr()] does not work (PyO3 limitation).
     #[pyo3(name = "to_public_key")]
     pub fn to_public_key_py(&self) -> PyResult<PublicKey> {
         Ok(PublicKey::from(secp256k1::PublicKey::from_secret_key_global(&self.inner)))
     }
 
-    // PY-NOTE: #[pyo3()] can only be used in block that has #[pymethods] applied directly. applying via #[cfg_attr()] does not work (PyO3 limitation).
     #[pyo3(name = "to_address")]
     pub fn to_address_py(&self, network: &str) -> PyResult<Address> {
-        // PY-NOTE: arg type of `network: &str` instead of `network: NetworkTypeT`
         let public_key = secp256k1::PublicKey::from_secret_key_global(&self.inner);
         let (x_only_public_key, _) = public_key.x_only_public_key();
         let payload = x_only_public_key.serialize();
@@ -125,10 +122,8 @@ impl PrivateKey {
         Ok(address)
     }
 
-    // PY-NOTE: #[pyo3()] can only be used in block that has #[pymethods] applied directly. applying via #[cfg_attr()] does not work (PyO3 limitation).
     #[pyo3(name = "to_address_ecdsa")]
     pub fn to_address_ecdsa_py(&self, network: &str) -> PyResult<Address> {
-        // PY-NOTE: arg type of `network: &str` instead of `network: NetworkTypeT`
         let public_key = secp256k1::PublicKey::from_secret_key_global(&self.inner);
         let payload = public_key.serialize();
         let address = Address::new(network.try_into()?, AddressVersion::PubKeyECDSA, &payload);

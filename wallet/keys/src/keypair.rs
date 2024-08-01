@@ -50,7 +50,6 @@ impl Keypair {
         PublicKey::from(&self.public_key).to_string()
     }
 
-    // PY-NOTE: would want to rename to match JS
     /// Get the [`PrivateKey`] of this [`Keypair`].
     #[wasm_bindgen(getter = privateKey)]
     pub fn get_private_key(&self) -> String {

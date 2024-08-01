@@ -267,13 +267,11 @@ impl Address {
 #[cfg(feature = "py-sdk")]
 #[pymethods]
 impl Address {
-    // PY-NOTE: #[new] can only be used in block that has #[pymethods] applied directly. applying via #[cfg_attr()] does not work (PyO3 limitation).
     #[new]
     pub fn constructor_py(address: &str) -> Address {
         address.try_into().unwrap_or_else(|err| panic!("Address::constructor() - address error `{}`: {err}", address))
     }
 
-    // PY-NOTE: #[pyo3()] and #[staticmethod] can only be used in block that has #[pymethods] applied directly. applying via #[cfg_attr()] does not work (PyO3 limitation).
     #[pyo3(name = "validate")]
     #[staticmethod]
     pub fn validate_py(address: &str) -> bool {
