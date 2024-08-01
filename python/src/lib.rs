@@ -10,6 +10,7 @@ cfg_if::cfg_if! {
             m.add_class::<kaspa_wallet_keys::privkeygen::PrivateKeyGenerator>()?;
             m.add_class::<kaspa_wallet_keys::privatekey::PrivateKey>()?;
             m.add_class::<kaspa_wallet_keys::publickey::PublicKey>()?;
+            m.add_class::<kaspa_wallet_keys::publickey::XOnlyPublicKey>()?;
             m.add_class::<kaspa_wallet_keys::pubkeygen::PublicKeyGenerator>()?;
             m.add_class::<kaspa_wallet_keys::xprv::XPrv>()?;
             m.add_class::<kaspa_wallet_keys::xpub::XPub>()?;
