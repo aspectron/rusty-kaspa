@@ -235,31 +235,22 @@ impl Address {
     pub fn address_to_string(&self) -> String {
         self.into()
     }
-}
 
-// PY-NOTE: fns exposed to both WASM and Python
-#[cfg_attr(feature = "py-sdk", pymethods)]
-#[wasm_bindgen]
-impl Address {
-    // PY-NOTE: want to use `#[pyo3(name = "version")]` for this fn, but cannot use #[pyo3()] in block where pymethods is applied via cfg_attr
     #[wasm_bindgen(getter, js_name = "version")]
     pub fn version_to_string(&self) -> String {
         self.version.to_string()
     }
 
-    // PY-NOTE: want to use `#[pyo3(name = "prefix")]` for this fn, but cannot use #[pyo3()] in block where pymethods is applied via cfg_attr
     #[wasm_bindgen(getter, js_name = "prefix")]
     pub fn prefix_to_string(&self) -> String {
         self.prefix.to_string()
     }
 
-    // PY-NOTE: want to use `#[pyo3(name = "set_prefix")]` for this fn, but cannot use #[pyo3()] in block where pymethods is applied via cfg_attr
     #[wasm_bindgen(setter, js_name = "setPrefix")]
     pub fn set_prefix_from_str(&mut self, prefix: &str) {
         self.prefix = Prefix::try_from(prefix).unwrap_or_else(|err| panic!("Address::prefix() - invalid prefix `{prefix}`: {err}"));
     }
 
-    // PY-NOTE: want to use `#[pyo3(name = "payload")]` for this fn, but cannot use #[pyo3()] in block where pymethods is applied via cfg_attr
     #[wasm_bindgen(getter, js_name = "payload")]
     pub fn payload_to_string(&self) -> String {
         self.encode_payload()
@@ -292,6 +283,33 @@ impl Address {
     #[pyo3(name = "to_string")]
     pub fn address_to_string_py(&self) -> String {
         self.into()
+    }
+
+    #[pyo3(name = "version")]
+    pub fn version_to_string_py(&self) -> String {
+        self.version.to_string()
+    }
+
+    #[pyo3(name = "prefix")]
+    pub fn prefix_to_string_py(&self) -> String {
+        self.prefix.to_string()
+    }
+
+    #[pyo3(name = "set_prefix")]
+    pub fn set_prefix_from_str_py(&mut self, prefix: &str) {
+        self.prefix = Prefix::try_from(prefix).unwrap_or_else(|err| panic!("Address::prefix() - invalid prefix `{prefix}`: {err}"));
+    }
+
+    #[pyo3(name = "payload")]
+    pub fn payload_to_string_py(&self) -> String {
+        self.encode_payload()
+    }
+
+    #[pyo3(name = "short")]
+    pub fn short_py(&self, n: usize) -> String {
+        let payload = self.encode_payload();
+        let n = std::cmp::min(n, payload.len() / 4);
+        format!("{}:{}....{}", self.prefix, &payload[0..n], &payload[payload.len() - n..])
     }
 }
 
