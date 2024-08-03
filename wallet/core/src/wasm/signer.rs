@@ -76,7 +76,7 @@ pub fn create_input_signature(
     private_key: &PrivateKey,
     sighash_type: Option<SighashType>,
 ) -> Result<HexString> {
-    let (cctx, utxos) = tx.tx_and_utxos();
+    let (cctx, utxos) = tx.tx_and_utxos()?;
     let populated_transaction = PopulatedTransaction::new(&cctx, utxos);
 
     let signature = sign_input(
