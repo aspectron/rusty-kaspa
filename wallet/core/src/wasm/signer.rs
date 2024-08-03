@@ -71,7 +71,7 @@ pub fn sign(tx: Transaction, privkeys: &[[u8; 32]]) -> Result<Transaction> {
 /// @category Wallet SDK
 #[wasm_bindgen(js_name = "createInputSignature")]
 pub fn create_input_signature(
-    tx: Transaction,
+    tx: &Transaction,
     input_index: u8,
     private_key: &PrivateKey,
     sighash_type: Option<SighashType>,
