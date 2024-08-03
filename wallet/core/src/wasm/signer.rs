@@ -4,7 +4,7 @@ use js_sys::Array;
 use kaspa_consensus_client::{sign_with_multiple_v3, Transaction};
 use kaspa_consensus_core::hashing::wasm::SighashType;
 use kaspa_consensus_core::sign::sign_input;
-use kaspa_consensus_core::tx::{PopulatedTransaction, SignableTransaction};
+use kaspa_consensus_core::tx::PopulatedTransaction;
 use kaspa_consensus_core::{hashing::sighash_type::SIG_HASH_ALL, sign::verify};
 use kaspa_hashes::Hash;
 use kaspa_wallet_keys::privatekey::PrivateKey;
@@ -76,11 +76,11 @@ pub fn create_input_signature(
     private_key: &PrivateKey,
     sighash_type: Option<SighashType>,
 ) -> Result<HexString> {
-    let (cctx, _) = tx.tx_and_utxos();
-    let mutable_tx = SignableTransaction::new(cctx);
+    let (cctx, utxos) = tx.tx_and_utxos();
+    let populated_transaction = PopulatedTransaction::new(&cctx, utxos);
 
     let signature =
-        sign_input(mutable_tx, input_index.into(), &private_key.secret_bytes(), sighash_type.unwrap_or(SighashType::All).into());
+        sign_input(&populated_transaction, input_index.into(), &private_key.secret_bytes(), sighash_type.unwrap_or(SighashType::All).into());
 
     Ok(signature.to_hex().into())
 }

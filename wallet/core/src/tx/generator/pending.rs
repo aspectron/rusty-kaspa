@@ -224,10 +224,11 @@ impl PendingTransaction {
         Ok(())
     }
 
-    pub fn sign_input(&self, input_index: usize, private_key: &[u8; 32], hash_type: SigHashType) -> Result<Vec<u8>> {
+    pub fn create_input_signature(&self, input_index: usize, private_key: &[u8; 32], hash_type: SigHashType) -> Result<Vec<u8>> {
         let mutable_tx = self.inner.signable_tx.lock()?.clone();
+        let verifiable_tx = mutable_tx.as_verifiable();
 
-        Ok(sign_input(mutable_tx, input_index, private_key, hash_type))
+        Ok(sign_input(&verifiable_tx, input_index, private_key, hash_type))
     }
 
     pub fn fill_input(&self, input_index: usize, signature_script: Vec<u8>) -> Result<()> {
@@ -236,6 +237,20 @@ impl PendingTransaction {
         *self.inner.signable_tx.lock().unwrap() = mutable_tx;
 
         Ok(())
+    }
+
+    pub fn sign_input(&self, input_index: usize, private_key: &[u8; 32], hash_type: SigHashType) -> Result<()> {
+        let mut mutable_tx = self.inner.signable_tx.lock()?.clone();
+
+        let signature_script = {
+            let verifiable_tx = &mutable_tx.as_verifiable();
+            sign_input(verifiable_tx, input_index, private_key, hash_type)
+        };
+    
+        mutable_tx.tx.inputs[input_index].signature_script = signature_script;
+        *self.inner.signable_tx.lock().unwrap() = mutable_tx;
+    
+        Ok(())    
     }
 
     pub fn try_sign_with_keys(&self, privkeys: &[[u8; 32]], check_fully_signed: Option<bool>) -> Result<()> {
