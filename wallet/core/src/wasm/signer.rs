@@ -79,8 +79,12 @@ pub fn create_input_signature(
     let (cctx, utxos) = tx.tx_and_utxos();
     let populated_transaction = PopulatedTransaction::new(&cctx, utxos);
 
-    let signature =
-        sign_input(&populated_transaction, input_index.into(), &private_key.secret_bytes(), sighash_type.unwrap_or(SighashType::All).into());
+    let signature = sign_input(
+        &populated_transaction,
+        input_index.into(),
+        &private_key.secret_bytes(),
+        sighash_type.unwrap_or(SighashType::All).into(),
+    );
 
     Ok(signature.to_hex().into())
 }

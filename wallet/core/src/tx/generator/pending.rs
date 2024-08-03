@@ -246,11 +246,11 @@ impl PendingTransaction {
             let verifiable_tx = &mutable_tx.as_verifiable();
             sign_input(verifiable_tx, input_index, private_key, hash_type)
         };
-    
+
         mutable_tx.tx.inputs[input_index].signature_script = signature_script;
         *self.inner.signable_tx.lock().unwrap() = mutable_tx;
-    
-        Ok(())    
+
+        Ok(())
     }
 
     pub fn try_sign_with_keys(&self, privkeys: &[[u8; 32]], check_fully_signed: Option<bool>) -> Result<()> {
