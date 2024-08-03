@@ -53,7 +53,7 @@ pub fn js_sign_transaction(tx: Transaction, signer: PrivateKeyArrayT, verify_sig
 pub fn sign_transaction(tx: Transaction, private_keys: &[[u8; 32]], verify_sig: bool) -> Result<Transaction> {
     let tx = sign(tx, private_keys)?;
     if verify_sig {
-        let (cctx, utxos) = tx.tx_and_utxos();
+        let (cctx, utxos) = tx.tx_and_utxos()?;
         let populated_transaction = PopulatedTransaction::new(&cctx, utxos);
         verify(&populated_transaction)?;
     }
