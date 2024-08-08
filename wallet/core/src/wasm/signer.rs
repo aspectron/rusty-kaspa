@@ -38,8 +38,8 @@ pub fn js_sign_transaction(tx: Transaction, signer: PrivateKeyArrayT, verify_sig
     if signer.is_array() {
         let mut private_keys: Vec<[u8; 32]> = vec![];
         for key in Array::from(&signer).iter() {
-            let key = PrivateKey::try_cast_from(key).map_err(|_| Error::Custom("Unable to cast PrivateKey".to_string()))?;
-            private_keys.push(key.as_ref().secret_bytes());
+            let key = PrivateKey::try_owned_from(key).map_err(|_| Error::Custom("Unable to cast PrivateKey".to_string()))?;
+            private_keys.push(key.secret_bytes());
         }
 
         let tx = sign_transaction(tx, &private_keys, verify_sig).map_err(|err| Error::Custom(format!("Unable to sign: {err:?}")))?;

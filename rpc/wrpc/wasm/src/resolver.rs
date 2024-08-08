@@ -192,12 +192,12 @@ impl TryFrom<IResolverConfig> for NativeResolver {
     }
 }
 
-impl TryCastFromJs for Resolver {
-    type Error = Error;
-    fn try_cast_from(value: impl AsRef<JsValue>) -> Result<Cast<Self>> {
-        Ok(Self::try_ref_from_js_value_as_cast(value)?)
-    }
-}
+// impl TryCastFromJs for Resolver {
+//     type Error = Error;
+//     fn try_cast_from(value: impl AsRef<JsValue>) -> Result<Cast<Self>> {
+//         Ok(Self::try_ref_from_js_value_as_cast(value)?)
+//     }
+// }
 
 impl TryFrom<&JsValue> for Resolver {
     type Error = Error;

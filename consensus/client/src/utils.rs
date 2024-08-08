@@ -13,8 +13,8 @@ use kaspa_wasm_core::types::{BinaryT, HexString};
 /// @category Wallet SDK
 #[wasm_bindgen(js_name = payToAddressScript)]
 pub fn pay_to_address_script(address: AddressT) -> Result<ScriptPublicKey> {
-    let address = Address::try_cast_from(address)?;
-    Ok(standard::pay_to_address_script(address.as_ref()))
+    let address = Address::try_owned_from(address)?;
+    Ok(standard::pay_to_address_script(&address))
 }
 
 /// Takes a script and returns an equivalent pay-to-script-hash script.
@@ -44,10 +44,10 @@ pub fn pay_to_script_hash_signature_script(redeem_script: BinaryT, signature: Bi
 /// @category Wallet SDK
 #[wasm_bindgen(js_name = addressFromScriptPublicKey)]
 pub fn address_from_script_public_key(script_public_key: ScriptPublicKeyT, network: &NetworkTypeT) -> Result<AddressOrUndefinedT> {
-    let script_public_key = ScriptPublicKey::try_cast_from(script_public_key)?;
+    let script_public_key = ScriptPublicKey::try_owned_from(script_public_key)?;
     let network_type = NetworkType::try_from(network)?;
 
-    match standard::extract_script_pub_key_address(script_public_key.as_ref(), network_type.into()) {
+    match standard::extract_script_pub_key_address(&script_public_key, network_type.into()) {
         Ok(address) => Ok(AddressOrUndefinedT::from(JsValue::from(address))),
         Err(_) => Ok(AddressOrUndefinedT::from(JsValue::UNDEFINED)),
     }

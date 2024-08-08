@@ -161,11 +161,8 @@ pub fn calc_schnorr_signature_hash(
     // hash_type: SigHashType,
     // reused_values: &mut SigHashReusedValues,
 ) -> Result<Hash> {
-    // let tx = Transaction::try_cast_from(tx.as_ref())?;
-    let tx = Transaction::try_cast_from(tx)?;
-
-    let input = TransactionInput::try_cast_from(input)?;
-    // let input = TransactionInput::try_cast_from(input.as_ref())?;
+    let tx = Transaction::try_owned_from(tx)?;
+    let input = TransactionInput::try_owned_from(input)?;
 
     // let utxo = input.
 

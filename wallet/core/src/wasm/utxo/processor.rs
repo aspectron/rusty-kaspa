@@ -149,8 +149,8 @@ impl UtxoProcessor {
 
     #[wasm_bindgen(js_name = "setNetworkId")]
     pub fn set_network_id(&self, network_id: &NetworkIdT) -> Result<()> {
-        let network_id = NetworkId::try_cast_from(network_id)?;
-        self.inner.processor.set_network_id(network_id.as_ref());
+        let network_id = NetworkId::try_owned_from(network_id)?;
+        self.inner.processor.set_network_id(&network_id);
         Ok(())
     }
 
@@ -172,7 +172,7 @@ impl UtxoProcessor {
     ///
     #[wasm_bindgen(js_name = "setCoinbaseTransactionMaturityDAA")]
     pub fn set_coinbase_transaction_maturity_period_daa_js(network_id: NetworkIdT, value: u64) -> Result<()> {
-        let network_id = NetworkId::try_cast_from(network_id)?.into_owned();
+        let network_id = NetworkId::try_owned_from(network_id)?;
         crate::utxo::set_coinbase_transaction_maturity_period_daa(&network_id, value);
         Ok(())
     }

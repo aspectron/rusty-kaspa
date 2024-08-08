@@ -115,8 +115,8 @@ impl CryptoBox {
     #[wasm_bindgen(constructor)]
     #[allow(non_snake_case)]
     pub fn ctor(secretKey: CryptoBoxPrivateKeyT, peerPublicKey: CryptoBoxPublicKeyT) -> Result<CryptoBox> {
-        let secret_key = CryptoBoxPrivateKey::try_cast_from(secretKey)?;
-        let peer_public_key = CryptoBoxPublicKey::try_cast_from(peerPublicKey)?;
+        let secret_key = CryptoBoxPrivateKey::try_owned_from(secretKey)?;
+        let peer_public_key = CryptoBoxPublicKey::try_owned_from(peerPublicKey)?;
         Ok(Self { inner: Arc::new(NativeCryptoBox::new(&secret_key, &peer_public_key)) })
     }
 
