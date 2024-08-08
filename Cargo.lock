@@ -2471,6 +2471,7 @@ dependencies = [
  "kaspa-utils",
  "once_cell",
  "pbkdf2",
+ "pyo3",
  "rand 0.8.5",
  "rand_core 0.6.4",
  "ripemd",
@@ -2641,6 +2642,7 @@ dependencies = [
  "kaspa-muhash",
  "kaspa-txscript-errors",
  "kaspa-utils",
+ "pyo3",
  "rand 0.8.5",
  "secp256k1",
  "serde",
@@ -3174,36 +3176,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kaspa-resolver"
-version = "0.14.1"
-dependencies = [
- "ahash 0.8.11",
- "axum 0.7.5",
- "cfg-if 1.0.0",
- "clap 4.5.4",
- "console",
- "convert_case 0.6.0",
- "futures",
- "kaspa-consensus-core",
- "kaspa-rpc-core",
- "kaspa-utils",
- "kaspa-wrpc-client",
- "mime",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "toml 0.8.12",
- "tower",
- "tower-http 0.5.2",
- "tracing-subscriber",
- "workflow-core",
- "workflow-http",
- "workflow-log",
- "xxhash-rust",
-]
-
-[[package]]
 name = "kaspa-rpc-core"
 version = "0.14.5"
 dependencies = [
@@ -3232,8 +3204,8 @@ dependencies = [
  "kaspa-utils",
  "log",
  "paste",
- "rand 0.8.5",
  "pyo3",
+ "rand 0.8.5",
  "serde",
  "serde-pyobject",
  "serde-wasm-bindgen",
@@ -3754,7 +3726,7 @@ dependencies = [
 name = "kaspa-wrpc-python"
 version = "0.14.1"
 dependencies = [
- "ahash 0.8.11",
+ "ahash",
  "cfg-if 1.0.0",
  "futures",
  "kaspa-addresses",
@@ -4214,15 +4186,6 @@ name = "memchr"
 version = "2.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
-
-[[package]]
-name = "memoffset"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
-dependencies = [
- "autocfg",
-]
 
 [[package]]
 name = "memoffset"
@@ -5098,7 +5061,7 @@ dependencies = [
  "proc-macro2",
  "pyo3-macros-backend",
  "quote",
- "syn 2.0.60",
+ "syn 2.0.75",
 ]
 
 [[package]]
@@ -5111,7 +5074,7 @@ dependencies = [
  "proc-macro2",
  "pyo3-build-config",
  "quote",
- "syn 2.0.60",
+ "syn 2.0.75",
 ]
 
 [[package]]
