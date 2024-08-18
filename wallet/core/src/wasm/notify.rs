@@ -59,7 +59,7 @@ cfg_if! {
          * 
          * @category Wallet API
          */
-        export type UtxoProcessorEvent<T extends keyof UtxoProcessorEventMap = keyof UtxoProcessorEventMap> = {
+        export type UtxoProcessorEvent<T extends keyof UtxoProcessorEventMap> = {
           [K in T]: {
             type: K,
             data: UtxoProcessorEventMap[K]
