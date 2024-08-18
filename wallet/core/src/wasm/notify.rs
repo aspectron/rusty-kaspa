@@ -32,33 +32,12 @@ cfg_if! {
         }
 
         /**
-         * {@link UtxoProcessor} notification event data.
-         * @category Wallet SDK
-         */
-        export type UtxoProcessorEventData = IConnectEvent
-            | IDisconnectEvent
-            | IUtxoIndexNotEnabledEvent
-            | ISyncStateEvent
-            | IServerStatusEvent
-            | IUtxoProcErrorEvent
-            | IDaaScoreChangeEvent
-            | IPendingEvent
-            | IReorgEvent
-            | IStasisEvent
-            | IMaturityEvent
-            | IDiscoveryEvent
-            | IBalanceEvent
-            | IErrorEvent
-            | undefined
-            ;
-
-        /**
-         * UtxoProcessor notification event data map.
+         * {@link UtxoProcessor} notification event data map.
          * 
          * @category Wallet API
          */
         export type UtxoProcessorEventMap = {
-            "connect":IConnectEvent,
+            "connect": IConnectEvent,
             "disconnect": IDisconnectEvent,
             "utxo-index-not-enabled": IUtxoIndexNotEnabledEvent,
             "sync-state": ISyncStateEvent,
@@ -80,11 +59,12 @@ cfg_if! {
          * 
          * @category Wallet API
          */
-
-        export interface IUtxoProcessorEvent<E extends keyof UtxoProcessorEventMap> {
-            type: E,
-            data: UtxoProcessorEventMap[E]
-        }
+        export type UtxoProcessorEvent<T extends keyof UtxoProcessorEventMap = keyof UtxoProcessorEventMap> = {
+          [K in T]: {
+            type: K,
+            data: UtxoProcessorEventMap[K]
+          }
+        }[T];
 
         
         /**
@@ -97,12 +77,12 @@ cfg_if! {
          * 
          * @category Wallet SDK
          */
-        export type UtxoProcessorNotificationCallback<E extends keyof UtxoProcessorEventMap = keyof UtxoProcessorEventMap> = (event: IUtxoProcessorEvent<E>) => void;
+        export type UtxoProcessorNotificationCallback<E extends keyof UtxoProcessorEventMap = keyof UtxoProcessorEventMap> = (event: UtxoProcessorEvent<E>) => void;
         "#;
 
         #[wasm_bindgen]
         extern "C" {
-            #[wasm_bindgen(typescript_type = "UtxoProcessorEventType | UtxoProcessorEventType[] | string | string[]")]
+            #[wasm_bindgen(typescript_type = "keyof UtxoProcessorEventType | keyof UtxoProcessorEventType[] | string | string[]")]
             pub type UtxoProcessorEventTarget;
             #[wasm_bindgen(extends = js_sys::Function, typescript_type = "UtxoProcessorNotificationCallback")]
             pub type UtxoProcessorNotificationCallback;

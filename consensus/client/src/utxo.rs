@@ -149,7 +149,6 @@ impl UtxoEntryReference {
         self.utxo.outpoint.clone()
     }
 
-
     #[wasm_bindgen(getter)]
     pub fn address(&self) -> Option<Address> {
         self.utxo.address.clone()
