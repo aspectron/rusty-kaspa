@@ -82,7 +82,7 @@ cfg_if! {
 
         #[wasm_bindgen]
         extern "C" {
-            #[wasm_bindgen(typescript_type = "keyof UtxoProcessorEventType | keyof UtxoProcessorEventType[] | string | string[]")]
+            #[wasm_bindgen(typescript_type = "UtxoProcessorEventType | UtxoProcessorEventType[] | string | string[]")]
             pub type UtxoProcessorEventTarget;
             #[wasm_bindgen(extends = js_sys::Function, typescript_type = "UtxoProcessorNotificationCallback")]
             pub type UtxoProcessorNotificationCallback;
