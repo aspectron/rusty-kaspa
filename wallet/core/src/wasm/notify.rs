@@ -81,7 +81,7 @@ cfg_if! {
          * @category Wallet API
          */
         export type IUtxoProcessorEvent = {
-            [K in keyof UtxoProcessorEventMap]: { event: K, data: UtxoProcessorEventMap[K] }
+            [K in keyof UtxoProcessorEventMap]: { type: K, data: UtxoProcessorEventMap[K] }
         }[keyof UtxoProcessorEventMap];
 
         
