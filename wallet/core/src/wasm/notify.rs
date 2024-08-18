@@ -80,9 +80,11 @@ cfg_if! {
          * 
          * @category Wallet API
          */
-        export type IUtxoProcessorEvent = {
-            [K in keyof UtxoProcessorEventMap]: { type: K, data: UtxoProcessorEventMap[K] }
-        }[keyof UtxoProcessorEventMap];
+
+        export interface IUtxoProcessorEvent<E extends keyof UtxoProcessorEventMap> {
+            type: E,
+            data: UtxoProcessorEventMap[E]
+        }
 
         
         /**
@@ -95,7 +97,7 @@ cfg_if! {
          * 
          * @category Wallet SDK
          */
-        export type UtxoProcessorNotificationCallback = (event: IUtxoProcessorEvent) => void;
+        export type UtxoProcessorNotificationCallback<E extends keyof UtxoProcessorEventMap = keyof UtxoProcessorEventMap> = (event: IUtxoProcessorEvent<E>) => void;
         "#;
 
         #[wasm_bindgen]
