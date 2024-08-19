@@ -35,8 +35,7 @@ impl PoW {
         // this function replicates crate::State::new() but caches
         // the pre_pow_hash value internally, making it available
         // via the `pre_pow_hash` property getter.
-        let header = Header::try_cast_from(header).map_err(Error::custom)?;
-        let header = header.as_ref();
+        let header = Header::try_owned_from(header).map_err(Error::custom)?;
         let header = header.inner();
 
         // Get required target from header bits.

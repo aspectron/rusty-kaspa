@@ -463,14 +463,8 @@ pub fn create_address_js(
     ecdsa: Option<bool>,
     account_kind: Option<AccountKind>,
 ) -> Result<Address> {
-    let public_key = PublicKey::try_cast_from(key)?;
-    create_address(
-        1,
-        vec![public_key.as_ref().try_into()?],
-        NetworkType::try_from(network)?.into(),
-        ecdsa.unwrap_or(false),
-        account_kind,
-    )
+    let public_key = PublicKey::try_owned_from(key)?;
+    create_address(1, vec![public_key.try_into()?], NetworkType::try_from(network)?.into(), ecdsa.unwrap_or(false), account_kind)
 }
 
 /// @category Wallet SDK

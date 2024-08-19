@@ -43,8 +43,8 @@ impl XPub {
 
     #[wasm_bindgen(js_name=derivePath)]
     pub fn derive_path(&self, path: &JsValue) -> Result<XPub> {
-        let path = DerivationPath::try_cast_from(path)?;
-        let inner = self.inner.clone().derive_path(path.as_ref().into())?;
+        let path = DerivationPath::try_owned_from(path)?;
+        let inner = self.inner.clone().derive_path((&path).into())?;
         Ok(Self { inner })
     }
 

@@ -115,7 +115,7 @@ impl Display for NetworkType {
 impl TryFrom<&NetworkTypeT> for NetworkType {
     type Error = NetworkTypeError;
     fn try_from(value: &NetworkTypeT) -> Result<Self, Self::Error> {
-        if let Ok(network_id) = NetworkId::try_cast_from(value) {
+        if let Ok(network_id) = NetworkId::try_owned_from(value) {
             Ok(network_id.network_type())
         } else if let Some(network_type) = value.as_string() {
             Self::from_str(&network_type)
@@ -359,7 +359,7 @@ impl<'de> Deserialize<'de> for NetworkId {
 impl NetworkId {
     #[wasm_bindgen(constructor)]
     pub fn ctor(value: &JsValue) -> Result<NetworkId, NetworkIdError> {
-        Ok(NetworkId::try_cast_from(value)?.into_owned())
+        NetworkId::try_owned_from(value)
     }
 
     #[wasm_bindgen(getter, js_name = "id")]

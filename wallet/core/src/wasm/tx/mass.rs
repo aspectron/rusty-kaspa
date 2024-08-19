@@ -16,12 +16,12 @@ use workflow_wasm::convert::*;
 ///
 #[wasm_bindgen(js_name = calculateTransactionMass)]
 pub fn calculate_transaction_mass(network_id: NetworkIdT, tx: &TransactionT) -> Result<Option<u64>> {
-    let tx = Transaction::try_cast_from(tx)?;
+    let tx = Transaction::try_owned_from(tx)?;
     let network_id = NetworkId::try_owned_from(network_id)?;
     let consensus_params = Params::from(network_id);
     let network_params = NetworkParams::from(network_id);
     let mc = mass::MassCalculator::new(&consensus_params, network_params);
-    mc.calc_tx_overall_mass(tx.as_ref())
+    mc.calc_tx_overall_mass(&tx)
 }
 
 /// `calculateTransactionFee()` returns minimum fees needed for the transaction to be
@@ -33,11 +33,11 @@ pub fn calculate_transaction_mass(network_id: NetworkIdT, tx: &TransactionT) -> 
 ///
 #[wasm_bindgen(js_name = calculateTransactionFee)]
 pub fn calculate_transaction_fee(network_id: NetworkIdT, tx: &TransactionT) -> Result<Option<u64>> {
-    let tx = Transaction::try_cast_from(tx)?;
+    let tx = Transaction::try_owned_from(tx)?;
     let network_id = NetworkId::try_owned_from(network_id)?;
     let consensus_params = Params::from(network_id);
     let network_params = NetworkParams::from(network_id);
     let mc = mass::MassCalculator::new(&consensus_params, network_params);
-    let fee = mc.calc_tx_overall_mass(tx.as_ref())?.map(|mass| mc.calc_fee_for_mass(mass));
+    let fee = mc.calc_tx_overall_mass(&tx)?.map(|mass| mc.calc_fee_for_mass(mass));
     Ok(fee)
 }
