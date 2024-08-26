@@ -193,6 +193,11 @@ impl XOnlyPublicKey {
         Ok(secp256k1::XOnlyPublicKey::from_str(key)?.into())
     }
 
+    #[wasm_bindgen(js_name = "fromAddress")]
+    pub fn from_address_impl(address: &Address) -> Result<XOnlyPublicKey> {
+        XOnlyPublicKey::from_address(address)
+    }
+
     #[wasm_bindgen(js_name = "toString")]
     pub fn to_string_impl(&self) -> String {
         self.inner.to_string()
