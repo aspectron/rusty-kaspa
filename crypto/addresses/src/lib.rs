@@ -1,4 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use kaspa_wasm_core::types::HexString;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use smallvec::SmallVec;
 use std::fmt::{Display, Formatter};
@@ -8,7 +9,6 @@ use workflow_wasm::{
     convert::{Cast, CastFromJs, TryCastFromJs},
     extensions::object::*,
 };
-use kaspa_wasm_core::types::HexString;
 
 mod bech32;
 
