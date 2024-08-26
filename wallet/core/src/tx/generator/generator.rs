@@ -208,6 +208,8 @@ struct Data {
     aggregate_mass: u64,
     /// Transaction fees based on the aggregate mass
     transaction_fees: u64,
+    /// Transaction fees based on fee rate
+    fee_rate_fees : u64,
     /// Aggregate value of all inputs
     aggregate_input_value: u64,
     /// Optional change output value
@@ -224,6 +226,7 @@ impl Data {
             addresses: HashSet::default(),
             aggregate_mass,
             transaction_fees: 0,
+            fee_rate_fees : 0,
             aggregate_input_value: 0,
             change_output_value: None,
         }
@@ -291,6 +294,8 @@ struct Inner {
     final_transaction: Option<FinalTransaction>,
     // applies only to the final transaction
     final_transaction_priority_fee: Fees,
+    // fee rate
+    fee_rate: Option<f64>,
     // issued only in the final transaction
     final_transaction_outputs: Vec<TransactionOutput>,
     // pre-calculated partial harmonic for user outputs (does not include change)
@@ -351,6 +356,7 @@ impl Generator {
             minimum_signatures,
             change_address,
             final_transaction_priority_fee,
+            fee_rate,
             final_transaction_destination,
             final_transaction_payload,
             destination_utxo_context,
@@ -455,6 +461,7 @@ impl Generator {
             signature_mass_per_input,
             final_transaction,
             final_transaction_priority_fee,
+            fee_rate,
             final_transaction_outputs,
             final_transaction_outputs_harmonic,
             final_transaction_outputs_compute_mass,
@@ -576,6 +583,10 @@ impl Generator {
         self.inner.mass_calculator.calc_minimum_transaction_fee_from_mass(self.calc_relay_transaction_mass(data))
     }
 
+    fn calc_fee_rate_fees(&self, mass : u64) -> u64 {
+        (self.inner.fee_rate.unwrap_or(0.0) * mass as f64) as u64
+    }
+
     /// Main UTXO entry processing loop. This function sources UTXOs from [`Generator::get_utxo_entry()`] and
     /// accumulates consumed UTXO entry data within the [`Context`], [`Stage`] and [`Data`] structures.
     ///
@@ -583,13 +594,12 @@ impl Generator {
     ///
     /**
     loop {
-       1. Obtain UTXO entry from [`Generator::get_utxo_entry()`]
-       2. Check if UTXO entries have been depleted, if so, handle sweep processing.
-       3. Create a new Input for the transaction from the UTXO entry.
-       4. Check if the transaction mass threshold has been reached, if so, yield the transaction.
-       5. Register input with the [`Data`] structures.
-       6. Check if the final transaction amount has been reached, if so, yield the transaction.
-
+        1. Obtain UTXO entry from [`Generator::get_utxo_entry()`]
+        2. Check if UTXO entries have been depleted, if so, handle sweep processing.
+        3. Create a new Input for the transaction from the UTXO entry.
+        4. Check if the transaction mass threshold has been reached, if so, yield the transaction.
+        5. Register input with the [`Data`] structures.
+        6. Check if the final transaction amount has been reached, if so, yield the transaction.
     }
     */
 
@@ -664,6 +674,7 @@ impl Generator {
         let input = TransactionInput::new(utxo.outpoint.clone().into(), vec![], 0, self.inner.sig_op_count);
         let input_amount = utxo.amount();
         let input_compute_mass = calc.calc_compute_mass_for_input(&input) + self.inner.signature_mass_per_input;
+        let input_fee_rate = self.calc_fee_rate_fees(input_compute_mass);
 
         // NOTE: relay transactions have no storage mass
         // mass threshold reached, yield transaction

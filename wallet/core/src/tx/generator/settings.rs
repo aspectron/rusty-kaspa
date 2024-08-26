@@ -30,6 +30,8 @@ pub struct GeneratorSettings {
     pub change_address: Address,
     // applies only to the final transaction
     pub final_transaction_priority_fee: Fees,
+    // mass fee rate (SOMPI/g)
+    pub fee_rate : Option<f64>,
     // final transaction outputs
     pub final_transaction_destination: PaymentDestination,
     // payload
@@ -61,6 +63,7 @@ impl GeneratorSettings {
         account: Arc<dyn Account>,
         final_transaction_destination: PaymentDestination,
         final_priority_fee: Fees,
+        fee_rate : Option<f64>,
         final_transaction_payload: Option<Vec<u8>>,
     ) -> Result<Self> {
         let network_id = account.utxo_context().processor().network_id()?;
@@ -82,6 +85,7 @@ impl GeneratorSettings {
             priority_utxo_entries: None,
 
             final_transaction_priority_fee: final_priority_fee,
+            fee_rate,
             final_transaction_destination,
             final_transaction_payload,
             destination_utxo_context: None,
@@ -98,6 +102,7 @@ impl GeneratorSettings {
         minimum_signatures: u16,
         final_transaction_destination: PaymentDestination,
         final_priority_fee: Fees,
+        fee_rate : Option<f64>,
         final_transaction_payload: Option<Vec<u8>>,
         multiplexer: Option<Multiplexer<Box<Events>>>,
     ) -> Result<Self> {
@@ -115,6 +120,7 @@ impl GeneratorSettings {
             priority_utxo_entries,
 
             final_transaction_priority_fee: final_priority_fee,
+            fee_rate,
             final_transaction_destination,
             final_transaction_payload,
             destination_utxo_context: None,
@@ -132,6 +138,7 @@ impl GeneratorSettings {
         minimum_signatures: u16,
         final_transaction_destination: PaymentDestination,
         final_priority_fee: Fees,
+        fee_rate : Option<f64>,
         final_transaction_payload: Option<Vec<u8>>,
         multiplexer: Option<Multiplexer<Box<Events>>>,
     ) -> Result<Self> {
@@ -146,6 +153,7 @@ impl GeneratorSettings {
             priority_utxo_entries,
 
             final_transaction_priority_fee: final_priority_fee,
+            fee_rate,
             final_transaction_destination,
             final_transaction_payload,
             destination_utxo_context: None,
