@@ -8,6 +8,7 @@ use workflow_wasm::{
     convert::{Cast, CastFromJs, TryCastFromJs},
     extensions::object::*,
 };
+use kaspa_wasm_core::types::HexString;
 
 mod bech32;
 
@@ -258,6 +259,12 @@ impl Address {
     #[wasm_bindgen(getter, js_name = "payload")]
     pub fn payload_to_string(&self) -> String {
         self.encode_payload()
+    }
+
+    /// Extract a XOnlyPublicKey from address.
+    #[wasm_bindgen(js_name = toXOnlyPublicKey)]
+    pub fn payload_to_x_only_public_key(&self) -> HexString {
+        HexString::from(self.payload.as_slice())
     }
 
     pub fn short(&self, n: usize) -> String {

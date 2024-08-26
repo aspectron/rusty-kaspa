@@ -18,6 +18,7 @@ thiserror.workspace = true
 wasm-bindgen.workspace = true
 workflow-wasm.workspace = true
 workflow-log.workspace = true
+kaspa-wasm-core.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true

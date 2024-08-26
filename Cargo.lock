@@ -2398,6 +2398,7 @@ dependencies = [
  "borsh",
  "criterion",
  "js-sys",
+ "kaspa-wasm-core",
  "serde",
  "smallvec",
  "thiserror",
