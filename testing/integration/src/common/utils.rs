@@ -3,7 +3,6 @@ use itertools::Itertools;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::{
     constants::TX_VERSION,
-    header::Header,
     sign::sign,
     subnets::SUBNETWORK_ID_NATIVE,
     tx::{
@@ -188,8 +187,7 @@ pub async fn mine_block(pay_address: Address, submitting_client: &GrpcClient, li
 
     // Mine a block
     let template = submitting_client.get_block_template(pay_address.clone(), vec![]).await.unwrap();
-    let header: Header = (&template.block.header).into();
-    let block_hash = header.hash;
+    let block_hash = template.block.header.hash;
     submitting_client.submit_block(template.block, false).await.unwrap();
 
     // Wait for each listening client to get notified the submitted block was added to the DAG

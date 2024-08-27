@@ -21,12 +21,12 @@ pub type RpcExtraData = Vec<u8>;
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubmitBlockRequest {
-    pub block: RpcRawBlock,
+    pub block: RpcBlock,
     #[serde(alias = "allowNonDAABlocks")]
     pub allow_non_daa_blocks: bool,
 }
 impl SubmitBlockRequest {
-    pub fn new(block: RpcRawBlock, allow_non_daa_blocks: bool) -> Self {
+    pub fn new(block: RpcBlock, allow_non_daa_blocks: bool) -> Self {
         Self { block, allow_non_daa_blocks }
     }
 }
@@ -34,7 +34,7 @@ impl SubmitBlockRequest {
 impl Serializer for SubmitBlockRequest {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         store!(u16, &1, writer)?;
-        serialize!(RpcRawBlock, &self.block, writer)?;
+        serialize!(RpcBlock, &self.block, writer)?;
         store!(bool, &self.allow_non_daa_blocks, writer)?;
 
         Ok(())
@@ -44,7 +44,7 @@ impl Serializer for SubmitBlockRequest {
 impl Deserializer for SubmitBlockRequest {
     fn deserialize<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let _version = load!(u16, reader)?;
-        let block = deserialize!(RpcRawBlock, reader)?;
+        let block = deserialize!(RpcBlock, reader)?;
         let allow_non_daa_blocks = load!(bool, reader)?;
 
         Ok(Self { block, allow_non_daa_blocks })
@@ -153,7 +153,7 @@ impl Deserializer for GetBlockTemplateRequest {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetBlockTemplateResponse {
-    pub block: RpcRawBlock,
+    pub block: RpcBlock,
 
     /// Whether kaspad thinks that it's synced.
     /// Callers are discouraged (but not forbidden) from solving blocks when kaspad is not synced.
@@ -165,7 +165,7 @@ pub struct GetBlockTemplateResponse {
 impl Serializer for GetBlockTemplateResponse {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         store!(u16, &1, writer)?;
-        serialize!(RpcRawBlock, &self.block, writer)?;
+        serialize!(RpcBlock, &self.block, writer)?;
         store!(bool, &self.is_synced, writer)?;
 
         Ok(())
@@ -175,7 +175,7 @@ impl Serializer for GetBlockTemplateResponse {
 impl Deserializer for GetBlockTemplateResponse {
     fn deserialize<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let _version = load!(u16, reader)?;
-        let block = deserialize!(RpcRawBlock, reader)?;
+        let block = deserialize!(RpcBlock, reader)?;
         let is_synced = load!(bool, reader)?;
 
         Ok(Self { block, is_synced })

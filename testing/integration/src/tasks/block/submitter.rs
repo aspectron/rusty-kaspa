@@ -6,18 +6,18 @@ use async_channel::Sender;
 use async_trait::async_trait;
 use kaspa_core::warn;
 use kaspa_grpc_client::ClientPool;
-use kaspa_rpc_core::{api::rpc::RpcApi, RpcRawBlock};
+use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock};
 use kaspa_utils::triggers::SingleTrigger;
 use std::{sync::Arc, time::Duration};
 use tokio::{task::JoinHandle, time::sleep};
 
 pub struct BlockSubmitterTask {
-    pool: ClientPool<RpcRawBlock>,
+    pool: ClientPool<RpcBlock>,
     stopper: Stopper,
 }
 
 impl BlockSubmitterTask {
-    pub fn new(pool: ClientPool<RpcRawBlock>, stopper: Stopper) -> Self {
+    pub fn new(pool: ClientPool<RpcBlock>, stopper: Stopper) -> Self {
         Self { pool, stopper }
     }
 
@@ -26,7 +26,7 @@ impl BlockSubmitterTask {
         Arc::new(Self::new(pool, stopper))
     }
 
-    pub fn sender(&self) -> Sender<RpcRawBlock> {
+    pub fn sender(&self) -> Sender<RpcBlock> {
         self.pool.sender()
     }
 }
@@ -35,7 +35,7 @@ impl BlockSubmitterTask {
 impl Task for BlockSubmitterTask {
     fn start(&self, stop_signal: SingleTrigger) -> Vec<JoinHandle<()>> {
         warn!("Block submitter task starting...");
-        let mut tasks = self.pool.start(|c, block: RpcRawBlock| async move {
+        let mut tasks = self.pool.start(|c, block: RpcBlock| async move {
             loop {
                 match c.submit_block(block.clone(), false).await {
                     Ok(response) => {
