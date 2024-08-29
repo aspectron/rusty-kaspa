@@ -89,7 +89,7 @@ impl PyCallback {
 pub struct Inner {
     client: Arc<KaspaRpcClient>,
     resolver: Option<Resolver>,
-    notification_task: Arc<AtomicBool>,
+    notification_task: AtomicBool,
     notification_ctl: DuplexChannel,
     callbacks: Arc<Mutex<AHashMap<NotificationEvent, Vec<PyCallback>>>>,
     listener_id: Arc<Mutex<Option<ListenerId>>>,
@@ -138,7 +138,7 @@ impl RpcClient {
             inner: Arc::new(Inner {
                 client,
                 resolver,
-                notification_task: Arc::new(AtomicBool::new(false)),
+                notification_task: AtomicBool::new(false),
                 notification_ctl: DuplexChannel::oneshot(),
                 callbacks: Arc::new(Default::default()),
                 listener_id: Arc::new(Mutex::new(None)),
@@ -213,8 +213,6 @@ impl RpcClient {
         timeout_duration: Option<u64>,
         retry_interval: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        // TODO expose args to Python similar to WASM wRPC Client IConnectOptions?
-
         let block_async_connect = block_async_connect.unwrap_or(true);
         let strategy = match strategy {
             Some(strategy) => ConnectStrategy::from_str(&strategy).unwrap(),
@@ -244,9 +242,20 @@ impl RpcClient {
         }}
     }
 
-    // fn start() PY-TODO
+    fn start(&self, py: Python) -> PyResult<Py<PyAny>> {
+        self.start_notification_task(py)?;
+        let inner = self.inner.clone();
+        py_async! {py, async move {
+            inner.client.start().await?;
+            Ok(())
+        }}
+    }
+    
     // fn stop() PY-TODO
-    // fn trigger_abort() PY-TODO
+
+    pub fn trigger_abort(&self) {
+        self.inner.client.trigger_abort().ok();
+    }
 
     #[pyo3(signature = (event, callback, *args, **kwargs))]
     fn add_event_listener(
@@ -314,7 +323,20 @@ impl RpcClient {
 }
 
 impl RpcClient {
-    // fn new_with_rpc_client() PY-TODO
+    pub fn new_with_rpc_client(client: Arc<KaspaRpcClient>) -> RpcClient {
+        let resolver = client.resolver().map(Into::into);
+        RpcClient {
+            inner: Arc::new(Inner {
+                client,
+                resolver,
+                notification_task: AtomicBool::new(false),
+                notification_ctl: DuplexChannel::oneshot(),
+                callbacks: Arc::new(Mutex::new(Default::default())),
+                listener_id: Arc::new(Mutex::new(None)),
+                notification_channel: Channel::unbounded(),
+            }),
+        }
+    }
 
     pub fn listener_id(&self) -> Option<ListenerId> {
         *self.inner.listener_id.lock().unwrap()
@@ -452,13 +474,27 @@ impl RpcClient {
 
 #[pymethods]
 impl RpcClient {
-    // PY-TODO default_port
-    // PY-TODO parse_url
+    #[staticmethod]
+    pub fn default_port(encoding: String, network: String) -> PyResult<u16> {
+        let encoding = WrpcEncoding::from_str(&encoding).unwrap();
+        let network_type = NetworkType::from_str(&network)?;
+        match encoding {
+            WrpcEncoding::Borsh => Ok(network_type.default_borsh_rpc_port()),
+            WrpcEncoding::SerdeJson => Ok(network_type.default_json_rpc_port()),
+        }
+    }
+
+    #[staticmethod]
+    pub fn parse_url(url: &str, encoding: String, network: String, network_suffix: Option<u32>) -> PyResult<String> {
+        let encoding = WrpcEncoding::from_str(&encoding).unwrap();
+        let network_id = into_network_id(&network, network_suffix)?;
+        let url_ = KaspaRpcClient::parse_url(url.to_string(), encoding, network_id.into())?;
+        Ok(url_)
+    }
 }
 
 #[pymethods]
 impl RpcClient {
-    // PY-TODO subscribe_daa_score and unsubscribe
     fn subscribe_utxos_changed(&self, py: Python, addresses: Vec<Address>) -> PyResult<Py<PyAny>> {
         if let Some(listener_id) = self.listener_id() {
             let client = self.inner.client.clone();

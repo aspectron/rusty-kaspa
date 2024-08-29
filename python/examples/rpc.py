@@ -48,8 +48,6 @@ async def rpc_calls(client):
     print(get_balances_by_addresses_response)
 
 async def main():
-    # rpc_host = os.environ.get("KASPA_RPC_HOST")
-    # client = RpcClient(url=f"ws://{rpc_host}:17210")
     client = RpcClient(resolver=Resolver(), network="testnet", network_suffix=11)
     await client.connect()
     print(f"Client is connected: {client.is_connected}")

@@ -1,3 +1,4 @@
+use crate::client::RpcClient;
 use kaspa_consensus_core::network::{NetworkId, NetworkType};
 use kaspa_python_macros::py_async;
 use kaspa_wrpc_client::{Resolver as NativeResolver, WrpcEncoding};
@@ -33,20 +34,14 @@ impl Resolver {
 #[pymethods]
 impl Resolver {
     fn urls(&self) -> Vec<String> {
-        self.resolver.urls()
-            .unwrap_or_default() // Handle the Option by providing an empty Vec if it's None
-            .into_iter() // Convert the Vec<Arc<String>> into an iterator
-            .map(|url| (*url).clone()) // Dereference the Arc<String> and clone the String
-            .collect::<Vec<_>>() // Collect into a Vec<String>
+        self.resolver.urls().unwrap_or_default().into_iter().map(|url| (*url).clone()).collect::<Vec<_>>()
     }
 
     fn get_node(&self, py: Python, encoding: String, network: String, network_suffix: Option<u32>) -> PyResult<Py<PyAny>> {
         let encoding = WrpcEncoding::from_str(encoding.as_str()).unwrap();
-
-        // TODO find better way of accepting NetworkId type from Python
         let network_id = into_network_id(&network, network_suffix)?;
-
         let resolver = self.resolver.clone();
+
         py_async! {py, async move {
             resolver.get_node(encoding, network_id).await?;
             Ok(())
@@ -55,23 +50,34 @@ impl Resolver {
 
     fn get_url(&self, py: Python, encoding: String, network: String, network_suffix: Option<u32>) -> PyResult<Py<PyAny>> {
         let encoding = WrpcEncoding::from_str(encoding.as_str()).unwrap();
-
-        // TODO find better way of accepting NetworkId type from Python
         let network_id = into_network_id(&network, network_suffix)?;
-
         let resolver = self.resolver.clone();
+
         py_async! {py, async move {
             resolver.get_node(encoding, network_id).await?;
             Ok(())
         }}
     }
 
-    // fn connect() TODO
+    fn connect(&self, py: Python, encoding: String, network: String, network_suffix: Option<u32>) -> PyResult<RpcClient> {
+        let encoding = WrpcEncoding::from_str(encoding.as_str()).unwrap();
+        let network_id = into_network_id(&network, network_suffix)?;
+        let client = RpcClient::new(Some(self.clone()), None, Some(encoding), Some(network_id))?;
+
+        client.connect(py, None, None, None, None, None)?;
+        Ok(client)
+    }
 }
 
 impl From<Resolver> for NativeResolver {
     fn from(resolver: Resolver) -> Self {
         resolver.resolver
+    }
+}
+
+impl From<NativeResolver> for Resolver {
+    fn from(resolver: NativeResolver) -> Self {
+        Self { resolver }
     }
 }
 
