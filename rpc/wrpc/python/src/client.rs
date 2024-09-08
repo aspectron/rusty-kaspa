@@ -244,7 +244,15 @@ impl RpcClient {
         }}
     }
 
-    // fn start() PY-TODO
+    fn start(&self, py: Python) -> PyResult<Py<PyAny>> {
+        self.start_notification_task(py)?;
+        let inner = self.inner.clone();
+        py_async! {py, async move {
+            inner.client.start().await?;
+            Ok(())
+        }}
+    }
+
     // fn stop() PY-TODO
     // fn trigger_abort() PY-TODO
 
@@ -528,14 +536,14 @@ build_wrpc_python_interface!(
         GetConnectedPeerInfo,
         GetInfo,
         GetPeerAddresses,
-        GetMetrics,
-        GetConnections,
         GetSink,
         GetSinkBlueScore,
         Ping,
         Shutdown,
         GetServerInfo,
         GetSyncStatus,
+        GetFeeEstimate,
+        GetCurrentNetwork,
     ],
     [
         AddPeer,
@@ -546,20 +554,20 @@ build_wrpc_python_interface!(
         GetBlock,
         GetBlocks,
         GetBlockTemplate,
+        GetConnections,
         GetCurrentBlockColor,
         GetDaaScoreTimestampEstimate,
-        GetFeeEstimate,
         GetFeeEstimateExperimental,
-        GetCurrentNetwork,
         GetHeaders,
         GetMempoolEntries,
         GetMempoolEntriesByAddresses,
         GetMempoolEntry,
+        GetMetrics,
         GetSubnetwork,
         GetUtxosByAddresses,
         GetVirtualChainFromBlock,
         ResolveFinalityConflict,
-        SubmitBlock,
+        // SubmitBlock, PY-TODO
         SubmitTransaction,
         SubmitTransactionReplacement,
         Unban,
