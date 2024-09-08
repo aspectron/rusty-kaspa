@@ -9,6 +9,7 @@ pub use workflow_wasm::prelude::*;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "py-sdk")] {
+        pub use kaspa_addresses::Address;
         pub use kaspa_utils::hex::FromHex;
         pub use pyo3::{
             exceptions::PyException,
@@ -16,5 +17,6 @@ cfg_if::cfg_if! {
             types::{IntoPyDict, PyDict},
         };
         pub use serde_pyobject;
+        pub use std::str::FromStr;
     }
 }

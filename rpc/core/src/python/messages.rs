@@ -1,4 +1,4 @@
-use crate::message::*;
+use crate::{message::*, RpcTransaction, RpcTransactionInput, RpcTransactionOutput};
 use kaspa_addresses::Address;
 use kaspa_consensus_client::Transaction;
 use pyo3::{
@@ -222,12 +222,31 @@ try_from_args! ( dict : SubmitTransactionRequest, {
     let transaction: Transaction = dict.get_item("transaction")?
         .ok_or_else(|| PyException::new_err("Key `transactions` not present"))?
         .extract()?;
+    let inner = transaction.inner();
 
     let allow_orphan: bool = dict.get_item("allow_orphan")?
         .ok_or_else(|| PyException::new_err("Key `allow_orphan` not present"))?
         .extract()?;
 
-    Ok(SubmitTransactionRequest { transaction: transaction.into(), allow_orphan })
+    let inputs: Vec<RpcTransactionInput> =
+        inner.inputs.clone().into_iter().map(|input| input.into()).collect::<Vec<RpcTransactionInput>>();
+    let outputs: Vec<RpcTransactionOutput> =
+        inner.outputs.clone().into_iter().map(|output| output.into()).collect::<Vec<RpcTransactionOutput>>();
+
+    let rpc_transaction = RpcTransaction {
+        version: inner.version,
+        inputs,
+        outputs,
+        lock_time: inner.lock_time,
+        subnetwork_id: inner.subnetwork_id.clone(),
+        gas: inner.gas,
+        payload: inner.payload.clone(),
+        mass: inner.mass,
+        verbose_data: None,
+    };
+
+    // PY-TODO transaction.into()
+    Ok(SubmitTransactionRequest { transaction: rpc_transaction, allow_orphan })
 });
 
 try_from_args! ( dict : SubmitTransactionReplacementRequest, {
@@ -235,6 +254,7 @@ try_from_args! ( dict : SubmitTransactionReplacementRequest, {
         .ok_or_else(|| PyException::new_err("Key `transactions` not present"))?
         .extract()?;
 
+    // PY-TODO transaction.into()
     Ok(SubmitTransactionReplacementRequest { transaction: transaction.into() })
 });
 

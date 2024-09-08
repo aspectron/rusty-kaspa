@@ -4,7 +4,7 @@ from kaspa import Resolver, RpcClient
 
 
 async def main():
-    client = RpcClient(resolver=Resolver(), network="testnet", network_suffix=10)
+    client = RpcClient(resolver=Resolver(), network="testnet", network_suffix=11)
     await client.connect()
 
     ###
