@@ -21,13 +21,17 @@ async def main():
 
     utxos = await client.get_utxos_by_addresses({"addresses": [source_address]})
     utxos = utxos["entries"]
-    sorted_utxos = sorted(utxos, key=lambda x: x['utxoEntry']['amount'], reverse=True)
-    total = sum(item['utxoEntry']['amount'] for item in sorted_utxos)
 
-    fee = 10000
-    total = total - fee
-    utxo1_amt = int(total * .1)
-    utxo2_amt = int(total * .9)
+    utxos = sorted(utxos, key=lambda x: x['utxoEntry']['amount'], reverse=True)
+    total = sum(item['utxoEntry']['amount'] for item in utxos)
+
+    fee_rates = await client.get_fee_estimate()
+    fee = int(fee_rates["estimate"]["priorityBucket"]["feerate"])
+
+    total_less_fee = total - fee
+    utxo1_amt = int(total_less_fee * .1)
+    utxo2_amt = int(total_less_fee * .9)
+
     outputs = [
         {"address": destination_address, "amount": utxo1_amt},
         {"address": destination_address, "amount": utxo2_amt},

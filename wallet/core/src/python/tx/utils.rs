@@ -39,7 +39,7 @@ pub fn create_transaction_py(
     }
 
     let outputs = outputs.into_iter().map(|output| output.into()).collect::<Vec<TransactionOutput>>();
-    let transaction = Transaction::new(None, 0, inputs, outputs, 0, SUBNETWORK_ID_NATIVE, 0, payload)?;
+    let transaction = Transaction::new(None, 0, inputs, outputs, 0, SUBNETWORK_ID_NATIVE, 0, payload, 0)?;
 
     Ok(transaction)
 }

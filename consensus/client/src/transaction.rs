@@ -8,16 +8,12 @@ use crate::result::Result;
 use crate::serializable::{numeric, string, SerializableTransactionT};
 use crate::utxo::{UtxoEntryId, UtxoEntryReference};
 use ahash::AHashMap;
-#[cfg(feature = "py-sdk")]
-use kaspa_addresses::Address;
 use kaspa_consensus_core::network::NetworkType;
 use kaspa_consensus_core::network::NetworkTypeT;
 use kaspa_consensus_core::subnets::{self, SubnetworkId};
 use kaspa_consensus_core::tx::UtxoEntry;
 use kaspa_txscript::extract_script_pub_key_address;
 use kaspa_utils::hex::*;
-#[cfg(feature = "py-sdk")]
-use std::str::FromStr;
 
 #[wasm_bindgen(typescript_custom_section)]
 const TS_TRANSACTION: &'static str = r#"
@@ -306,6 +302,7 @@ impl Transaction {
         subnetwork_id: String,
         gas: u64,
         payload: Vec<u8>,
+        mass: u64,
     ) -> PyResult<Self> {
         let subnetwork_id = Vec::from_hex(&subnetwork_id)
             .map_err(|err| PyException::new_err(format!("subnetwork_id decode error: {}", err)))?
@@ -313,7 +310,7 @@ impl Transaction {
             .try_into()
             .map_err(|err| PyException::new_err(format!("subnetwork_id conversion error: {}", err)))?;
 
-        Ok(Transaction::new(None, version, inputs, outputs, lock_time, subnetwork_id, gas, payload)
+        Ok(Transaction::new(None, version, inputs, outputs, lock_time, subnetwork_id, gas, payload, mass)
             .map_err(|err| PyException::new_err(format!("{}", err)))?)
     }
 
