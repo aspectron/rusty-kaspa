@@ -250,7 +250,7 @@ impl RpcClient {
             Ok(())
         }}
     }
-    
+
     // fn stop() PY-TODO
 
     pub fn trigger_abort(&self) {
@@ -564,14 +564,14 @@ build_wrpc_python_interface!(
         GetConnectedPeerInfo,
         GetInfo,
         GetPeerAddresses,
-        GetMetrics,
-        GetConnections,
         GetSink,
         GetSinkBlueScore,
         Ping,
         Shutdown,
         GetServerInfo,
         GetSyncStatus,
+        GetFeeEstimate,
+        GetCurrentNetwork,
     ],
     [
         AddPeer,
@@ -582,20 +582,20 @@ build_wrpc_python_interface!(
         GetBlock,
         GetBlocks,
         GetBlockTemplate,
+        GetConnections,
         GetCurrentBlockColor,
         GetDaaScoreTimestampEstimate,
-        GetFeeEstimate,
         GetFeeEstimateExperimental,
-        GetCurrentNetwork,
         GetHeaders,
         GetMempoolEntries,
         GetMempoolEntriesByAddresses,
         GetMempoolEntry,
+        GetMetrics,
         GetSubnetwork,
         GetUtxosByAddresses,
         GetVirtualChainFromBlock,
         ResolveFinalityConflict,
-        SubmitBlock,
+        // SubmitBlock, PY-TODO
         SubmitTransaction,
         SubmitTransactionReplacement,
         Unban,
