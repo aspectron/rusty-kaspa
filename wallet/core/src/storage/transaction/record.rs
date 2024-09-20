@@ -818,6 +818,12 @@ impl TransactionRecord {
         self.transaction_data.has_address(address)
     }
 
+    /// Check if the transaction record is coinbase sourced.
+    #[wasm_bindgen(getter, js_name = "isCoinbase")]
+    pub fn is_coinbase_sourced(&self) -> bool {
+        self.is_coinbase()
+    }
+
     /// Serialize the transaction record to a JavaScript object.
     pub fn serialize(&self) -> JsValue {
         serde_wasm_bindgen::to_value(&self).unwrap()
