@@ -138,7 +138,7 @@ impl Pskb {
                             "{} locked UTXO{} found with total amount of {} KAS",
                             spend_utxos.len(),
                             if spend_utxos.len() == 1 { "" } else { "s" },
-                            sompi_to_kaspa(total_locked_sompi)
+                            sompi_to_kaspa(total_locked_sompi, None)
                         );
 
                         // Sweep UTXO set.

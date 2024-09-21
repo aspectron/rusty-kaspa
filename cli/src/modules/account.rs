@@ -122,7 +122,7 @@ impl Account {
                                             tprintln!(
                                                 ctx_,
                                                 "Scan detected {} KAS at index {}; transfer txid: {}",
-                                                sompi_to_kaspa_string(balance),
+                                                sompi_to_kaspa_string(balance, None),
                                                 processed,
                                                 txid
                                             );
@@ -131,7 +131,7 @@ impl Account {
                                                 ctx_,
                                                 "Scanned {} derivations, found {} KAS",
                                                 processed,
-                                                sompi_to_kaspa_string(balance)
+                                                sompi_to_kaspa_string(balance, None)
                                             );
                                         } else {
                                             tprintln!(ctx_, "Please wait... scanning for account UTXOs...");
@@ -302,12 +302,12 @@ impl Account {
                         tprintln!(
                             ctx_,
                             "Scan detected {} KAS at index {}; transfer txid: {}",
-                            sompi_to_kaspa_string(balance),
+                            sompi_to_kaspa_string(balance, None),
                             processed,
                             txid
                         );
                     } else {
-                        tprintln!(ctx_, "Scanned {} derivations, found {} KAS", processed, sompi_to_kaspa_string(balance));
+                        tprintln!(ctx_, "Scanned {} derivations, found {} KAS", processed, sompi_to_kaspa_string(balance, None));
                     }
                 })),
             )
