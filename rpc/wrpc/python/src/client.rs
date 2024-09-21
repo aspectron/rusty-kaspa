@@ -466,7 +466,6 @@ impl RpcClient {
 
 #[pymethods]
 impl RpcClient {
-    // PY-TODO subscribe_daa_score and unsubscribe
     fn subscribe_utxos_changed(&self, py: Python, addresses: Vec<Address>) -> PyResult<Py<PyAny>> {
         if let Some(listener_id) = self.listener_id() {
             let client = self.inner.client.clone();
