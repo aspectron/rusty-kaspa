@@ -9,14 +9,24 @@ use kaspa_consensus_core::network::NetworkType;
 use separator::{separated_float, separated_int, separated_uint_with_output, Separatable};
 use workflow_log::style;
 
-pub fn try_kaspa_str_to_sompi<S: Into<String>>(s: S, decimals: Option<u32>) -> Result<Option<u64>> {
+pub fn try_kaspa_str_to_sompi<S: Into<String>>(s: S) -> Result<Option<u64>> {
     let s: String = s.into();
     let amount = s.trim();
     if amount.is_empty() {
         return Ok(None);
     }
 
-    Ok(Some(str_to_sompi(amount, decimals)?))
+    Ok(Some(str_to_sompi(amount)?))
+}
+
+pub fn try_kaspa_str_to_sompi_with_decimals<S: Into<String>>(s: S, decimals: Option<u32>) -> Result<Option<u64>> {
+    let s: String = s.into();
+    let amount = s.trim();
+    if amount.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(str_to_sompi_with_decimals(amount, decimals)?))
 }
 
 pub fn try_kaspa_str_to_sompi_i64<S: Into<String>>(s: S) -> Result<Option<i64>> {
@@ -98,7 +108,26 @@ pub fn format_address_colors(address: &Address, range: Option<usize>) -> String 
     format!("{prefix}:{left}:{center}:{right}")
 }
 
-fn str_to_sompi(amount: &str, decimals: Option<u32>) -> Result<u64> {
+fn str_to_sompi(amount: &str) -> Result<u64> {
+    let Some(dot_idx) = amount.find('.') else {
+        return Ok(amount.parse::<u64>()? * SOMPI_PER_KASPA);
+    };
+    let integer = amount[..dot_idx].parse::<u64>()? * SOMPI_PER_KASPA;
+    let decimal = &amount[dot_idx + 1..];
+    let decimal_len = decimal.len();
+    let decimal = if decimal_len == 0 {
+        0
+    } else if decimal_len <= 8 {
+        decimal.parse::<u64>()? * 10u64.pow(8 - decimal_len as u32)
+    } else {
+        // TODO - discuss how to handle values longer than 8 decimal places
+        // (reject, truncate, ceil(), etc.)
+        decimal[..8].parse::<u64>()?
+    };
+    Ok(integer + decimal)
+}
+
+fn str_to_sompi_with_decimals(amount: &str, decimals: Option<u32>) -> Result<u64> {
     let decimals = decimals.unwrap_or(8);
     let sompi_per_unit = 10u64.pow(decimals);
 
