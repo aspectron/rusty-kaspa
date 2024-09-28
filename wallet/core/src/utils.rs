@@ -46,13 +46,6 @@ pub fn sompi_to_kaspa(sompi: u64) -> f64 {
 }
 
 #[inline]
-pub fn sompi_to_unit(sompi: u64, decimals: u32) -> f64 {
-    let sompi_per_unit = 10u64.pow(decimals);
-
-    sompi as f64 / sompi_per_unit as f64
-}
-
-#[inline]
 pub fn kaspa_to_sompi(kaspa: f64) -> u64 {
     (kaspa * SOMPI_PER_KASPA as f64) as u64
 }
@@ -60,6 +53,13 @@ pub fn kaspa_to_sompi(kaspa: f64) -> u64 {
 #[inline]
 pub fn sompi_to_kaspa_string(sompi: u64) -> String {
     sompi_to_kaspa(sompi).separated_string()
+}
+
+#[inline]
+pub fn sompi_to_unit(sompi: u64, decimals: u32) -> f64 {
+    let sompi_per_unit = 10u64.pow(decimals);
+
+    sompi as f64 / sompi_per_unit as f64
 }
 
 #[inline]
