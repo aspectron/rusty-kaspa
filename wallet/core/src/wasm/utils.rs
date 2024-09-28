@@ -16,8 +16,17 @@ extern "C" {
 /// can be used to parse user input.
 /// @category Wallet SDK
 #[wasm_bindgen(js_name = "kaspaToSompi")]
-pub fn kaspa_to_sompi(kaspa: String, decimals: Option<u32>) -> Option<BigInt> {
-    crate::utils::try_kaspa_str_to_sompi_with_decimals(kaspa, decimals).ok().flatten().map(Into::into)
+pub fn kaspa_to_sompi(kaspa: String) -> Option<BigInt> {
+    crate::utils::try_kaspa_str_to_sompi(kaspa).ok().flatten().map(Into::into)
+}
+
+/// Convert a Kaspa string to a specific unit represented by bigint.
+/// This function provides correct precision handling and
+/// can be used to parse user input.
+/// @category Wallet SDK
+#[wasm_bindgen(js_name = "kaspaToUnit")]
+pub fn kaspa_to_unit(kaspa: String, decimals: u32) -> Option<BigInt> {
+    crate::utils::try_kaspa_str_to_unit(kaspa, decimals).ok().flatten().map(Into::into)
 }
 
 ///
@@ -29,6 +38,17 @@ pub fn kaspa_to_sompi(kaspa: String, decimals: Option<u32>) -> Option<BigInt> {
 pub fn sompi_to_kaspa_string(sompi: ISompiToKaspa) -> Result<String> {
     let sompi = sompi.try_as_u64()?;
     Ok(crate::utils::sompi_to_kaspa_string(sompi))
+}
+
+///
+/// Convert Sompi to a string representation of an unit in Kaspa.
+///
+/// @category Wallet SDK
+///
+#[wasm_bindgen(js_name = "sompiToUnitString")]
+pub fn sompi_to_unit_string(sompi: ISompiToKaspa, decimals: u32) -> Result<String> {
+    let sompi = sompi.try_as_u64()?;
+    Ok(crate::utils::sompi_to_unit_string(sompi, decimals))
 }
 
 ///

@@ -19,14 +19,14 @@ pub fn try_kaspa_str_to_sompi<S: Into<String>>(s: S) -> Result<Option<u64>> {
     Ok(Some(str_to_sompi(amount)?))
 }
 
-pub fn try_kaspa_str_to_sompi_with_decimals<S: Into<String>>(s: S, decimals: Option<u32>) -> Result<Option<u64>> {
+pub fn try_kaspa_str_to_unit<S: Into<String>>(s: S, decimals: u32) -> Result<Option<u64>> {
     let s: String = s.into();
     let amount = s.trim();
     if amount.is_empty() {
         return Ok(None);
     }
 
-    Ok(Some(str_to_sompi_with_decimals(amount, decimals)?))
+    Ok(Some(str_to_unit(amount, decimals)?))
 }
 
 pub fn try_kaspa_str_to_sompi_i64<S: Into<String>>(s: S) -> Result<Option<i64>> {
@@ -46,8 +46,7 @@ pub fn sompi_to_kaspa(sompi: u64) -> f64 {
 }
 
 #[inline]
-pub fn sompi_to_kaspa_with_decimals(sompi: u64, decimals: Option<u32>) -> f64 {
-    let decimals = decimals.unwrap_or(8);
+pub fn sompi_to_unit(sompi: u64, decimals: u32) -> f64 {
     let sompi_per_unit = 10u64.pow(decimals);
 
     sompi as f64 / sompi_per_unit as f64
@@ -61,6 +60,11 @@ pub fn kaspa_to_sompi(kaspa: f64) -> u64 {
 #[inline]
 pub fn sompi_to_kaspa_string(sompi: u64) -> String {
     sompi_to_kaspa(sompi).separated_string()
+}
+
+#[inline]
+pub fn sompi_to_unit_string(sompi: u64, decimals: u32) -> String {
+    sompi_to_unit(sompi, decimals).separated_string()
 }
 
 #[inline]
@@ -127,8 +131,7 @@ fn str_to_sompi(amount: &str) -> Result<u64> {
     Ok(integer + decimal)
 }
 
-fn str_to_sompi_with_decimals(amount: &str, decimals: Option<u32>) -> Result<u64> {
-    let decimals = decimals.unwrap_or(8);
+fn str_to_unit(amount: &str, decimals: u32) -> Result<u64> {
     let sompi_per_unit = 10u64.pow(decimals);
 
     // Check if the amount contains a decimal point, if doesn't return value directly.
