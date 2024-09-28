@@ -6,6 +6,7 @@ use super::*;
 use crate::imports::*;
 use crate::storage::{Binding, BindingT};
 use crate::tx::PendingTransactionInner;
+use kaspa_addresses::AddressT;
 use workflow_core::time::{unixtime_as_millis_u64, unixtime_to_locale_string};
 use workflow_wasm::utils::try_get_js_value_prop;
 
@@ -814,8 +815,9 @@ impl TransactionRecord {
 
     /// Check if the transaction record has the given address within the associated UTXO set.
     #[wasm_bindgen(js_name = hasAddress)]
-    pub fn has_address(&self, address: &Address) -> bool {
-        self.transaction_data.has_address(address)
+    pub fn has_address(&self, address: &AddressT) -> Result<bool> {
+        let address = Address::try_cast_from(address)?;
+        Ok(self.transaction_data.has_address(address.as_ref()))
     }
 
     /// Check if the transaction record is coinbase sourced.
