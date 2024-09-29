@@ -61,7 +61,7 @@ impl From<State> for PSKT {
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(typescript_type = "PSKT | Transaction | string | undefined")]
-    pub type CtorT;
+    pub type PayloadT;
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -111,35 +111,24 @@ impl TryCastFromJs for PSKT {
 #[wasm_bindgen]
 impl PSKT {
     #[wasm_bindgen(constructor)]
-    pub fn new(payload: CtorT) -> Result<PSKT> {
+    pub fn new(payload: PayloadT) -> Result<PSKT> {
         PSKT::try_owned_from(payload.unchecked_into::<JsValue>().as_ref()).map_err(|err| Error::Ctor(err.to_string()))
     }
 
     #[wasm_bindgen(getter, js_name = "role")]
-    pub fn role_getter(&self) -> String {
+    pub fn role(&self) -> String {
         self.state().as_ref().unwrap().display().to_string()
     }
 
     #[wasm_bindgen(getter, js_name = "payload")]
-    pub fn payload_getter(&self) -> JsValue {
+    pub fn payload(&self) -> JsValue {
         let state = self.state();
         serde_wasm_bindgen::to_value(state.as_ref().unwrap()).unwrap()
     }
 
-    fn state(&self) -> MutexGuard<Option<State>> {
-        self.state.lock().unwrap()
-    }
-
-    fn take(&self) -> State {
-        self.state.lock().unwrap().take().unwrap()
-    }
-
-    fn replace(&self, state: State) -> Result<PSKT> {
-        self.state.lock().unwrap().replace(state);
-        Ok(self.clone())
-    }
-
-    /// Change role to `CREATOR`
+    /// Changes role to `CREATOR`. This initializes a PSKT in the Creator role,
+    /// which is responsible for generating a new transaction without any signatures.
+    /// The creator typically defines the transaction inputs and outputs.
     /// #[wasm_bindgen(js_name = toCreator)]
     pub fn creator(&self) -> Result<PSKT> {
         let state = match self.take() {
@@ -153,8 +142,11 @@ impl PSKT {
         self.replace(state)
     }
 
-    /// Change role to `CONSTRUCTOR`
-    #[wasm_bindgen(js_name = toConstructor)]
+    /// Changes role to `CONSTRUCTOR`. The constructor role is responsible for
+    /// adding the necessary witness data, scripts, or other PSKT fields required
+    /// to build the transaction. This role extends the creation phase, filling in
+    /// additional transaction details.
+    #[wasm_bindgen(js_name = "toConstructor")]
     pub fn constructor(&self) -> Result<PSKT> {
         let state = match self.take() {
             State::NoOp(inner) => State::Constructor(inner.ok_or(Error::NotInitialized)?.into()),
@@ -165,8 +157,10 @@ impl PSKT {
         self.replace(state)
     }
 
-    /// Change role to `UPDATER`
-    #[wasm_bindgen(js_name = toUpdater)]
+    /// Changes role to `UPDATER`. The updater is responsible for filling in more
+    /// specific information into the PSKT, such as completing any missing fields
+    /// like sequence, and ensuring inputs are correctly referenced.
+    #[wasm_bindgen(js_name = "toUpdater")]
     pub fn updater(&self) -> Result<PSKT> {
         let state = match self.take() {
             State::NoOp(inner) => State::Updater(inner.ok_or(Error::NotInitialized)?.into()),
@@ -177,8 +171,11 @@ impl PSKT {
         self.replace(state)
     }
 
-    /// Change role to `SIGNER`
-    #[wasm_bindgen(js_name = toSigner)]
+    /// Changes role to `SIGNER`. The signer is responsible for providing valid
+    /// cryptographic signatures on the inputs of the PSKT. This role ensures that
+    /// the transaction is authenticated and can later be combined with other
+    /// signatures, if necessary.
+    #[wasm_bindgen(js_name = "toSigner")]
     pub fn signer(&self) -> Result<PSKT> {
         let state = match self.take() {
             State::NoOp(inner) => State::Signer(inner.ok_or(Error::NotInitialized)?.into()),
@@ -191,8 +188,11 @@ impl PSKT {
         self.replace(state)
     }
 
-    /// Change role to `COMBINER`
-    #[wasm_bindgen(js_name = toCombiner)]
+    /// Changes role to `COMBINER`. The combiner merges multiple PSKTs from various
+    /// signers into a single, cohesive PSKT. This role is responsible for ensuring
+    /// that all necessary signatures are included and the transaction is ready for
+    /// finalization.
+    #[wasm_bindgen(js_name = "toCombiner")]
     pub fn combiner(&self) -> Result<PSKT> {
         let state = match self.take() {
             State::NoOp(inner) => State::Combiner(inner.ok_or(Error::NotInitialized)?.into()),
@@ -205,8 +205,10 @@ impl PSKT {
         self.replace(state)
     }
 
-    /// Change role to `FINALIZER`
-    #[wasm_bindgen(js_name = toFinalizer)]
+    /// Changes role to `FINALIZER`. The finalizer role is responsible for taking
+    /// the fully signed PSKT and ensuring that the transaction is complete and
+    /// ready to be submitted to the network.
+    #[wasm_bindgen(js_name = "toFinalizer")]
     pub fn finalizer(&self) -> Result<PSKT> {
         let state = match self.take() {
             State::NoOp(inner) => State::Finalizer(inner.ok_or(Error::NotInitialized)?.into()),
@@ -217,8 +219,9 @@ impl PSKT {
         self.replace(state)
     }
 
-    /// Change role to `EXTRACTOR`
-    #[wasm_bindgen(js_name = toExtractor)]
+    /// Changes role to `EXTRACTOR`. The extractor is responsible for taking the
+    /// final transaction from the PSKT and usually submitting it to network.
+    #[wasm_bindgen(js_name = "toExtractor")]
     pub fn extractor(&self) -> Result<PSKT> {
         let state = match self.take() {
             State::NoOp(inner) => State::Extractor(inner.ok_or(Error::NotInitialized)?.into()),
@@ -229,7 +232,7 @@ impl PSKT {
         self.replace(state)
     }
 
-    #[wasm_bindgen(js_name = fallbackLockTime)]
+    #[wasm_bindgen(js_name = "setFallbackLockTime")]
     pub fn fallback_lock_time(&self, lock_time: u64) -> Result<PSKT> {
         let state = match self.take() {
             State::Creator(pskt) => State::Creator(pskt.fallback_lock_time(lock_time)),
@@ -316,5 +319,18 @@ impl PSKT {
             State::Signer(pskt) => Ok(pskt.calculate_id()),
             state => Err(Error::state(state))?,
         }
+    }
+
+    fn state(&self) -> MutexGuard<Option<State>> {
+        self.state.lock().unwrap()
+    }
+
+    fn take(&self) -> State {
+        self.state.lock().unwrap().take().unwrap()
+    }
+
+    fn replace(&self, state: State) -> Result<PSKT> {
+        self.state.lock().unwrap().replace(state);
+        Ok(self.clone())
     }
 }
