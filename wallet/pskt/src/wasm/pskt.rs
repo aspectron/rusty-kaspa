@@ -116,7 +116,7 @@ impl PSKT {
             Some(payload) => {
                 PSKT::try_owned_from(payload.unchecked_into::<JsValue>().as_ref()).map_err(|err| Error::Ctor(err.to_string()))
             }
-            None => Ok(PSKT::from(State::NoOp(Some(Inner::default())))),
+            None => Ok(PSKT::from(State::NoOp(None))),
         }
     }
 
@@ -126,14 +126,14 @@ impl PSKT {
     }
 
     #[wasm_bindgen(getter, js_name = "payload")]
-    pub fn payload(&self) -> JsValue { // TODO: correctly typing
+    pub fn payload(&self) -> JsValue {
+        // TODO: correctly typing
         let state = self.state();
         serde_wasm_bindgen::to_value(state.as_ref().unwrap()).unwrap()
     }
 
     /// Changes role to `CREATOR`. This initializes a PSKT in the Creator role,
     /// which is responsible for generating a new transaction without any signatures.
-    /// The creator typically defines the transaction inputs and outputs.
     #[wasm_bindgen(js_name = "toCreator")]
     pub fn creator(&self) -> Result<PSKT> {
         let state = match self.take() {
@@ -151,11 +151,34 @@ impl PSKT {
     /// adding the necessary witness data, scripts, or other PSKT fields required
     /// to build the transaction. This role extends the creation phase, filling in
     /// additional transaction details.
+    /// The constructor typically defines the transaction inputs and outputs.
     #[wasm_bindgen(js_name = "toConstructor")]
     pub fn constructor(&self) -> Result<PSKT> {
         let state = match self.take() {
             State::NoOp(inner) => State::Constructor(inner.ok_or(Error::NotInitialized)?.into()),
             State::Creator(pskt) => State::Constructor(pskt.constructor()),
+            state => Err(Error::state(state))?,
+        };
+
+        self.replace(state)
+    }
+
+    #[wasm_bindgen(js_name = "addInput")]
+    pub fn input(&self, input: &TransactionInputT) -> Result<PSKT> {
+        let input = TransactionInput::try_owned_from(input)?;
+        let state = match self.take() {
+            State::Constructor(pskt) => State::Constructor(pskt.input(input.try_into()?)),
+            state => Err(Error::state(state))?,
+        };
+
+        self.replace(state)
+    }
+
+    #[wasm_bindgen(js_name = "addOutput")]
+    pub fn output(&self, output: &TransactionOutputT) -> Result<PSKT> {
+        let output = TransactionOutput::try_owned_from(output)?;
+        let state = match self.take() {
+            State::Constructor(pskt) => State::Constructor(pskt.output(output.try_into()?)),
             state => Err(Error::state(state))?,
         };
 
@@ -176,7 +199,7 @@ impl PSKT {
         self.replace(state)
     }
 
-    #[wasm_bindgen(js_name = setSequence)]
+    #[wasm_bindgen(js_name = "setSequence")]
     pub fn set_sequence(&self, n: u64, input_index: usize) -> Result<PSKT> {
         let state = match self.take() {
             State::Updater(pskt) => State::Updater(pskt.set_sequence(n, input_index)?),
@@ -293,7 +316,7 @@ impl PSKT {
         self.replace(state)
     }
 
-    #[wasm_bindgen(js_name = inputsModifiable)]
+    #[wasm_bindgen(js_name = "inputsModifiable")]
     pub fn inputs_modifiable(&self) -> Result<PSKT> {
         let state = match self.take() {
             State::Creator(pskt) => State::Creator(pskt.inputs_modifiable()),
@@ -303,7 +326,7 @@ impl PSKT {
         self.replace(state)
     }
 
-    #[wasm_bindgen(js_name = outputsModifiable)]
+    #[wasm_bindgen(js_name = "outputsModifiable")]
     pub fn outputs_modifiable(&self) -> Result<PSKT> {
         let state = match self.take() {
             State::Creator(pskt) => State::Creator(pskt.outputs_modifiable()),
@@ -313,7 +336,7 @@ impl PSKT {
         self.replace(state)
     }
 
-    #[wasm_bindgen(js_name = noMoreInputs)]
+    #[wasm_bindgen(js_name = "noMoreInputs")]
     pub fn no_more_inputs(&self) -> Result<PSKT> {
         let state = match self.take() {
             State::Constructor(pskt) => State::Constructor(pskt.no_more_inputs()),
@@ -323,30 +346,10 @@ impl PSKT {
         self.replace(state)
     }
 
-    #[wasm_bindgen(js_name = noMoreOutputs)]
+    #[wasm_bindgen(js_name = "noMoreOutputs")]
     pub fn no_more_outputs(&self) -> Result<PSKT> {
         let state = match self.take() {
             State::Constructor(pskt) => State::Constructor(pskt.no_more_outputs()),
-            state => Err(Error::state(state))?,
-        };
-
-        self.replace(state)
-    }
-
-    pub fn input(&self, input: &TransactionInputT) -> Result<PSKT> {
-        let input = TransactionInput::try_owned_from(input)?;
-        let state = match self.take() {
-            State::Constructor(pskt) => State::Constructor(pskt.input(input.try_into()?)),
-            state => Err(Error::state(state))?,
-        };
-
-        self.replace(state)
-    }
-
-    pub fn output(&self, output: &TransactionOutputT) -> Result<PSKT> {
-        let output = TransactionOutput::try_owned_from(output)?;
-        let state = match self.take() {
-            State::Constructor(pskt) => State::Constructor(pskt.output(output.try_into()?)),
             state => Err(Error::state(state))?,
         };
 
