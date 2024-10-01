@@ -199,6 +199,7 @@ impl PSKT {
         self.replace(state)
     }
 
+    /// The sequence number determines when the input can be spent.
     #[wasm_bindgen(js_name = "setSequence")]
     pub fn set_sequence(&self, n: u64, input_index: usize) -> Result<PSKT> {
         let state = match self.take() {
@@ -306,6 +307,8 @@ impl PSKT {
         }
     }
 
+    /// This allows specifying a lock time that will be used if no other lock time requirement  
+    /// is set in the final transactions inputs.
     #[wasm_bindgen(js_name = "setFallbackLockTime")]
     pub fn fallback_lock_time(&self, lock_time: u64) -> Result<PSKT> {
         let state = match self.take() {
@@ -316,7 +319,8 @@ impl PSKT {
         self.replace(state)
     }
 
-    #[wasm_bindgen(js_name = "inputsModifiable")]
+    /// Marks the inputs as modifiable.
+    #[wasm_bindgen(js_name = "makeInputsModifiable")]
     pub fn inputs_modifiable(&self) -> Result<PSKT> {
         let state = match self.take() {
             State::Creator(pskt) => State::Creator(pskt.inputs_modifiable()),
@@ -326,7 +330,8 @@ impl PSKT {
         self.replace(state)
     }
 
-    #[wasm_bindgen(js_name = "outputsModifiable")]
+    /// Marks the outputs as modifiable.
+    #[wasm_bindgen(js_name = "makeOutputsModifiable")]
     pub fn outputs_modifiable(&self) -> Result<PSKT> {
         let state = match self.take() {
             State::Creator(pskt) => State::Creator(pskt.outputs_modifiable()),
@@ -336,6 +341,7 @@ impl PSKT {
         self.replace(state)
     }
 
+    /// Marks the inputs as finalized, preventing any additional inputs from being added.
     #[wasm_bindgen(js_name = "noMoreInputs")]
     pub fn no_more_inputs(&self) -> Result<PSKT> {
         let state = match self.take() {
@@ -346,6 +352,7 @@ impl PSKT {
         self.replace(state)
     }
 
+    /// Marks the outputs as finalized, preventing any additional outputs from being added.
     #[wasm_bindgen(js_name = "noMoreOutputs")]
     pub fn no_more_outputs(&self) -> Result<PSKT> {
         let state = match self.take() {
@@ -355,6 +362,12 @@ impl PSKT {
 
         self.replace(state)
     }
+
+    //    /// Serializes the PSKT into JSON.
+    //    #[wasm_bindgen(js_name = "serializeToJSON")]
+    //    pub fn serialize_to_json(&self) -> Result<String> {
+    //        serde_json::to_string(&self.state().as_ref()).map_err(|_| Error::SerializationError)
+    //    }
 
     fn state(&self) -> MutexGuard<Option<State>> {
         self.state.lock().unwrap()
