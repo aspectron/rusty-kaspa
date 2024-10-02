@@ -1,11 +1,18 @@
-use crate::pskt::PSKT as Native;
+use crate::pskt::{SignInputOk, Signature, PSKT as Native};
 use crate::role::*;
-use kaspa_consensus_core::tx::TransactionId;
+use kaspa_consensus_core::hashing::sighash::{calc_schnorr_signature_hash, SigHashReusedValues};
+use kaspa_consensus_core::tx::{PopulatedTransaction, TransactionId};
+use kaspa_txscript::get_sig_op_count;
+use kaspa_txscript::opcodes::codes::OpData65;
+use kaspa_txscript::script_builder::ScriptBuilder;
 use wasm_bindgen::prelude::*;
 // use js_sys::Object;
 use crate::pskt::Inner;
+use core::result::Result as CoreResult;
 use kaspa_consensus_client::{Transaction, TransactionInput, TransactionInputT, TransactionOutput, TransactionOutputT};
+use kaspa_wallet_keys::privatekey::PrivateKey;
 use serde::{Deserialize, Serialize};
+use std::iter;
 use std::sync::MutexGuard;
 use std::sync::{Arc, Mutex};
 use workflow_wasm::{
@@ -238,6 +245,41 @@ impl PSKT {
         }
     }
 
+    /// Signs the inputs and adds it to partial signature cache
+    /// to be used in future, can only be executed by signers.
+    #[wasm_bindgen(js_name = "sign")]
+    pub fn sign(&self, private_key: &PrivateKey) -> Result<PSKT> {
+        let state = match self.take() {
+            State::Signer(pskt) => {
+                let keypair = secp256k1::Keypair::from_seckey_slice(secp256k1::SECP256K1, &private_key.secret_bytes()).unwrap();
+                let mut reused_values = SigHashReusedValues::new();
+
+                let signed_pskt = pskt
+                    .pass_signature_sync(|tx, sighash| -> CoreResult<Vec<SignInputOk>, String> {
+                        tx.tx
+                            .inputs
+                            .iter()
+                            .enumerate()
+                            .map(|(idx, _input)| {
+                                let hash = calc_schnorr_signature_hash(&tx.as_verifiable(), idx, sighash[idx], &mut reused_values);
+                                let msg = secp256k1::Message::from_digest_slice(hash.as_bytes().as_slice()).unwrap();
+                                Ok(SignInputOk {
+                                    signature: Signature::Schnorr(keypair.sign_schnorr(msg)),
+                                    pub_key: keypair.public_key(),
+                                    key_source: None,
+                                })
+                            })
+                            .collect()
+                    })
+                    .unwrap();
+                State::Signer(signed_pskt)
+            }
+            state => Err(Error::state(state))?,
+        };
+
+        self.replace(state)
+    }
+
     /// Changes role to `COMBINER`. The combiner merges multiple PSKTs from various
     /// signers into a single, cohesive PSKT. This role is responsible for ensuring
     /// that all necessary signatures are included and the transaction is ready for
@@ -276,8 +318,60 @@ impl PSKT {
     #[wasm_bindgen(js_name = "toFinalizer")]
     pub fn finalizer(&self) -> Result<PSKT> {
         let state = match self.take() {
-            State::NoOp(inner) => State::Finalizer(inner.ok_or(Error::NotInitialized)?.into()),
+            State::NoOp(inner) => State::Finalizer(inner.ok_or(Error::NotInitialized)?.into()), // TODO: possibly allow signer to also be a finalizer -- skipping combiner
             State::Combiner(pskt) => State::Finalizer(pskt.finalizer()),
+            state => Err(Error::state(state))?,
+        };
+
+        self.replace(state)
+    }
+
+    /// Finalizes the partial signatures cache and populates the inputs with the 
+    /// appropriate unlock scripts, ensuring that only the required number of 
+    /// signatures (based on the sigOpCount) are included.
+    #[wasm_bindgen(js_name = "finalize")]
+    pub fn finalize(&self) -> Result<PSKT> {
+        let state = match self.take() {
+            State::Finalizer(pskt) => {
+                let finalized_pskt = pskt
+                    .finalize_sync(|inner: &Inner| -> CoreResult<Vec<Vec<u8>>, String> {
+                        Ok(inner
+                            .inputs
+                            .iter()
+                            .map(|input| -> Vec<u8> {
+                                let required_sig_count = get_sig_op_count::<PopulatedTransaction>(
+                                    &input.redeem_script.as_ref().unwrap(), // TODO: a question for aspect -- abt how to properly handle here
+                                    &input.utxo_entry.as_ref().unwrap().script_public_key,
+                                );
+
+                                let signatures: Vec<_> = input
+                                    .partial_sigs
+                                    .iter()
+                                    .take(required_sig_count as usize)
+                                    .flat_map(|(_, signature)| {
+                                        let sig_bytes = signature.into_bytes();
+                                        iter::once(OpData65).chain(sig_bytes).chain([input.sighash_type.to_u8()])
+                                    })
+                                    .collect();
+
+                                signatures
+                                    .into_iter()
+                                    .chain(
+                                        ScriptBuilder::new()
+                                            .add_data(input.redeem_script.as_ref().unwrap().as_slice())
+                                            .unwrap()
+                                            .drain()
+                                            .iter()
+                                            .cloned(),
+                                    )
+                                    .collect()
+                            })
+                            .collect())
+                    })
+                    .unwrap();
+
+                State::Finalizer(finalized_pskt)
+            }
             state => Err(Error::state(state))?,
         };
 
