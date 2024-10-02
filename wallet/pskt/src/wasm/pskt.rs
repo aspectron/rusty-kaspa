@@ -67,7 +67,7 @@ impl From<State> for PSKT {
 
 #[wasm_bindgen]
 extern "C" {
-    #[wasm_bindgen(typescript_type = "PSKT | Transaction | string")]
+    #[wasm_bindgen(typescript_type = "PSKT | Transaction")]
     pub type PayloadT;
 }
 
@@ -245,7 +245,7 @@ impl PSKT {
         }
     }
 
-    /// Signs the inputs and adds it to partial signature cache
+    /// Signs all inputs and adds it to partial signature cache
     /// to be used in future, can only be executed by signers.
     #[wasm_bindgen(js_name = "sign")]
     pub fn sign(&self, private_key: &PrivateKey) -> Result<PSKT> {
@@ -456,12 +456,6 @@ impl PSKT {
 
         self.replace(state)
     }
-
-    //    /// Serializes the PSKT into JSON.
-    //    #[wasm_bindgen(js_name = "serializeToJSON")]
-    //    pub fn serialize_to_json(&self) -> Result<String> {
-    //        serde_json::to_string(&self.state().as_ref()).map_err(|_| Error::SerializationError)
-    //    }
 
     fn state(&self) -> MutexGuard<Option<State>> {
         self.state.lock().unwrap()
