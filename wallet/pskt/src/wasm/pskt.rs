@@ -326,8 +326,8 @@ impl PSKT {
         self.replace(state)
     }
 
-    /// Finalizes the partial signatures cache and populates the inputs with the 
-    /// appropriate unlock scripts, ensuring that only the required number of 
+    /// Finalizes the partial signatures cache and populates the inputs with the
+    /// appropriate unlock scripts, ensuring that only the required number of
     /// signatures (based on the sigOpCount) are included.
     #[wasm_bindgen(js_name = "finalize")]
     pub fn finalize(&self) -> Result<PSKT> {
