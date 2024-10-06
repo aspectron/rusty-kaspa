@@ -235,9 +235,8 @@ impl Address {
 
         if let Some(address) = address {
             if let Some(network) = network {
-                if let Ok(prefix) = Prefix::try_from(network.as_str()) {
-                    return address.prefix == prefix;
-                }
+                let prefix = Prefix::try_from(network.as_str()).unwrap();
+                return address.prefix == prefix;
             }
             return true;
         }
