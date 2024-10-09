@@ -230,12 +230,12 @@ impl Address {
     }
 
     #[wasm_bindgen(js_name=validate)]
-    pub fn validate(address: &str, network: Option<String>) -> bool {
+    pub fn validate(address: &str, prefix: Option<String>) -> bool {
         let address = Self::try_from(address).ok();
 
         if let Some(address) = address {
-            if let Some(network) = network {
-                let prefix = Prefix::try_from(network.as_str()).unwrap();
+            if let Some(prefix) = prefix {
+                let prefix = Prefix::try_from(prefix.as_str()).expect("Address::verify() - invalid network prefix");
                 return address.prefix == prefix;
             }
             return true;
