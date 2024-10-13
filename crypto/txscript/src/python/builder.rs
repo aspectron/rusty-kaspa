@@ -164,7 +164,7 @@ impl TryFrom<Bound<'_, PyAny>> for PyBinary {
     type Error = PyErr;
     fn try_from(value: Bound<PyAny>) -> Result<Self, Self::Error> {
         if let Ok(str) = value.extract::<String>() {
-            // Python `str` type of valid hex
+            // Python `str` (of valid hex)
             let mut data = vec![0u8; str.len() / 2];
             match hex_decode(str.as_bytes(), &mut data) {
                 Ok(()) => Ok(PyBinary { data }), // Hex string
