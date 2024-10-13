@@ -59,7 +59,7 @@ pub fn address_from_script_public_key(script_public_key: &ScriptPublicKeyT, netw
 pub fn address_from_script_public_key_py(script_public_key: &ScriptPublicKey, network: &str) -> PyResult<Address> {
     match standard::extract_script_pub_key_address(script_public_key, network.try_into()?) {
         Ok(address) => Ok(address),
-        Err(err) => Err(pyo3::exceptions::PyException::new_err(format!("{}", err)))
+        Err(err) => Err(pyo3::exceptions::PyException::new_err(format!("{}", err))),
     }
 }
 
