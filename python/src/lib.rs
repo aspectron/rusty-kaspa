@@ -15,6 +15,7 @@ cfg_if::cfg_if! {
             m.add_class::<kaspa_consensus_client::UtxoEntries>()?;
             m.add_class::<kaspa_consensus_client::UtxoEntry>()?;
             m.add_class::<kaspa_consensus_client::UtxoEntryReference>()?;
+            m.add_function(wrap_pyfunction!(kaspa_consensus_client::address_from_script_public_key_py, m)?)?;
 
             m.add_class::<kaspa_hashes::Hash>()?;
 
