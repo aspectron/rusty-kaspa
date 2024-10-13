@@ -88,9 +88,9 @@ impl ScriptBuilder {
     }
 
     #[staticmethod]
-    pub fn canonical_data_size(data: String) -> PyResult<u32> {
-        let data = data.as_bytes();
-        let size = native::ScriptBuilder::canonical_data_size(&data) as u32;
+    pub fn canonical_data_size(data: Bound<PyAny>) -> PyResult<u32> {
+        let data = PyBinary::try_from(data)?;
+        let size = native::ScriptBuilder::canonical_data_size(&data.data.as_slice()) as u32;
 
         Ok(size)
     }
@@ -177,9 +177,6 @@ impl TryFrom<Bound<'_, PyAny>> for PyBinary {
             // Python `[int]` (list of bytes)
             let data = op_list.iter().map(|item| item.extract::<u8>().unwrap()).collect();
             Ok(PyBinary { data })
-        } else if let Ok(op) = value.extract::<u8>() {
-            // Single byte
-            Ok(PyBinary { data: vec![op] })
         } else {
             Err(pyo3::exceptions::PyTypeError::new_err("Expected `str` (of valid hex), `bytes`, `int` (u8), or `[int]` (u8)"))
         }
