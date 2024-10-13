@@ -5,7 +5,6 @@ use faster_hex::hex_decode;
 use kaspa_consensus_core::tx::ScriptPublicKey;
 use kaspa_utils::hex::ToHex;
 use pyo3::prelude::*;
-// use std::cell::{Ref, RefCell, RefMut};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 #[derive(Clone)]
