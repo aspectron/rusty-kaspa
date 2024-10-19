@@ -3,6 +3,8 @@
 //!
 
 use crate::imports::{AccountId, AccountKind, AssocPrvKeyDataIds, PrvKeyDataId};
+#[cfg(feature = "py-sdk")]
+use pyo3::{exceptions::PyException, prelude::*};
 use base64::DecodeError;
 use downcast::DowncastError;
 use kaspa_bip32::Error as BIP32Error;
@@ -439,5 +441,12 @@ impl From<RecvError> for Error {
 impl<T> From<TrySendError<T>> for Error {
     fn from(e: TrySendError<T>) -> Self {
         Error::Custom(e.to_string())
+    }
+}
+
+#[cfg(feature = "py-sdk")]
+impl From<Error> for PyErr {
+    fn from(value: Error) -> Self {
+        PyException::new_err(value.to_string())
     }
 }
