@@ -340,7 +340,7 @@ impl PSKT {
                             .iter()
                             .map(|input| -> Vec<u8> {
                                 let required_sig_count = get_sig_op_count::<PopulatedTransaction>(
-                                    &input.redeem_script.as_ref().unwrap(), // TODO: a question for aspect -- abt how to properly handle here
+                                    input.redeem_script.as_ref().unwrap(), // TODO: a question for aspect -- abt how to properly handle here
                                     &input.utxo_entry.as_ref().unwrap().script_public_key,
                                 );
 
