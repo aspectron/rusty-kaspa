@@ -5,7 +5,8 @@ cfg_if::cfg_if! {
         #[pymodule]
         fn kaspa(m: &Bound<'_, PyModule>) -> PyResult<()> {
             m.add_class::<kaspa_addresses::Address>()?;
-
+            
+            m.add_class::<kaspa_consensus_core::hashing::wasm::SighashType>()?;
             m.add_class::<kaspa_consensus_core::tx::ScriptPublicKey>()?;
 
             m.add_class::<kaspa_consensus_client::Transaction>()?;
@@ -25,6 +26,8 @@ cfg_if::cfg_if! {
             m.add_class::<kaspa_txscript::python::ScriptBuilder>()?;
             m.add_class::<kaspa_txscript::wasm::opcodes::Opcodes>()?;
 
+            m.add_class::<kaspa_wallet_core::python::tx::generator::generator::Generator>()?;
+            m.add_class::<kaspa_wallet_core::python::tx::generator::pending::PendingTransaction>()?;
             m.add_class::<kaspa_wallet_core::tx::payment::PaymentOutput>()?;
             m.add_function(wrap_pyfunction!(kaspa_wallet_core::python::tx::utils::create_transaction_py, m)?)?;
             m.add_function(wrap_pyfunction!(kaspa_wallet_core::python::signer::py_sign_transaction, m)?)?;
