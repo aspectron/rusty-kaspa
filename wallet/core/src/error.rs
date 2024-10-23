@@ -3,14 +3,14 @@
 //!
 
 use crate::imports::{AccountId, AccountKind, AssocPrvKeyDataIds, PrvKeyDataId};
-#[cfg(feature = "py-sdk")]
-use pyo3::{exceptions::PyException, prelude::*};
 use base64::DecodeError;
 use downcast::DowncastError;
 use kaspa_bip32::Error as BIP32Error;
 use kaspa_consensus_core::sign::Error as CoreSignError;
 use kaspa_rpc_core::RpcError as KaspaRpcError;
 use kaspa_wrpc_client::error::Error as KaspaWorkflowRpcError;
+#[cfg(feature = "py-sdk")]
+use pyo3::{exceptions::PyException, prelude::*};
 use std::sync::PoisonError;
 use thiserror::Error;
 use wasm_bindgen::JsValue;

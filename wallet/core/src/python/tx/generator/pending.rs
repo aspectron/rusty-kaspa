@@ -8,7 +8,7 @@ use kaspa_wrpc_python::client::RpcClient;
 
 #[pyclass]
 pub struct PendingTransaction {
-    inner: native::PendingTransaction
+    inner: native::PendingTransaction,
 }
 
 #[pymethods]
@@ -73,16 +73,11 @@ impl PendingTransaction {
         self.inner.utxo_entries().values().map(|utxo_entry| UtxoEntryReference::from(utxo_entry.clone())).collect()
     }
 
-    fn create_input_signature(
-        &self,
-        input_index: u8,
-        private_key: &PrivateKey,
-        sighash_type: Option<&SighashType>
-    ) -> Result<String> {
+    fn create_input_signature(&self, input_index: u8, private_key: &PrivateKey, sighash_type: Option<&SighashType>) -> Result<String> {
         let signature = self.inner.create_input_signature(
-            input_index.into(), 
-            &private_key.secret_bytes(), 
-            sighash_type.cloned().unwrap_or(SighashType::All).into()
+            input_index.into(),
+            &private_key.secret_bytes(),
+            sighash_type.cloned().unwrap_or(SighashType::All).into(),
         )?;
 
         Ok(signature.to_hex())
@@ -90,11 +85,21 @@ impl PendingTransaction {
 
     fn fill_input(&self, input_index: u8, signature_script: String) -> Result<()> {
         // TODO use PyBinary for signature_script
-        self.inner.fill_input(input_index.into(), signature_script.as_bytes().to_vec())
+        let mut bytes = vec![0u8; signature_script.len() / 2];
+        faster_hex::hex_decode(signature_script.as_bytes(), &mut bytes).unwrap();
+        self.inner.fill_input(input_index.into(), bytes)?;
+
+        Ok(())
     }
 
     fn sign_input(&self, input_index: u8, private_key: &PrivateKey, sighash_type: Option<&SighashType>) -> Result<()> {
-        self.inner.sign_input(input_index.into(), &private_key.secret_bytes(), sighash_type.cloned().unwrap_or(SighashType::All).into())
+        self.inner.sign_input(
+            input_index.into(),
+            &private_key.secret_bytes(),
+            sighash_type.cloned().unwrap_or(SighashType::All).into(),
+        )?;
+
+        Ok(())
     }
 
     fn sign(&self, private_keys: Vec<PrivateKey>, check_fully_signed: Option<bool>) -> Result<()> {

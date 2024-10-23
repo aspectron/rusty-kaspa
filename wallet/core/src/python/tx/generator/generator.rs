@@ -1,6 +1,7 @@
 use crate::imports::*;
-use crate::tx::{generator as native, Fees, PaymentDestination, PaymentOutputs};
 use crate::python::tx::generator::pending::PendingTransaction;
+use crate::python::tx::generator::summary::GeneratorSummary;
+use crate::tx::{generator as native, Fees, PaymentDestination, PaymentOutputs};
 
 #[pyclass]
 pub struct Generator {
@@ -15,7 +16,7 @@ impl Generator {
         entries: Vec<&PyDict>,
         outputs: Vec<&PyDict>,
         change_address: Address,
-        payload: String, // TODO Hex string for now, use PyBinary
+        payload: Option<String>, // TODO Hex string for now, use PyBinary
         priority_fee: Option<u64>,
         priority_entries: Option<Vec<&PyDict>>,
         sig_op_count: Option<u8>,
@@ -30,16 +31,18 @@ impl Generator {
             sig_op_count,
             minimum_signatures,
             payload,
-            network_id
+            network_id,
         );
 
         let settings = match settings.source {
             GeneratorSource::UtxoEntries(utxo_entries) => {
-                let change_address = settings.change_address
+                let change_address = settings
+                    .change_address
                     .ok_or_else(|| PyException::new_err("changeAddress is required for Generator constructor with UTXO entries"))?;
 
-                let network_id =
-                    settings.network_id.ok_or_else(|| PyException::new_err("networkId is required for Generator constructor with UTXO entries"))?;
+                let network_id = settings
+                    .network_id
+                    .ok_or_else(|| PyException::new_err("networkId is required for Generator constructor with UTXO entries"))?;
 
                 native::GeneratorSettings::try_new_with_iterator(
                     network_id,
@@ -51,9 +54,9 @@ impl Generator {
                     settings.final_transaction_destination,
                     settings.final_priority_fee,
                     settings.payload,
-                    settings.multiplexer
+                    settings.multiplexer,
                 )?
-            },
+            }
             GeneratorSource::UtxoContext(_) => unimplemented!(),
         };
 
@@ -61,6 +64,10 @@ impl Generator {
         let generator = native::Generator::try_new(settings, None, Some(&abortable))?;
 
         Ok(Self { inner: Arc::new(generator) })
+    }
+
+    pub fn summary(&self) -> GeneratorSummary {
+        self.inner.summary().into()
     }
 }
 
@@ -120,20 +127,23 @@ impl GeneratorSettings {
         priority_entries: Option<Vec<&PyDict>>,
         sig_op_count: Option<u8>,
         minimum_signatures: Option<u16>,
-        payload: String, // TODO Hex string for now, use PyBinary
-        network_id: String, // TODO this is wrong
+        payload: Option<String>, // TODO Hex string for now, use PyBinary
+        network_id: String,      // TODO this is wrong
     ) -> GeneratorSettings {
         let network_id = NetworkId::from_str(&network_id).unwrap();
 
-        let final_transaction_destination: PaymentDestination =
-            if outputs.is_empty() { PaymentDestination::Change } else { PaymentOutputs::try_from(outputs).unwrap().into() };
+        // let final_transaction_destination: PaymentDestination =
+        //     if outputs.is_empty() { PaymentDestination::Change } else { PaymentOutputs::try_from(outputs).unwrap().into() };
+        let final_transaction_destination: PaymentDestination = PaymentOutputs::try_from(outputs).unwrap().into();
 
-        let final_priority_fee: Fees = priority_fee.unwrap_or(0).try_into().unwrap();
+        let final_priority_fee = match priority_fee {
+            Some(fee) => fee.try_into().unwrap(),
+            None => Fees::None,
+        };
 
         // TODO support GeneratorSource::UtxoContext and clean up below
-        let generator_source = GeneratorSource::UtxoEntries(
-            entries.iter().map(|entry| UtxoEntryReference::try_from(*entry).unwrap()).collect()
-        );
+        let generator_source =
+            GeneratorSource::UtxoEntries(entries.iter().map(|entry| UtxoEntryReference::try_from(*entry).unwrap()).collect());
 
         let priority_utxo_entries = if let Some(entries) = priority_entries {
             Some(entries.iter().map(|entry| UtxoEntryReference::try_from(*entry).unwrap()).collect())
@@ -145,7 +155,7 @@ impl GeneratorSettings {
 
         let minimum_signatures = minimum_signatures.unwrap_or(1);
 
-        let payload = payload.as_bytes().to_vec();
+        let payload = payload.map(|s| s.into_bytes());
 
         GeneratorSettings {
             network_id: Some(network_id),
@@ -157,7 +167,7 @@ impl GeneratorSettings {
             final_priority_fee,
             sig_op_count,
             minimum_signatures,
-            payload: Some(payload),
+            payload,
         }
     }
 }

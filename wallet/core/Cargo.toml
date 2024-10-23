@@ -30,6 +30,7 @@ py-sdk = [
     "kaspa-consensus-core/py-sdk",
     "kaspa-python-macros",
     "kaspa-wallet-keys/py-sdk",
+    "kaspa-wrpc-python/py-sdk",
     "pyo3",
     "pyo3-asyncio-0-21",
     "serde-pyobject",
@@ -83,7 +84,7 @@ kaspa-wallet-macros.workspace = true
 kaspa-wallet-pskt.workspace = true
 kaspa-wasm-core.workspace = true
 kaspa-wrpc-client.workspace = true
-kaspa-wrpc-python.workspace = true
+kaspa-wrpc-python = { workspace = true, optional = true }
 kaspa-wrpc-wasm.workspace = true
 md-5.workspace = true
 pad.workspace = true
