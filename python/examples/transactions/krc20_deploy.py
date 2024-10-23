@@ -93,10 +93,6 @@ async def main():
     for transaction in reveal_txs['transactions']:
         transaction.sign([private_key], False)
 
-        # for idx, input in enumerate(transaction.transaction.inputs):
-        #     if input.previous_outpoint.transaction_id == commit_tx_id:
-        #         sig = transaction.create_input_signature(idx, private_key)
-        #         transaction.fill_input(idx, script.encode_pay_to_script_hash_signature_script(sig))
         commit_output = next((i for i, input in enumerate(transaction.transaction.inputs)
                             if input.signature_script == ''), None)
         
