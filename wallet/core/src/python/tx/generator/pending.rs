@@ -13,6 +13,7 @@ pub struct PendingTransaction {
 
 #[pymethods]
 impl PendingTransaction {
+    #[getter]
     fn id(&self) -> String {
         self.inner.id().to_string()
     }
@@ -46,17 +47,19 @@ impl PendingTransaction {
     }
 
     #[getter]
+    #[pyo3(name = "aggregate_input_amount")]
     fn aggregate_input_value(&self) -> u64 {
         self.inner.aggregate_input_value()
     }
 
     #[getter]
+    #[pyo3(name = "aggregate_output_amount")]
     fn aggregate_output_value(&self) -> u64 {
         self.inner.aggregate_output_value()
     }
 
     #[getter]
-    // #[pyo3(name = "type")]
+    #[pyo3(name = "transaction_type")]
     fn kind(&self) -> String {
         if self.inner.is_batch() {
             "batch".to_string()
