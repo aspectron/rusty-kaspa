@@ -8,9 +8,7 @@ from kaspa import (
     RpcClient,
     ScriptBuilder,
     address_from_script_public_key,
-    create_transaction,
     create_transactions,
-    sign_transaction
 )
 
 
@@ -21,8 +19,6 @@ async def main():
     private_key = PrivateKey('389840d7696e89c38856a066175e8e92697f0cf182b854c883237a50acaf1f69')
     public_key = private_key.to_public_key()
     address = public_key.to_address('testnet')
-    # keypair = private_key.to_keypair()
-    # address = keypair.to_address('kaspatest')
     print(f'Address: {address.to_string()}')
     print(f'XOnly Pub Key: {public_key.to_x_only_public_key().to_string()}')
 
@@ -36,7 +32,6 @@ async def main():
         'max': '112121115100107',
         'lim': '1000',
     }
-    print(json.dumps(data, separators=(',', ':')))
 
     script = ScriptBuilder()
     script.add_data(public_key.to_x_only_public_key().to_string())
@@ -98,9 +93,7 @@ async def main():
         
         if commit_output is not None:
             sig = transaction.create_input_signature(commit_output, private_key)
-            print(f'Sig: {sig}')
             transaction.fill_input(commit_output, script.encode_pay_to_script_hash_signature_script(sig))
-            print(f'Input Previous Tx Id: {transaction.transaction.inputs[commit_output].previous_outpoint.transaction_id} | Sig script: {transaction.transaction.inputs[commit_output].signature_script}')
         
         print('Reveal TX ID:', await transaction.submit(client))
 
