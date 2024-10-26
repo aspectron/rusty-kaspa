@@ -28,7 +28,7 @@ async def main():
     data = {
         'p': 'krc-20',
         'op': 'deploy',
-        'tick': 'PYSDK',
+        'tick': 'TPYSDK',
         'max': '112121115100107',
         'lim': '1000',
     }

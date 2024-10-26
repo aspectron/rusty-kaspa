@@ -3486,6 +3486,7 @@ dependencies = [
  "kaspa-hashes",
  "kaspa-metrics-core",
  "kaspa-notify",
+ "kaspa-python-core",
  "kaspa-python-macros",
  "kaspa-rpc-core",
  "kaspa-txscript",

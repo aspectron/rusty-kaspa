@@ -53,7 +53,7 @@ pub fn create_transactions_py<'a>(
     entries: Vec<&PyDict>,
     outputs: Vec<&PyDict>,
     change_address: Address,
-    payload: Option<String>, // TODO Hex string for now, use PyBinary
+    payload: Option<PyBinary>,
     priority_fee: Option<u64>,
     priority_entries: Option<Vec<&PyDict>>,
     sig_op_count: Option<u8>,
@@ -64,7 +64,7 @@ pub fn create_transactions_py<'a>(
         entries,
         outputs,
         change_address,
-        payload,
+        payload.map(Into::into),
         priority_fee,
         priority_entries,
         sig_op_count,
