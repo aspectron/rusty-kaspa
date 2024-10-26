@@ -3139,6 +3139,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "kaspa-python-core"
+version = "0.15.2"
+dependencies = [
+ "cfg-if 1.0.0",
+ "faster-hex",
+ "pyo3",
+]
+
+[[package]]
 name = "kaspa-python-macros"
 version = "0.15.2"
 dependencies = [
@@ -3311,6 +3320,7 @@ dependencies = [
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-hashes",
+ "kaspa-python-core",
  "kaspa-txscript-errors",
  "kaspa-utils",
  "kaspa-wasm-core",
