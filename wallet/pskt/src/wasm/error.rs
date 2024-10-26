@@ -33,6 +33,8 @@ pub enum Error {
 
     #[error(transparent)]
     Pskt(#[from] crate::error::Error),
+    //  #[error("Failed to serialize into JSON")]
+    //  SerializationError,
 }
 
 impl Error {
