@@ -2612,6 +2612,7 @@ dependencies = [
  "kaspa-math",
  "kaspa-merkle",
  "kaspa-muhash",
+ "kaspa-python-core",
  "kaspa-txscript-errors",
  "kaspa-utils",
  "pyo3",
