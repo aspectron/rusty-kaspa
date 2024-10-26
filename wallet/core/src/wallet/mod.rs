@@ -1,6 +1,14 @@
 //!
-//! Kaspa wallet runtime implementation.
+//! # Kaspa wallet runtime implementation.
 //!
+//! This module contains a Rust implementation of the Kaspa wallet that
+//! can be used in native Rust as well as WASM32 (Browser, NodeJs, Bun)
+//! environments.
+//!
+//! This wallet is not meant to be used directly, but rather through the
+//! use of the [`WalletApi`] trait.
+//!
+
 pub mod api;
 pub mod args;
 pub mod maps;
@@ -81,7 +89,8 @@ pub enum WalletBusMessage {
     Discovery { record: TransactionRecord },
 }
 
-pub struct Inner {
+/// Internal wallet state.
+struct Inner {
     active_accounts: ActiveAccountMap,
     legacy_accounts: ActiveAccountMap,
     listener_id: Mutex<Option<ListenerId>>,
@@ -187,10 +196,6 @@ impl Wallet {
     pub fn with_url(self, url: Option<&str>) -> Self {
         self.wrpc_client().set_url(url).expect("Unable to set url");
         self
-    }
-
-    pub fn inner(&self) -> &Arc<Inner> {
-        &self.inner
     }
 
     //
@@ -1469,7 +1474,6 @@ impl Wallet {
 
         let legacy_account = account.clone().as_legacy_account()?;
         legacy_account.create_private_context(wallet_secret, payment_secret, None).await?;
-        // account.clone().initialize_private_data(wallet_secret, payment_secret, None).await?;
 
         if self.is_connected() {
             if let Some(notifier) = notifier {
@@ -1477,13 +1481,6 @@ impl Wallet {
             }
             account.clone().scan(Some(100), Some(5000)).await?;
         }
-
-        // let derivation = account.clone().as_derivation_capable()?.derivation();
-        // let m = derivation.receive_address_manager();
-        // m.get_range(0..(m.index() + CACHE_ADDRESS_OFFSET))?;
-        // let m = derivation.change_address_manager();
-        // m.get_range(0..(m.index() + CACHE_ADDRESS_OFFSET))?;
-        // account.clone().clear_private_data().await?;
 
         legacy_account.clear_private_context().await?;
 

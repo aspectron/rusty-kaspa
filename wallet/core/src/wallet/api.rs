@@ -1,5 +1,5 @@
 //!
-//! [`WalletApi`] trait implementation for [`Wallet`].
+//! [`WalletApi`] trait implementation for the [`Wallet`] struct.
 //!
 
 use crate::api::{message::*, traits::WalletApi};
@@ -62,15 +62,17 @@ impl WalletApi for super::Wallet {
 
         if let Some(data) = data {
             self.inner.retained_contexts.lock().unwrap().insert(name, Arc::new(data));
-
             Ok(RetainContextResponse {})
         } else {
             self.inner.retained_contexts.lock().unwrap().remove(&name);
-            // let data = self.inner.retained_contexts.lock().unwrap().get(&name).cloned();
             Ok(RetainContextResponse {})
         }
+    }
 
-        // self.retain_context(retain);
+    async fn get_context_call(self: Arc<Self>, request: GetContextRequest) -> Result<GetContextResponse> {
+        let GetContextRequest { name } = request;
+        let data = self.inner.retained_contexts.lock().unwrap().get(&name).map(|data| (**data).clone());
+        Ok(GetContextResponse { data })
     }
 
     // -------------------------------------------------------------------------------------
@@ -341,9 +343,19 @@ impl WalletApi for super::Wallet {
         Ok(AccountsEnsureDefaultResponse { account_descriptor })
     }
 
-    async fn accounts_import_call(self: Arc<Self>, _request: AccountsImportRequest) -> Result<AccountsImportResponse> {
-        // TODO handle account imports
-        return Err(Error::NotImplemented);
+    async fn accounts_import_call(self: Arc<Self>, request: AccountsImportRequest) -> Result<AccountsImportResponse> {
+        let AccountsImportRequest { wallet_secret, account_create_args } = request;
+
+        let guard = self.guard();
+        let guard = guard.lock().await;
+
+        let account = self.create_account(&wallet_secret, account_create_args, true, &guard).await?;
+        account.clone().scan(Some(100), Some(5000)).await?;
+        let account_descriptor = account.descriptor()?;
+        self.store().as_account_store()?.store_single(&account.to_storage()?, account.metadata()?.as_ref()).await?;
+        self.store().commit(&wallet_secret).await?;
+
+        Ok(AccountsImportResponse { account_descriptor })
     }
 
     async fn accounts_get_call(self: Arc<Self>, request: AccountsGetRequest) -> Result<AccountsGetResponse> {

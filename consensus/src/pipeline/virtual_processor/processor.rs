@@ -290,7 +290,7 @@ impl VirtualStateProcessor {
         assert_eq!(virtual_ghostdag_data.selected_parent, new_sink);
 
         let sink_multiset = self.utxo_multisets_store.get(new_sink).unwrap();
-        let chain_path = self.dag_traversal_manager.calculate_chain_path(prev_sink, new_sink);
+        let chain_path = self.dag_traversal_manager.calculate_chain_path(prev_sink, new_sink, None);
         let new_virtual_state = self
             .calculate_and_commit_virtual_state(
                 virtual_read,
@@ -778,7 +778,10 @@ impl VirtualStateProcessor {
         let virtual_utxo_view = &virtual_read.utxo_set;
         let virtual_daa_score = virtual_state.daa_score;
         let virtual_past_median_time = virtual_state.past_median_time;
-        self.validate_mempool_transaction_impl(mutable_tx, virtual_utxo_view, virtual_daa_score, virtual_past_median_time, args)
+        // Run within the thread pool since par_iter might be internally applied to inputs
+        self.thread_pool.install(|| {
+            self.validate_mempool_transaction_impl(mutable_tx, virtual_utxo_view, virtual_daa_score, virtual_past_median_time, args)
+        })
     }
 
     pub fn validate_mempool_transactions_in_parallel(
