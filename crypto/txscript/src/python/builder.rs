@@ -1,7 +1,6 @@
 use crate::result::Result;
 use crate::wasm::opcodes::Opcodes;
 use crate::{script_builder as native, standard};
-use kaspa_consensus_core::sign;
 use kaspa_consensus_core::tx::ScriptPublicKey;
 use kaspa_python_core::types::PyBinary;
 use kaspa_utils::hex::ToHex;

@@ -2576,6 +2576,7 @@ dependencies = [
  "kaspa-consensus-core",
  "kaspa-hashes",
  "kaspa-math",
+ "kaspa-python-core",
  "kaspa-txscript",
  "kaspa-utils",
  "kaspa-wasm-core",
