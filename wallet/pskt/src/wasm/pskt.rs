@@ -1,6 +1,6 @@
 use crate::pskt::{SignInputOk, Signature, PSKT as Native};
 use crate::role::*;
-use kaspa_consensus_core::hashing::sighash::{calc_schnorr_signature_hash, SigHashReusedValues};
+use kaspa_consensus_core::hashing::sighash::{calc_schnorr_signature_hash, SigHashReusedValuesUnsync};
 use kaspa_consensus_core::tx::{PopulatedTransaction, TransactionId};
 use kaspa_txscript::get_sig_op_count;
 use kaspa_txscript::opcodes::codes::OpData65;
@@ -252,7 +252,7 @@ impl PSKT {
         let state = match self.take() {
             State::Signer(pskt) => {
                 let keypair = secp256k1::Keypair::from_seckey_slice(secp256k1::SECP256K1, &private_key.secret_bytes()).unwrap();
-                let mut reused_values = SigHashReusedValues::new();
+                let mut reused_values = SigHashReusedValuesUnsync::new();
 
                 let signed_pskt = pskt
                     .pass_signature_sync(|tx, sighash| -> CoreResult<Vec<SignInputOk>, String> {
@@ -339,7 +339,7 @@ impl PSKT {
                             .inputs
                             .iter()
                             .map(|input| -> Vec<u8> {
-                                let required_sig_count = get_sig_op_count::<PopulatedTransaction>(
+                                let required_sig_count = get_sig_op_count::<PopulatedTransaction, SigHashReusedValuesUnsync>(
                                     input.redeem_script.as_ref().unwrap(), // TODO: a question for aspect -- abt how to properly handle here
                                     &input.utxo_entry.as_ref().unwrap().script_public_key,
                                 );
