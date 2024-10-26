@@ -5,6 +5,7 @@
 use crate::imports::*;
 use crate::keypair::Keypair;
 use js_sys::{Array, Uint8Array};
+use rand::thread_rng;
 
 /// Data structure that envelops a Private Key.
 /// @category Wallet SDK
@@ -39,6 +40,11 @@ impl PrivateKey {
     pub fn try_new(key: &str) -> Result<PrivateKey> {
         Ok(Self { inner: secp256k1::SecretKey::from_str(key)? })
     }
+
+    #[wasm_bindgen(js_name = random)]
+    pub fn create_new() -> PrivateKey {
+        Self { inner: secp256k1::SecretKey::new(&mut thread_rng()) }
+    }
 }
 
 impl PrivateKey {
@@ -49,13 +55,6 @@ impl PrivateKey {
 
 #[wasm_bindgen]
 impl PrivateKey {
-    /// Returns the [`PrivateKey`] key encoded as a hex string.
-    #[wasm_bindgen(js_name = toString)]
-    pub fn to_hex(&self) -> String {
-        use kaspa_utils::hex::ToHex;
-        self.secret_bytes().to_vec().to_hex()
-    }
-
     /// Generate a [`Keypair`] from this [`PrivateKey`].
     #[wasm_bindgen(js_name = toKeypair)]
     pub fn to_keypair(&self) -> Result<Keypair, JsError> {
@@ -90,6 +89,13 @@ impl PrivateKey {
         let payload = public_key.serialize();
         let address = Address::new(network.try_into()?, AddressVersion::PubKeyECDSA, &payload);
         Ok(address)
+    }
+
+    /// Returns the [`PrivateKey`] key encoded as a hex string.
+    #[wasm_bindgen(js_name = toString)]
+    pub fn to_hex(&self) -> String {
+        use kaspa_utils::hex::ToHex;
+        self.secret_bytes().to_vec().to_hex()
     }
 }
 
