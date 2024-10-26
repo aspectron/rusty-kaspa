@@ -131,7 +131,7 @@ impl GeneratorSettings {
     ) -> GeneratorSettings {
         let network_id = NetworkId::from_str(&network_id).unwrap();
 
-        // PY-TODO 
+        // PY-TODO
         // let final_transaction_destination: PaymentDestination =
         //     if outputs.is_empty() { PaymentDestination::Change } else { PaymentOutputs::try_from(outputs).unwrap().into() };
         let final_transaction_destination: PaymentDestination = PaymentOutputs::try_from(outputs).unwrap().into();
