@@ -26,6 +26,8 @@ cfg_if::cfg_if! {
             m.add_class::<kaspa_txscript::python::ScriptBuilder>()?;
             m.add_class::<kaspa_txscript::wasm::opcodes::Opcodes>()?;
 
+            m.add_function(wrap_pyfunction!(kaspa_wallet_core::python::message::py_sign_message, m)?)?;
+            m.add_function(wrap_pyfunction!(kaspa_wallet_core::python::message::py_verify_message, m)?)?;
             m.add_class::<kaspa_wallet_core::python::tx::generator::generator::Generator>()?;
             m.add_class::<kaspa_wallet_core::python::tx::generator::pending::PendingTransaction>()?;
             m.add_class::<kaspa_wallet_core::python::tx::generator::summary::GeneratorSummary>()?;
