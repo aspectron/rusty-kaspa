@@ -32,6 +32,9 @@ cfg_if::cfg_if! {
             m.add_class::<kaspa_wallet_core::python::tx::generator::generator::Generator>()?;
             m.add_class::<kaspa_wallet_core::python::tx::generator::pending::PendingTransaction>()?;
             m.add_class::<kaspa_wallet_core::python::tx::generator::summary::GeneratorSummary>()?;
+            m.add_function(wrap_pyfunction!(kaspa_wallet_core::python::tx::mass::calculate_unsigned_transaction_fee, m)?)?;
+            m.add_function(wrap_pyfunction!(kaspa_wallet_core::python::tx::mass::calculate_unsigned_transaction_mass, m)?)?;
+            m.add_function(wrap_pyfunction!(kaspa_wallet_core::python::tx::mass::update_unsigned_transaction_mass, m)?)?;
             m.add_function(wrap_pyfunction!(kaspa_wallet_core::python::tx::utils::create_transaction_py, m)?)?;
             m.add_function(wrap_pyfunction!(kaspa_wallet_core::python::tx::utils::create_transactions_py, m)?)?;
             m.add_function(wrap_pyfunction!(kaspa_wallet_core::python::utils::kaspa_to_sompi, m)?)?;
