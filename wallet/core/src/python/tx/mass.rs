@@ -3,7 +3,6 @@ use crate::result::Result;
 use crate::tx::{mass, MAXIMUM_STANDARD_TRANSACTION_MASS};
 use kaspa_consensus_client::Transaction;
 use kaspa_consensus_core::config::params::Params;
-use kaspa_consensus_core::network;
 
 #[pyfunction]
 pub fn maximum_standard_transaction_mass() -> u64 {

@@ -83,7 +83,6 @@ pub fn create_transactions_py<'a>(
 #[pyfunction]
 #[pyo3(name = "estimate_transactions")]
 pub fn estimate_transactions_py<'a>(
-    py: Python<'a>,
     network_id: String,
     entries: Vec<&PyDict>,
     outputs: Vec<&PyDict>,
