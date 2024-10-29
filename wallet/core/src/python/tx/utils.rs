@@ -6,17 +6,18 @@ use kaspa_consensus_core::subnets::SUBNETWORK_ID_NATIVE;
 
 #[pyfunction]
 #[pyo3(name = "create_transaction")]
+#[pyo3(signature = (utxo_entry_source, outputs, priority_fee, payload=None, sig_op_count=None))]
 pub fn create_transaction_py(
-    utxo_entry_source: Vec<&PyDict>,
-    outputs: Vec<&PyDict>,
+    utxo_entry_source: Vec<Bound<PyDict>>,
+    outputs: Vec<Bound<PyDict>>,
     priority_fee: u64,
     payload: Option<PyBinary>,
     sig_op_count: Option<u8>,
 ) -> PyResult<Transaction> {
     let utxo_entries: Vec<UtxoEntryReference> =
-        utxo_entry_source.iter().map(|utxo| UtxoEntryReference::try_from(*utxo)).collect::<Result<Vec<_>, _>>()?;
+        utxo_entry_source.iter().map(|utxo| UtxoEntryReference::try_from(utxo.clone())).collect::<Result<Vec<_>, _>>()?;
 
-    let outputs: Vec<PaymentOutput> = outputs.iter().map(|utxo| PaymentOutput::try_from(*utxo)).collect::<Result<Vec<_>, _>>()?;
+    let outputs: Vec<PaymentOutput> = outputs.iter().map(|utxo| PaymentOutput::try_from(utxo.clone())).collect::<Result<Vec<_>, _>>()?;
 
     let payload: Vec<u8> = payload.map(Into::into).unwrap_or_default();
     let sig_op_count = sig_op_count.unwrap_or(1);
@@ -47,15 +48,16 @@ pub fn create_transaction_py(
 
 #[pyfunction]
 #[pyo3(name = "create_transactions")]
+#[pyo3(signature = (network_id, entries, outputs, change_address, payload=None, priority_fee=None, priority_entries=None, sig_op_count=None, minimum_signatures=None))]
 pub fn create_transactions_py<'a>(
     py: Python<'a>,
     network_id: String,
-    entries: Vec<&PyDict>,
-    outputs: Vec<&PyDict>,
+    entries: Vec<Bound<PyDict>>,
+    outputs: Vec<Bound<PyDict>>,
     change_address: Address,
     payload: Option<PyBinary>,
     priority_fee: Option<u64>,
-    priority_entries: Option<Vec<&PyDict>>,
+    priority_entries: Option<Vec<Bound<PyDict>>>,
     sig_op_count: Option<u8>,
     minimum_signatures: Option<u16>,
 ) -> PyResult<Bound<'a, PyDict>> {
@@ -82,14 +84,15 @@ pub fn create_transactions_py<'a>(
 
 #[pyfunction]
 #[pyo3(name = "estimate_transactions")]
+#[pyo3(signature = (network_id, entries, outputs, change_address, payload=None, priority_fee=None, priority_entries=None, sig_op_count=None, minimum_signatures=None))]
 pub fn estimate_transactions_py<'a>(
     network_id: String,
-    entries: Vec<&PyDict>,
-    outputs: Vec<&PyDict>,
+    entries: Vec<Bound<PyDict>>,
+    outputs: Vec<Bound<PyDict>>,
     change_address: Address,
     payload: Option<PyBinary>,
     priority_fee: Option<u64>,
-    priority_entries: Option<Vec<&PyDict>>,
+    priority_entries: Option<Vec<Bound<PyDict>>>,
     sig_op_count: Option<u8>,
     minimum_signatures: Option<u16>,
 ) -> PyResult<GeneratorSummary> {

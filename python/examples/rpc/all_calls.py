@@ -129,7 +129,7 @@ async def main():
         "includeOrphanPool": False,
         "filterTransactionPool": False,
     })
-        
+
     await client.get_mempool_entries_by_addresses(request={
         "addresses": addresses,
         "includeOrphanPool": False,

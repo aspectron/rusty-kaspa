@@ -11,14 +11,15 @@ pub struct Generator {
 #[pymethods]
 impl Generator {
     #[new]
+    #[pyo3(signature = (network_id, entries, outputs, change_address, payload=None, priority_fee=None, priority_entries=None, sig_op_count=None, minimum_signatures=None))]
     pub fn ctor(
         network_id: String, // TODO this is wrong
-        entries: Vec<&PyDict>,
-        outputs: Vec<&PyDict>,
+        entries: Vec<Bound<PyDict>>,
+        outputs: Vec<Bound<PyDict>>,
         change_address: Address,
         payload: Option<PyBinary>,
         priority_fee: Option<u64>,
-        priority_entries: Option<Vec<&PyDict>>,
+        priority_entries: Option<Vec<Bound<PyDict>>>,
         sig_op_count: Option<u8>,
         minimum_signatures: Option<u16>,
     ) -> PyResult<Generator> {
@@ -124,11 +125,11 @@ struct GeneratorSettings {
 
 impl GeneratorSettings {
     pub fn new(
-        outputs: Vec<&PyDict>,
+        outputs: Vec<Bound<PyDict>>,
         change_address: Address,
         priority_fee: Option<u64>,
-        entries: Vec<&PyDict>,
-        priority_entries: Option<Vec<&PyDict>>,
+        entries: Vec<Bound<PyDict>>,
+        priority_entries: Option<Vec<Bound<PyDict>>>,
         sig_op_count: Option<u8>,
         minimum_signatures: Option<u16>,
         payload: Option<Vec<u8>>,
@@ -148,10 +149,10 @@ impl GeneratorSettings {
 
         // PY-TODO support GeneratorSource::UtxoContext and clean up below
         let generator_source =
-            GeneratorSource::UtxoEntries(entries.iter().map(|entry| UtxoEntryReference::try_from(*entry).unwrap()).collect());
+            GeneratorSource::UtxoEntries(entries.iter().map(|entry| UtxoEntryReference::try_from(entry.clone()).unwrap()).collect());
 
         let priority_utxo_entries = if let Some(entries) = priority_entries {
-            Some(entries.iter().map(|entry| UtxoEntryReference::try_from(*entry).unwrap()).collect())
+            Some(entries.iter().map(|entry| UtxoEntryReference::try_from(entry.clone()).unwrap()).collect())
         } else {
             None
         };

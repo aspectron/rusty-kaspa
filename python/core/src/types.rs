@@ -7,7 +7,7 @@ pub struct PyBinary {
 }
 
 impl<'a> FromPyObject<'a> for PyBinary {
-    fn extract(value: &'a PyAny) -> PyResult<Self> {
+    fn extract_bound(value: &Bound<PyAny>) -> PyResult<Self> {
         if let Ok(str) = value.extract::<String>() {
             // Python `str` (of valid hex)
             let mut data = vec![0u8; str.len() / 2];
