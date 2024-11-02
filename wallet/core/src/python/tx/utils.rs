@@ -1,5 +1,5 @@
 use crate::imports::*;
-use crate::python::tx::generator::{Generator, GeneratorSummary, PendingTransaction};
+use crate::python::tx::generator::{Generator, GeneratorSummary, PendingTransaction, PyUtxoEntries};
 use crate::tx::payment::PaymentOutput;
 use kaspa_consensus_client::*;
 use kaspa_consensus_core::subnets::SUBNETWORK_ID_NATIVE;
@@ -8,15 +8,12 @@ use kaspa_consensus_core::subnets::SUBNETWORK_ID_NATIVE;
 #[pyo3(name = "create_transaction")]
 #[pyo3(signature = (utxo_entry_source, outputs, priority_fee, payload=None, sig_op_count=None))]
 pub fn create_transaction_py(
-    utxo_entry_source: Vec<Bound<PyDict>>,
+    utxo_entry_source: PyUtxoEntries,
     outputs: Vec<Bound<PyDict>>,
     priority_fee: u64,
     payload: Option<PyBinary>,
     sig_op_count: Option<u8>,
 ) -> PyResult<Transaction> {
-    let utxo_entries: Vec<UtxoEntryReference> =
-        utxo_entry_source.iter().map(|utxo| UtxoEntryReference::try_from(utxo.clone())).collect::<Result<Vec<_>, _>>()?;
-
     let outputs: Vec<PaymentOutput> = outputs.iter().map(|utxo| PaymentOutput::try_from(utxo.clone())).collect::<Result<Vec<_>, _>>()?;
 
     let payload: Vec<u8> = payload.map(Into::into).unwrap_or_default();
@@ -25,7 +22,8 @@ pub fn create_transaction_py(
     let mut total_input_amount = 0;
     let mut entries = vec![];
 
-    let inputs = utxo_entries
+    let inputs = utxo_entry_source
+        .entries
         .into_iter()
         .enumerate()
         .map(|(sequence, reference)| {
@@ -52,12 +50,12 @@ pub fn create_transaction_py(
 pub fn create_transactions_py<'a>(
     py: Python<'a>,
     network_id: String,
-    entries: Vec<Bound<PyDict>>,
+    entries: PyUtxoEntries,
     outputs: Vec<Bound<PyDict>>,
     change_address: Address,
     payload: Option<PyBinary>,
     priority_fee: Option<u64>,
-    priority_entries: Option<Vec<Bound<PyDict>>>,
+    priority_entries: Option<PyUtxoEntries>,
     sig_op_count: Option<u8>,
     minimum_signatures: Option<u16>,
 ) -> PyResult<Bound<'a, PyDict>> {
@@ -87,12 +85,12 @@ pub fn create_transactions_py<'a>(
 #[pyo3(signature = (network_id, entries, outputs, change_address, payload=None, priority_fee=None, priority_entries=None, sig_op_count=None, minimum_signatures=None))]
 pub fn estimate_transactions_py<'a>(
     network_id: String,
-    entries: Vec<Bound<PyDict>>,
+    entries: PyUtxoEntries,
     outputs: Vec<Bound<PyDict>>,
     change_address: Address,
     payload: Option<PyBinary>,
     priority_fee: Option<u64>,
-    priority_entries: Option<Vec<Bound<PyDict>>>,
+    priority_entries: Option<PyUtxoEntries>,
     sig_op_count: Option<u8>,
     minimum_signatures: Option<u16>,
 ) -> PyResult<GeneratorSummary> {

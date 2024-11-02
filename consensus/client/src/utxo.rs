@@ -559,9 +559,9 @@ impl TryCastFromJs for UtxoEntryReference {
 }
 
 #[cfg(feature = "py-sdk")]
-impl TryFrom<Bound<'_, PyDict>> for UtxoEntryReference {
+impl TryFrom<&Bound<'_, PyDict>> for UtxoEntryReference {
     type Error = PyErr;
-    fn try_from(dict: Bound<PyDict>) -> PyResult<Self> {
+    fn try_from(dict: &Bound<PyDict>) -> PyResult<Self> {
         let address = Address::try_from(
             dict.get_item("address")?.ok_or_else(|| PyException::new_err("Key `address` not present"))?.extract::<String>()?,
         )?;
