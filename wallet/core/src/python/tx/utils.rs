@@ -1,5 +1,5 @@
 use crate::imports::*;
-use crate::python::tx::generator::{Generator, GeneratorSummary, PendingTransaction, PyUtxoEntries};
+use crate::python::tx::generator::{Generator, GeneratorSummary, PendingTransaction, PyUtxoEntries, PyOutputs};
 use crate::tx::payment::PaymentOutput;
 use kaspa_consensus_client::*;
 use kaspa_consensus_core::subnets::SUBNETWORK_ID_NATIVE;
@@ -14,7 +14,7 @@ pub fn create_transaction_py(
     payload: Option<PyBinary>,
     sig_op_count: Option<u8>,
 ) -> PyResult<Transaction> {
-    let outputs: Vec<PaymentOutput> = outputs.iter().map(|utxo| PaymentOutput::try_from(utxo.clone())).collect::<Result<Vec<_>, _>>()?;
+    let outputs: Vec<PaymentOutput> = outputs.iter().map(|utxo| PaymentOutput::try_from(utxo)).collect::<Result<Vec<_>, _>>()?;
 
     let payload: Vec<u8> = payload.map(Into::into).unwrap_or_default();
     let sig_op_count = sig_op_count.unwrap_or(1);
@@ -51,7 +51,7 @@ pub fn create_transactions_py<'a>(
     py: Python<'a>,
     network_id: String,
     entries: PyUtxoEntries,
-    outputs: Vec<Bound<PyDict>>,
+    outputs: PyOutputs,
     change_address: Address,
     payload: Option<PyBinary>,
     priority_fee: Option<u64>,
@@ -86,7 +86,7 @@ pub fn create_transactions_py<'a>(
 pub fn estimate_transactions_py<'a>(
     network_id: String,
     entries: PyUtxoEntries,
-    outputs: Vec<Bound<PyDict>>,
+    outputs: PyOutputs,
     change_address: Address,
     payload: Option<PyBinary>,
     priority_fee: Option<u64>,

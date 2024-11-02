@@ -1,7 +1,7 @@
 use crate::imports::*;
 use crate::python::tx::generator::pending::PendingTransaction;
 use crate::python::tx::generator::summary::GeneratorSummary;
-use crate::tx::{generator as native, Fees, PaymentDestination, PaymentOutputs};
+use crate::tx::{generator as native, Fees, PaymentDestination, PaymentOutput, PaymentOutputs};
 
 pub struct PyUtxoEntries {
     pub entries: Vec<UtxoEntryReference>,
@@ -18,11 +18,34 @@ impl FromPyObject<'_> for PyUtxoEntries {
             } else if let Ok(entry) = item.downcast::<PyDict>() {
                 UtxoEntryReference::try_from(entry)
             } else {
-                Err(PyException::new_err("Entries must be UtxoEntryReference or compatible dict"))
+                Err(PyException::new_err("All entries must be UtxoEntryReference instance or compatible dict"))
             }
         }).collect::<PyResult<Vec<UtxoEntryReference>>>()?;
 
         Ok(PyUtxoEntries { entries })
+    }
+}
+
+pub struct PyOutputs {
+    pub outputs: Vec<PaymentOutput>
+}
+
+impl FromPyObject<'_> for PyOutputs {
+    fn extract_bound(ob: &Bound<'_, PyAny>) -> PyResult<Self> {
+        // Must be list
+        let list = ob.downcast::<PyList>()?;
+
+        let outputs = list.iter().map(|item| {
+            if let Ok(output) = item.extract::<PaymentOutput>() {
+                Ok(output)
+            } else if let Ok(output) = item.downcast::<PyDict>() {
+                PaymentOutput::try_from(output)
+            } else {
+                Err(PyException::new_err("All outputs must be PaymentOutput instance or compatible dict"))
+            }
+        }).collect::<PyResult<Vec<PaymentOutput>>>()?;
+
+        Ok(PyOutputs { outputs })
     }
 }
 
@@ -39,7 +62,7 @@ impl Generator {
     pub fn ctor(
         network_id: String,
         entries: PyUtxoEntries,
-        outputs: Vec<Bound<PyDict>>,
+        outputs: PyOutputs,
         change_address: Address,
         payload: Option<PyBinary>,
         priority_fee: Option<u64>,
@@ -48,7 +71,7 @@ impl Generator {
         minimum_signatures: Option<u16>,
     ) -> PyResult<Generator> {
         let settings = GeneratorSettings::new(
-            outputs,
+            outputs.outputs,
             change_address,
             priority_fee,
             entries.entries,
@@ -149,7 +172,7 @@ struct GeneratorSettings {
 
 impl GeneratorSettings {
     pub fn new(
-        outputs: Vec<Bound<PyDict>>,
+        outputs: Vec<PaymentOutput>,
         change_address: Address,
         priority_fee: Option<u64>,
         entries: Vec<UtxoEntryReference>,
@@ -164,7 +187,7 @@ impl GeneratorSettings {
         // PY-TODO
         // let final_transaction_destination: PaymentDestination =
         //     if outputs.is_empty() { PaymentDestination::Change } else { PaymentOutputs::try_from(outputs).unwrap().into() };
-        let final_transaction_destination: PaymentDestination = PaymentOutputs::try_from(outputs).unwrap().into();
+        let final_transaction_destination: PaymentDestination = PaymentOutputs { outputs }.into();
 
         let final_priority_fee = match priority_fee {
             Some(fee) => fee.try_into().unwrap(),
