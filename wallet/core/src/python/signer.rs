@@ -21,20 +21,6 @@ pub fn py_sign_transaction(tx: &Transaction, signer: Vec<PrivateKey>, verify_sig
     Ok(tx.clone())
 }
 
-// pub fn sign_transaction<'a>(tx: &'a Transaction, private_keys: &[[u8; 32]], verify_sig: bool) -> Result<&'a Transaction> {
-//     let tx = sign(tx, private_keys)?;
-//     if verify_sig {
-//         let (cctx, utxos) = tx.tx_and_utxos()?;
-//         let populated_transaction = PopulatedTransaction::new(&cctx, utxos);
-//         verify(&populated_transaction)?;
-//     }
-//     Ok(tx)
-// }
-
-// pub fn sign<'a>(tx: &'a Transaction, privkeys: &[[u8; 32]]) -> Result<&'a Transaction> {
-//     Ok(sign_with_multiple_v3(tx, privkeys)?.unwrap())
-// }
-
 #[pyfunction]
 #[pyo3(signature = (tx, input_index, private_key, sighash_type=None))]
 pub fn create_input_signature(
