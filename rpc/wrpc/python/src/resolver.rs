@@ -36,8 +36,8 @@ impl Resolver {
         self.resolver.urls().unwrap_or_default().into_iter().map(|url| (*url).clone()).collect::<Vec<_>>()
     }
 
-    fn get_node(&self, py: Python, encoding: String, network_id: &str) -> PyResult<Py<PyAny>> {
-        let encoding = WrpcEncoding::from_str(encoding.as_str()).unwrap();
+    fn get_node(&self, py: Python, encoding: &str, network_id: &str) -> PyResult<Py<PyAny>> {
+        let encoding = WrpcEncoding::from_str(encoding).unwrap();
         let network_id = NetworkId::from_str(network_id)?;
 
         let resolver = self.resolver.clone();
@@ -49,8 +49,8 @@ impl Resolver {
         }}
     }
 
-    fn get_url(&self, py: Python, encoding: String, network_id: &str) -> PyResult<Py<PyAny>> {
-        let encoding = WrpcEncoding::from_str(encoding.as_str()).unwrap();
+    fn get_url(&self, py: Python, encoding: &str, network_id: &str) -> PyResult<Py<PyAny>> {
+        let encoding = WrpcEncoding::from_str(encoding).unwrap();
         let network_id = NetworkId::from_str(network_id)?;
 
         let resolver = self.resolver.clone();

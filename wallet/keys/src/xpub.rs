@@ -103,8 +103,8 @@ impl XPub {
 #[pymethods]
 impl XPub {
     #[new]
-    pub fn try_new_py(xpub: String) -> PyResult<XPub> {
-        let inner = ExtendedPublicKey::<secp256k1::PublicKey>::from_str(&xpub)?;
+    pub fn try_new_py(xpub: &str) -> PyResult<XPub> {
+        let inner = ExtendedPublicKey::<secp256k1::PublicKey>::from_str(xpub)?;
         Ok(Self { inner })
     }
 
@@ -117,8 +117,8 @@ impl XPub {
     }
 
     #[pyo3(name = "derive_path")]
-    pub fn derive_path_py(&self, path: String) -> PyResult<XPub> {
-        let path = DerivationPath::new(path.as_str())?;
+    pub fn derive_path_py(&self, path: &str) -> PyResult<XPub> {
+        let path = DerivationPath::new(path)?;
         let inner = self.inner.clone().derive_path((&path).into())?;
         Ok(Self { inner })
     }

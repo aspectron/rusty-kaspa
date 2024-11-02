@@ -327,8 +327,8 @@ impl Transaction {
     }
 
     #[pyo3(name = "addresses")]
-    pub fn addresses_py(&self, network_type: String) -> PyResult<Vec<Address>> {
-        let network_type = NetworkType::from_str(&network_type)?;
+    pub fn addresses_py(&self, network_type: &str) -> PyResult<Vec<Address>> {
+        let network_type = NetworkType::from_str(network_type)?;
         let mut list = std::collections::HashSet::new();
         for input in &self.inner.lock().unwrap().inputs {
             if let Some(utxo) = input.get_utxo() {
@@ -400,8 +400,8 @@ impl Transaction {
 
     #[setter]
     #[pyo3(name = "subnetwork_id")]
-    pub fn set_subnetwork_id_from_py_value(&mut self, v: String) {
-        let subnetwork_id = Vec::from_hex(&v)
+    pub fn set_subnetwork_id_from_py_value(&mut self, v: &str) {
+        let subnetwork_id = Vec::from_hex(v)
             .unwrap_or_else(|err| panic!("subnetwork_id decode error {}", err))
             .as_slice()
             .try_into()
