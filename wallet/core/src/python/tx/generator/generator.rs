@@ -12,22 +12,25 @@ impl FromPyObject<'_> for PyUtxoEntries {
         // Must be list
         let list = ob.downcast::<PyList>()?;
 
-        let entries = list.iter().map(|item| {
-            if let Ok(entry) = item.extract::<UtxoEntryReference>() {
-                Ok(entry)
-            } else if let Ok(entry) = item.downcast::<PyDict>() {
-                UtxoEntryReference::try_from(entry)
-            } else {
-                Err(PyException::new_err("All entries must be UtxoEntryReference instance or compatible dict"))
-            }
-        }).collect::<PyResult<Vec<UtxoEntryReference>>>()?;
+        let entries = list
+            .iter()
+            .map(|item| {
+                if let Ok(entry) = item.extract::<UtxoEntryReference>() {
+                    Ok(entry)
+                } else if let Ok(entry) = item.downcast::<PyDict>() {
+                    UtxoEntryReference::try_from(entry)
+                } else {
+                    Err(PyException::new_err("All entries must be UtxoEntryReference instance or compatible dict"))
+                }
+            })
+            .collect::<PyResult<Vec<UtxoEntryReference>>>()?;
 
         Ok(PyUtxoEntries { entries })
     }
 }
 
 pub struct PyOutputs {
-    pub outputs: Vec<PaymentOutput>
+    pub outputs: Vec<PaymentOutput>,
 }
 
 impl FromPyObject<'_> for PyOutputs {
@@ -35,20 +38,22 @@ impl FromPyObject<'_> for PyOutputs {
         // Must be list
         let list = ob.downcast::<PyList>()?;
 
-        let outputs = list.iter().map(|item| {
-            if let Ok(output) = item.extract::<PaymentOutput>() {
-                Ok(output)
-            } else if let Ok(output) = item.downcast::<PyDict>() {
-                PaymentOutput::try_from(output)
-            } else {
-                Err(PyException::new_err("All outputs must be PaymentOutput instance or compatible dict"))
-            }
-        }).collect::<PyResult<Vec<PaymentOutput>>>()?;
+        let outputs = list
+            .iter()
+            .map(|item| {
+                if let Ok(output) = item.extract::<PaymentOutput>() {
+                    Ok(output)
+                } else if let Ok(output) = item.downcast::<PyDict>() {
+                    PaymentOutput::try_from(output)
+                } else {
+                    Err(PyException::new_err("All outputs must be PaymentOutput instance or compatible dict"))
+                }
+            })
+            .collect::<PyResult<Vec<PaymentOutput>>>()?;
 
         Ok(PyOutputs { outputs })
     }
 }
-
 
 #[pyclass]
 pub struct Generator {

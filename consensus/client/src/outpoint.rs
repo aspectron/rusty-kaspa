@@ -176,10 +176,10 @@ impl TryFrom<&JsValue> for TransactionOutpoint {
 }
 
 #[cfg(feature = "py-sdk")]
-impl TryFrom<Bound<'_, PyDict>> for TransactionOutpoint {
+impl TryFrom<&Bound<'_, PyDict>> for TransactionOutpoint {
     type Error = PyErr;
-    fn try_from(dict: Bound<PyDict>) -> PyResult<Self> {
-        let inner: TransactionOutpointInner = serde_pyobject::from_pyobject(dict)?;
+    fn try_from(dict: &Bound<PyDict>) -> PyResult<Self> {
+        let inner: TransactionOutpointInner = serde_pyobject::from_pyobject(dict.clone())?;
         Ok(TransactionOutpoint { inner: Arc::new(inner) })
     }
 }

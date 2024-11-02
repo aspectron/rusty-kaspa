@@ -155,7 +155,7 @@ impl XPrv {
     }
 
     #[pyo3(name = "derive_path")]
-    pub fn derive_path_py(&self, path: Bound<PyAny>) -> PyResult<XPrv> {
+    pub fn derive_path_py(&self, path: &Bound<PyAny>) -> PyResult<XPrv> {
         let path = if let Ok(path_str) = path.extract::<String>() {
             Ok(DerivationPath::new(path_str.as_str())?)
         } else if let Ok(path_obj) = path.extract::<DerivationPath>() {

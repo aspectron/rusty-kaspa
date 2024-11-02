@@ -1,6 +1,5 @@
 use crate::imports::*;
-use crate::python::tx::generator::{Generator, GeneratorSummary, PendingTransaction, PyUtxoEntries, PyOutputs};
-use crate::tx::payment::PaymentOutput;
+use crate::python::tx::generator::{Generator, GeneratorSummary, PendingTransaction, PyOutputs, PyUtxoEntries};
 use kaspa_consensus_client::*;
 use kaspa_consensus_core::subnets::SUBNETWORK_ID_NATIVE;
 
@@ -9,13 +8,11 @@ use kaspa_consensus_core::subnets::SUBNETWORK_ID_NATIVE;
 #[pyo3(signature = (utxo_entry_source, outputs, priority_fee, payload=None, sig_op_count=None))]
 pub fn create_transaction_py(
     utxo_entry_source: PyUtxoEntries,
-    outputs: Vec<Bound<PyDict>>,
+    outputs: PyOutputs,
     priority_fee: u64,
     payload: Option<PyBinary>,
     sig_op_count: Option<u8>,
 ) -> PyResult<Transaction> {
-    let outputs: Vec<PaymentOutput> = outputs.iter().map(|utxo| PaymentOutput::try_from(utxo)).collect::<Result<Vec<_>, _>>()?;
-
     let payload: Vec<u8> = payload.map(Into::into).unwrap_or_default();
     let sig_op_count = sig_op_count.unwrap_or(1);
 
@@ -38,7 +35,7 @@ pub fn create_transaction_py(
         return Err(PyException::new_err(format!("priority fee({priority_fee}) > amount({total_input_amount})")));
     }
 
-    let outputs = outputs.into_iter().map(|output| output.into()).collect::<Vec<TransactionOutput>>();
+    let outputs = outputs.outputs.into_iter().map(|output| output.into()).collect::<Vec<TransactionOutput>>();
     let transaction = Transaction::new(None, 0, inputs, outputs, 0, SUBNETWORK_ID_NATIVE, 0, payload, 0)?;
 
     Ok(transaction)

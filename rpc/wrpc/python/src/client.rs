@@ -59,7 +59,7 @@ struct PyCallback {
 }
 
 impl PyCallback {
-    fn append_to_args(&self, py: Python, event: Bound<PyDict>) -> PyResult<Py<PyTuple>> {
+    fn add_event_to_args(&self, py: Python, event: Bound<PyDict>) -> PyResult<Py<PyTuple>> {
         match &self.args {
             Some(existing_args) => {
                 let tuple_ref = existing_args.bind(py);
@@ -74,7 +74,7 @@ impl PyCallback {
     }
 
     fn execute(&self, py: Python, event: Bound<PyDict>) -> PyResult<PyObject> {
-        let args = self.append_to_args(py, event)?;
+        let args = self.add_event_to_args(py, event)?;
         let kwargs = self.kwargs.as_ref().map(|kw| kw.bind(py));
 
         let result = self
