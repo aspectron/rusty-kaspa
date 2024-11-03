@@ -4,7 +4,8 @@ from kaspa import RpcClient, Resolver
 
 
 def subscription_callback(event, name, **kwargs):
-    print(event['nonexistent key'])
+    # print(event['nonexistent key'])
+    
     # try:
     #     print(event['nonexistent key'])
     # except KeyError:

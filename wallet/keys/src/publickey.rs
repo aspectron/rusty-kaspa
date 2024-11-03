@@ -92,10 +92,13 @@ impl PublicKey {
 impl PublicKey {
     #[new]
     pub fn try_new_py(key: &str) -> PyResult<PublicKey> {
-        let xonly_public_key = secp256k1::XOnlyPublicKey::from_str(key).map_err(|err| PyException::new_err(format!("{}", err)))?;
         match secp256k1::PublicKey::from_str(key) {
             Ok(public_key) => Ok((&public_key).into()),
-            Err(_e) => Ok(Self { xonly_public_key, public_key: None }),
+            Err(_) => {
+                let xonly_public_key =
+                    secp256k1::XOnlyPublicKey::from_str(key).map_err(|err| PyException::new_err(format!("{}", err)))?;
+                Ok(Self { xonly_public_key, public_key: None })
+            }
         }
     }
 
