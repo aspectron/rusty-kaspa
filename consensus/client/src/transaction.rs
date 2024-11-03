@@ -310,8 +310,7 @@ impl Transaction {
             .try_into()
             .map_err(|err| PyException::new_err(format!("subnetwork_id conversion error: {}", err)))?;
 
-        Ok(Transaction::new(None, version, inputs, outputs, lock_time, subnetwork_id, gas, payload.into(), mass)
-            .map_err(|err| PyException::new_err(format!("{}", err)))?)
+        Ok(Transaction::new(None, version, inputs, outputs, lock_time, subnetwork_id, gas, payload.into(), mass)?)
     }
 
     #[getter]
@@ -400,13 +399,14 @@ impl Transaction {
 
     #[setter]
     #[pyo3(name = "subnetwork_id")]
-    pub fn set_subnetwork_id_from_py_value(&mut self, v: &str) {
+    pub fn set_subnetwork_id_from_py_value(&mut self, v: &str) -> PyResult<()> {
         let subnetwork_id = Vec::from_hex(v)
             .unwrap_or_else(|err| panic!("subnetwork_id decode error {}", err))
             .as_slice()
             .try_into()
-            .unwrap_or_else(|err| panic!("subnetwork_id conversion error {}", err));
-        self.inner().subnetwork_id = subnetwork_id
+            .map_err(|err| PyException::new_err(format!("subnetwork_id conversion error: {}", err)))?;
+        self.inner().subnetwork_id = subnetwork_id;
+        Ok(())
     }
 
     #[getter]
@@ -663,6 +663,6 @@ impl Transaction {
     #[pyo3(name = "serialize_to_dict")]
     pub fn serialize_to_dict_py(&self, py: Python) -> PyResult<Py<PyAny>> {
         let tx = numeric::SerializableTransaction::from_client_transaction(self)?;
-        Ok(serde_pyobject::to_pyobject(py, &tx).unwrap().to_object(py))
+        Ok(serde_pyobject::to_pyobject(py, &tx)?.to_object(py))
     }
 }

@@ -119,7 +119,7 @@ impl Generator {
         Ok(Self { inner: Arc::new(generator) })
     }
 
-    pub fn estimate(&self) -> Result<GeneratorSummary> {
+    pub fn estimate(&self) -> PyResult<GeneratorSummary> {
         self.inner.iter().collect::<Result<Vec<_>>>()?;
         Ok(self.inner.summary().into())
     }
@@ -202,12 +202,6 @@ impl GeneratorSettings {
         // PY-TODO support GeneratorSource::UtxoContext and clean up below
         let generator_source =
             GeneratorSource::UtxoEntries(entries.iter().map(|entry| UtxoEntryReference::try_from(entry.clone()).unwrap()).collect());
-
-        // let priority_utxo_entries = if let Some(entries) = priority_entries {
-        //     Some(entries.iter().map(|entry| UtxoEntryReference::try_from(entry.clone()).unwrap()).collect())
-        // } else {
-        //     None
-        // };
 
         let sig_op_count = sig_op_count.unwrap_or(1);
 

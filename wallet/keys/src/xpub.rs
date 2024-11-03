@@ -124,7 +124,7 @@ impl XPub {
     }
 
     #[pyo3(name = "into_string")]
-    pub fn to_str_py(&self, prefix: &str) -> Result<String> {
+    pub fn to_str_py(&self, prefix: &str) -> PyResult<String> {
         Ok(self.inner.to_string(Some(prefix.try_into()?)))
     }
 

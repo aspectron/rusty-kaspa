@@ -298,7 +298,7 @@ impl PublicKeyGenerator {
     }
 
     #[pyo3(name = "receive_addresses_as_strings")]
-    fn receive_addresses_as_strings_py(&self, network_type: &str, mut start: u32, mut end: u32) -> Result<Vec<String>> {
+    fn receive_addresses_as_strings_py(&self, network_type: &str, mut start: u32, mut end: u32) -> PyResult<Vec<String>> {
         if start > end {
             (start, end) = (end, start);
         }
@@ -310,7 +310,7 @@ impl PublicKeyGenerator {
     }
 
     #[pyo3(name = "receive_address_as_string")]
-    fn receive_address_as_string_py(&self, network_type: &str, index: u32) -> Result<String> {
+    fn receive_address_as_string_py(&self, network_type: &str, index: u32) -> PyResult<String> {
         Ok(PublicKey::from(self.hd_wallet.receive_pubkey_manager().derive_pubkey(index)?)
             .to_address(NetworkType::from_str(network_type)?)?
             .to_string())
@@ -382,7 +382,7 @@ impl PublicKeyGenerator {
     }
 
     #[pyo3(name = "to_string")]
-    pub fn to_string_py(&self) -> Result<String> {
+    pub fn to_string_py(&self) -> PyResult<String> {
         Ok(self.hd_wallet.to_string(None).to_string())
     }
 }
