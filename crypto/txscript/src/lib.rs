@@ -1,12 +1,12 @@
 extern crate alloc;
 extern crate core;
 
+#[cfg(feature = "py-sdk")]
+pub mod bindings;
 pub mod caches;
 mod data_stack;
 pub mod error;
 pub mod opcodes;
-#[cfg(feature = "py-sdk")]
-pub mod python;
 pub mod result;
 pub mod script_builder;
 pub mod script_class;
