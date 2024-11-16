@@ -334,7 +334,7 @@ impl RpcClient {
     }
 
     // fn clear_event_listener PY-TODO
-    // fn default_port PY-TODO 
+    // fn default_port PY-TODO
     // fn parse_url PY-TODO
 
     fn remove_all_event_listeners(&self) -> PyResult<()> {
