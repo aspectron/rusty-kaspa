@@ -165,7 +165,7 @@ cfg_if::cfg_if! {
 
         pub use kaspa_consensus_wasm::*;
         pub use kaspa_wallet_keys::prelude::*;
-        pub use kaspa_wallet_core::wasm::*;
+        pub use kaspa_wallet_core::bindings::wasm::*;
 
     } else if #[cfg(feature = "wasm32-core")] {
 
@@ -192,7 +192,7 @@ cfg_if::cfg_if! {
 
         pub use kaspa_consensus_wasm::*;
         pub use kaspa_wallet_keys::prelude::*;
-        pub use kaspa_wallet_core::wasm::*;
+        pub use kaspa_wallet_core::bindings::wasm::*;
 
     } else if #[cfg(feature = "wasm32-rpc")] {
 
