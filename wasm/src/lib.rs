@@ -156,7 +156,7 @@ cfg_if::cfg_if! {
                 pub use kaspa_rpc_core::model::message::*;
             }
             pub use kaspa_rpc_core::api::rpc::RpcApi;
-            pub use kaspa_rpc_core::wasm::message::*;
+            pub use kaspa_rpc_core::bindings::wasm::message::*;
 
             pub use kaspa_wrpc_wasm::client::*;
             pub use kaspa_wrpc_wasm::resolver::*;
@@ -183,7 +183,7 @@ cfg_if::cfg_if! {
                 pub use kaspa_rpc_core::model::message::*;
             }
             pub use kaspa_rpc_core::api::rpc::RpcApi;
-            pub use kaspa_rpc_core::wasm::message::*;
+            pub use kaspa_rpc_core::bindings::wasm::message::*;
 
             pub use kaspa_wrpc_wasm::client::*;
             pub use kaspa_wrpc_wasm::resolver::*;
@@ -197,8 +197,8 @@ cfg_if::cfg_if! {
     } else if #[cfg(feature = "wasm32-rpc")] {
 
         pub use kaspa_rpc_core::api::rpc::RpcApi;
-        pub use kaspa_rpc_core::wasm::message::*;
-        pub use kaspa_rpc_core::wasm::message::IPingRequest;
+        pub use kaspa_rpc_core::bindings::wasm::message::*;
+        pub use kaspa_rpc_core::bindings::wasm::message::IPingRequest;
         pub use kaspa_wrpc_wasm::client::*;
         pub use kaspa_wrpc_wasm::resolver::*;
         pub use kaspa_wrpc_wasm::notify::*;
