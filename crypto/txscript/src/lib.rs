@@ -1,7 +1,7 @@
 extern crate alloc;
 extern crate core;
 
-#[cfg(feature = "py-sdk")]
+#[cfg(any(feature = "wasm32-sdk", feature = "py-sdk", feature = "py-sdk"))]
 pub mod bindings;
 pub mod caches;
 mod data_stack;
@@ -11,8 +11,6 @@ pub mod result;
 pub mod script_builder;
 pub mod script_class;
 pub mod standard;
-#[cfg(any(feature = "wasm32-sdk", feature = "py-sdk"))]
-pub mod wasm;
 
 use crate::caches::Cache;
 use crate::data_stack::{DataStack, Stack};

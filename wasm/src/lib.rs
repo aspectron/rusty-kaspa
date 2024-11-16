@@ -145,7 +145,7 @@ cfg_if::cfg_if! {
         pub use kaspa_addresses::{Address, Version as AddressVersion};
         pub use kaspa_consensus_core::tx::{ScriptPublicKey, Transaction, TransactionInput, TransactionOutpoint, TransactionOutput};
         pub use kaspa_pow::wasm::*;
-        pub use kaspa_txscript::wasm::*;
+        pub use kaspa_txscript::bindings::wasm::*;
 
         pub mod rpc {
             //! Kaspa RPC interface
@@ -172,7 +172,7 @@ cfg_if::cfg_if! {
         pub use kaspa_addresses::{Address, Version as AddressVersion};
         pub use kaspa_consensus_core::tx::{ScriptPublicKey, Transaction, TransactionInput, TransactionOutpoint, TransactionOutput};
         pub use kaspa_pow::wasm::*;
-        pub use kaspa_txscript::wasm::*;
+        pub use kaspa_txscript::bindings::wasm::*;
 
         pub mod rpc {
             //! Kaspa RPC interface
