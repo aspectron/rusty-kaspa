@@ -141,19 +141,27 @@ impl RpcClient {
         url: Option<String>,
         encoding: Option<WrpcEncoding>,
         network_id: Option<NetworkId>,
-    ) -> Result<RpcClient> {
-        let client = Arc::new(KaspaRpcClient::new(
-            encoding.unwrap_or(Encoding::Borsh),
-            url.as_deref(),
-            Some(resolver.as_ref().unwrap().clone().into()),
-            network_id,
-            None,
-        )?);
+    ) -> PyResult<RpcClient> {
+        let encoding = encoding.unwrap_or(Encoding::Borsh);
+
+        let url = url
+            .map(
+                |url| {
+                    if let Some(network_id) = network_id {
+                        Self::parse_url(&url, encoding, network_id)
+                    } else {
+                        Ok(url.to_string())
+                    }
+                },
+            )
+            .transpose()?;
+
+        let client = Arc::new(KaspaRpcClient::new(encoding, url.as_deref(), resolver.clone().map(Into::into), network_id, None)?);
 
         let rpc_client = RpcClient {
             inner: Arc::new(Inner {
                 client,
-                resolver,
+                resolver: resolver.map(Into::into),
                 notification_task: Arc::new(AtomicBool::new(false)),
                 notification_ctl: DuplexChannel::oneshot(),
                 callbacks: Arc::new(Default::default()),
@@ -334,12 +342,17 @@ impl RpcClient {
     }
 
     // fn clear_event_listener PY-TODO
-    // fn default_port PY-TODO
-    // fn parse_url PY-TODO
 
     fn remove_all_event_listeners(&self) -> PyResult<()> {
         *self.inner.callbacks.lock().unwrap() = Default::default();
         Ok(())
+    }
+}
+
+impl RpcClient {
+    pub fn parse_url(url: &str, encoding: Encoding, network_id: NetworkId) -> PyResult<String> {
+        let url_ = KaspaRpcClient::parse_url(url.to_string(), encoding, network_id.into())?;
+        Ok(url_)
     }
 }
 
