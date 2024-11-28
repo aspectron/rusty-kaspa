@@ -229,15 +229,15 @@ impl RpcClient {
     }
 
     #[pyo3(signature = (block_async_connect=None, strategy=None, url=None, timeout_duration=None, retry_interval=None))]
-    pub fn connect(
+    pub fn connect<'py>(
         &self,
-        py: Python,
+        py: Python<'py>,
         block_async_connect: Option<bool>,
         strategy: Option<String>,
         url: Option<String>,
         timeout_duration: Option<u64>,
         retry_interval: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Bound<'py, PyAny>> {
         let block_async_connect = block_async_connect.unwrap_or(true);
         let strategy = match strategy {
             Some(strategy) => ConnectStrategy::from_str(&strategy).map_err(|err| PyException::new_err(format!("{}", err)))?,
@@ -251,10 +251,15 @@ impl RpcClient {
         self.start_notification_task(py)?;
 
         let client = self.inner.client.clone();
-        py_async! {py, async move {
-            let _ = client.connect(Some(options)).await.map_err(|e| PyException::new_err(e.to_string()));
+        // py_async! {py, async move {
+        //     let _ = client.connect(Some(options)).await.map_err(|e| PyException::new_err(e.to_string()))?;
+        //     Ok(())
+        // }}
+
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            client.connect(Some(options)).await?;
             Ok(())
-        }}
+        })
     }
 
     fn disconnect(&self, py: Python) -> PyResult<Py<PyAny>> {
