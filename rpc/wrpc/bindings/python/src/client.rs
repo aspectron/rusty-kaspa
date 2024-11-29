@@ -251,34 +251,28 @@ impl RpcClient {
         self.start_notification_task(py)?;
 
         let client = self.inner.client.clone();
-        // py_async! {py, async move {
-        //     let _ = client.connect(Some(options)).await.map_err(|e| PyException::new_err(e.to_string()))?;
-        //     Ok(())
-        // }}
-
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             client.connect(Some(options)).await?;
             Ok(())
         })
     }
 
-    fn disconnect(&self, py: Python) -> PyResult<Py<PyAny>> {
+    fn disconnect<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.clone();
-
-        py_async! {py, async move {
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
             client.inner.client.disconnect().await?;
             client.stop_notification_task().await?;
             Ok(())
-        }}
+        })
     }
 
-    fn start(&self, py: Python) -> PyResult<Py<PyAny>> {
+    fn start<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         self.start_notification_task(py)?;
         let inner = self.inner.clone();
-        py_async! {py, async move {
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
             inner.client.start().await?;
             Ok(())
-        }}
+        })
     }
 
     // fn stop() PY-TODO
@@ -500,49 +494,67 @@ impl RpcClient {
 
 #[pymethods]
 impl RpcClient {
-    fn subscribe_utxos_changed(&self, py: Python, addresses: Vec<Address>) -> PyResult<Py<PyAny>> {
+    fn subscribe_utxos_changed<'py>(&self, py: Python<'py>, addresses: Vec<Address>) -> PyResult<Bound<'py, PyAny>> {
         if let Some(listener_id) = self.listener_id() {
             let client = self.inner.client.clone();
-            py_async! {py, async move {
+            pyo3_async_runtimes::tokio::future_into_py(py, async move {
                 client.start_notify(listener_id, Scope::UtxosChanged(UtxosChangedScope { addresses })).await?;
                 Ok(())
-            }}
+            })
         } else {
             Err(PyException::new_err("RPC subscribe on a closed connection"))
         }
     }
 
-    fn unsubscribe_utxos_changed(&self, py: Python, addresses: Vec<Address>) -> PyResult<Py<PyAny>> {
+    fn unsubscribe_utxos_changed<'py>(&self, py: Python<'py>, addresses: Vec<Address>) -> PyResult<Bound<'py, PyAny>> {
         if let Some(listener_id) = self.listener_id() {
             let client = self.inner.client.clone();
-            py_async! {py, async move {
+            pyo3_async_runtimes::tokio::future_into_py(py, async move {
                 client.stop_notify(listener_id, Scope::UtxosChanged(UtxosChangedScope { addresses })).await?;
                 Ok(())
-            }}
+            })
         } else {
             Err(PyException::new_err("RPC unsubscribe on a closed connection"))
         }
     }
 
-    fn subscribe_virtual_chain_changed(&self, py: Python, include_accepted_transaction_ids: bool) -> PyResult<Py<PyAny>> {
+    fn subscribe_virtual_chain_changed<'py>(
+        &self,
+        py: Python<'py>,
+        include_accepted_transaction_ids: bool,
+    ) -> PyResult<Bound<'py, PyAny>> {
         if let Some(listener_id) = self.listener_id() {
             let client = self.inner.client.clone();
-            py_async! {py, async move {
-                client.start_notify(listener_id, Scope::VirtualChainChanged(VirtualChainChangedScope { include_accepted_transaction_ids })).await?;
+            pyo3_async_runtimes::tokio::future_into_py(py, async move {
+                client
+                    .start_notify(
+                        listener_id,
+                        Scope::VirtualChainChanged(VirtualChainChangedScope { include_accepted_transaction_ids }),
+                    )
+                    .await?;
                 Ok(())
-            }}
+            })
         } else {
             Err(PyException::new_err("RPC subscribe on a closed connection"))
         }
     }
 
-    fn unsubscribe_virtual_chain_changed(&self, py: Python, include_accepted_transaction_ids: bool) -> PyResult<Py<PyAny>> {
+    fn unsubscribe_virtual_chain_changed<'py>(
+        &self,
+        py: Python<'py>,
+        include_accepted_transaction_ids: bool,
+    ) -> PyResult<Bound<'py, PyAny>> {
         if let Some(listener_id) = self.listener_id() {
             let client = self.inner.client.clone();
-            py_async! {py, async move {
-                client.stop_notify(listener_id, Scope::VirtualChainChanged(VirtualChainChangedScope { include_accepted_transaction_ids })).await?;
+            pyo3_async_runtimes::tokio::future_into_py(py, async move {
+                client
+                    .stop_notify(
+                        listener_id,
+                        Scope::VirtualChainChanged(VirtualChainChangedScope { include_accepted_transaction_ids }),
+                    )
+                    .await?;
                 Ok(())
-            }}
+            })
         } else {
             Err(PyException::new_err("RPC unsubscribe on a closed connection"))
         }

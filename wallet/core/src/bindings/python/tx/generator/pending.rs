@@ -117,14 +117,13 @@ impl PendingTransaction {
         Ok(())
     }
 
-    fn submit(&self, py: Python, rpc_client: &RpcClient) -> PyResult<Py<PyAny>> {
+    fn submit<'py>(&self, py: Python<'py>, rpc_client: &RpcClient) -> PyResult<Bound<'py, PyAny>> {
         let inner = self.inner.clone();
         let rpc: Arc<DynRpcApi> = rpc_client.client().clone();
-
-        py_async! {py, async move {
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let txid = inner.try_submit(&rpc).await?;
             Ok(txid.to_string())
-        }}
+        })
     }
 
     #[getter]
