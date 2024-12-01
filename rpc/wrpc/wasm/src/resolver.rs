@@ -1,3 +1,7 @@
+//! [`Resolver`](NativeResolver) bindings for obtaining public Kaspa wRPC URL endpoints.
+
+#![allow(non_snake_case)]
+
 use crate::client::{RpcClient, RpcConfig};
 use crate::imports::*;
 use js_sys::Array;
@@ -194,7 +198,7 @@ impl TryFrom<IResolverConfig> for NativeResolver {
 
 impl TryCastFromJs for Resolver {
     type Error = Error;
-    fn try_cast_from<'a, R>(value: &'a R) -> Result<Cast<Self>>
+    fn try_cast_from<'a, R>(value: &'a R) -> Result<Cast<'a, Self>>
     where
         R: AsRef<JsValue> + 'a,
     {

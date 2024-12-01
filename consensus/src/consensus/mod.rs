@@ -64,7 +64,7 @@ use kaspa_consensus_core::{
     merkle::calc_hash_merkle_root,
     muhash::MuHashExtensions,
     network::NetworkType,
-    pruning::{PruningPointProof, PruningPointTrustedData, PruningPointsList},
+    pruning::{PruningPointProof, PruningPointTrustedData, PruningPointsList, PruningProofMetadata},
     trusted::{ExternalGhostdagData, TrustedBlock},
     tx::{MutableTransaction, Transaction, TransactionOutpoint, UtxoEntry},
     BlockHashSet, BlueWorkType, ChainPath, HashMapCustomHasher,
@@ -81,6 +81,7 @@ use kaspa_database::prelude::StoreResultExtensions;
 use kaspa_hashes::Hash;
 use kaspa_muhash::MuHash;
 use kaspa_txscript::caches::TxScriptCacheCounters;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use std::{
     cmp::Reverse,
@@ -240,23 +241,13 @@ impl Consensus {
             body_receiver,
             virtual_sender,
             block_processors_pool,
+            params,
             db.clone(),
-            storage.statuses_store.clone(),
-            storage.ghostdag_primary_store.clone(),
-            storage.headers_store.clone(),
-            storage.block_transactions_store.clone(),
-            storage.body_tips_store.clone(),
-            services.reachability_service.clone(),
-            services.coinbase_manager.clone(),
-            services.mass_calculator.clone(),
-            services.transaction_validator.clone(),
-            services.window_manager.clone(),
-            params.max_block_mass,
-            params.genesis.clone(),
+            &storage,
+            &services,
             pruning_lock.clone(),
             notification_root.clone(),
             counters.clone(),
-            params.storage_mass_activation_daa_score,
         ));
 
         let virtual_processor = Arc::new(VirtualStateProcessor::new(
@@ -499,7 +490,7 @@ impl ConsensusApi for Consensus {
 
     fn get_virtual_merge_depth_blue_work_threshold(&self) -> BlueWorkType {
         // PRUNE SAFETY: merge depth root is never close to being pruned (in terms of block depth)
-        self.get_virtual_merge_depth_root().map_or(BlueWorkType::ZERO, |root| self.ghostdag_primary_store.get_blue_work(root).unwrap())
+        self.get_virtual_merge_depth_root().map_or(BlueWorkType::ZERO, |root| self.ghostdag_store.get_blue_work(root).unwrap())
     }
 
     fn get_sink(&self) -> Hash {
@@ -532,7 +523,7 @@ impl ConsensusApi for Consensus {
 
         for child in initial_children {
             if visited.insert(child) {
-                let blue_work = self.ghostdag_primary_store.get_blue_work(child).unwrap();
+                let blue_work = self.ghostdag_store.get_blue_work(child).unwrap();
                 heap.push(Reverse(SortableBlock::new(child, blue_work)));
             }
         }
@@ -559,7 +550,7 @@ impl ConsensusApi for Consensus {
 
             for child in children {
                 if visited.insert(child) {
-                    let blue_work = self.ghostdag_primary_store.get_blue_work(child).unwrap();
+                    let blue_work = self.ghostdag_store.get_blue_work(child).unwrap();
                     heap.push(Reverse(SortableBlock::new(child, blue_work)));
                 }
             }
@@ -607,14 +598,26 @@ impl ConsensusApi for Consensus {
         self.config.is_nearly_synced(compact.timestamp, compact.daa_score)
     }
 
-    fn get_virtual_chain_from_block(&self, hash: Hash) -> ConsensusResult<ChainPath> {
-        // Calculate chain changes between the given hash and the
-        // sink. Note that we explicitly don't
+    fn get_virtual_chain_from_block(&self, low: Hash, chain_path_added_limit: Option<usize>) -> ConsensusResult<ChainPath> {
+        // Calculate chain changes between the given `low` and the current sink hash (up to `limit` amount of block hashes).
+        // Note:
+        // 1) that we explicitly don't
         // do the calculation against the virtual itself so that we
         // won't later need to remove it from the result.
+        // 2) supplying `None` as `chain_path_added_limit` will result in the full chain path, with optimized performance.
         let _guard = self.pruning_lock.blocking_read();
-        self.validate_block_exists(hash)?;
-        Ok(self.services.dag_traversal_manager.calculate_chain_path(hash, self.get_sink()))
+
+        // Verify that the block exists
+        self.validate_block_exists(low)?;
+
+        // Verify that source is on chain(block)
+        self.services
+            .reachability_service
+            .is_chain_ancestor_of(self.get_source(), low)
+            .then_some(())
+            .ok_or(ConsensusError::General("the queried hash does not have source on its chain"))?;
+
+        Ok(self.services.dag_traversal_manager.calculate_chain_path(low, self.get_sink(), chain_path_added_limit))
     }
 
     /// Returns a Vec of header samples since genesis
@@ -740,12 +743,16 @@ impl ConsensusApi for Consensus {
     }
 
     fn calc_transaction_hash_merkle_root(&self, txs: &[Transaction], pov_daa_score: u64) -> Hash {
-        let storage_mass_activated = pov_daa_score > self.config.storage_mass_activation_daa_score;
+        let storage_mass_activated = self.config.storage_mass_activation.is_active(pov_daa_score);
         calc_hash_merkle_root(txs.iter(), storage_mass_activated)
     }
 
-    fn validate_pruning_proof(&self, proof: &PruningPointProof) -> Result<(), PruningImportError> {
-        self.services.pruning_proof_manager.validate_pruning_point_proof(proof)
+    fn validate_pruning_proof(
+        &self,
+        proof: &PruningPointProof,
+        proof_metadata: &PruningProofMetadata,
+    ) -> Result<(), PruningImportError> {
+        self.services.pruning_proof_manager.validate_pruning_point_proof(proof, proof_metadata)
     }
 
     fn apply_pruning_proof(&self, proof: PruningPointProof, trusted_set: &[TrustedBlock]) -> PruningImportResult<()> {
@@ -759,9 +766,16 @@ impl ConsensusApi for Consensus {
     fn append_imported_pruning_point_utxos(&self, utxoset_chunk: &[(TransactionOutpoint, UtxoEntry)], current_multiset: &mut MuHash) {
         let mut pruning_utxoset_write = self.pruning_utxoset_stores.write();
         pruning_utxoset_write.utxo_set.write_many(utxoset_chunk).unwrap();
-        for (outpoint, entry) in utxoset_chunk {
-            current_multiset.add_utxo(outpoint, entry);
-        }
+
+        // Parallelize processing using the context of an existing thread pool.
+        let inner_multiset = self.virtual_processor.install(|| {
+            utxoset_chunk.par_iter().map(|(outpoint, entry)| MuHash::from_utxo(outpoint, entry)).reduce(MuHash::new, |mut a, b| {
+                a.combine(&b);
+                a
+            })
+        });
+
+        current_multiset.combine(&inner_multiset);
     }
 
     fn import_pruning_point_utxo_set(&self, new_pruning_point: Hash, imported_utxo_multiset: MuHash) -> PruningImportResult<()> {
@@ -890,7 +904,7 @@ impl ConsensusApi for Consensus {
             Some(BlockStatus::StatusInvalid) => return Err(ConsensusError::InvalidBlock(hash)),
             _ => {}
         };
-        let ghostdag = self.ghostdag_primary_store.get_data(hash).unwrap_option().ok_or(ConsensusError::MissingData(hash))?;
+        let ghostdag = self.ghostdag_store.get_data(hash).unwrap_option().ok_or(ConsensusError::MissingData(hash))?;
         Ok((&*ghostdag).into())
     }
 
@@ -914,11 +928,35 @@ impl ConsensusApi for Consensus {
         self.acceptance_data_store.get(hash).unwrap_option().ok_or(ConsensusError::MissingData(hash))
     }
 
-    fn get_blocks_acceptance_data(&self, hashes: &[Hash]) -> ConsensusResult<Vec<Arc<AcceptanceData>>> {
+    fn get_blocks_acceptance_data(
+        &self,
+        hashes: &[Hash],
+        merged_blocks_limit: Option<usize>,
+    ) -> ConsensusResult<Vec<Arc<AcceptanceData>>> {
+        // Note: merged_blocks_limit will limit after the sum of merged blocks is breached along the supplied hash's acceptance data
+        // and not limit the acceptance data within a queried hash. i.e. It has mergeset_size_limit granularity, this is to guarantee full acceptance data coverage.
+        if merged_blocks_limit.is_none() {
+            return hashes
+                .iter()
+                .copied()
+                .map(|hash| self.acceptance_data_store.get(hash).unwrap_option().ok_or(ConsensusError::MissingData(hash)))
+                .collect::<ConsensusResult<Vec<_>>>();
+        }
+        let merged_blocks_limit = merged_blocks_limit.unwrap(); // we handle `is_none`, so may unwrap.
+        let mut num_of_merged_blocks = 0usize;
+
         hashes
             .iter()
             .copied()
-            .map(|hash| self.acceptance_data_store.get(hash).unwrap_option().ok_or(ConsensusError::MissingData(hash)))
+            .map_while(|hash| {
+                let entry = self.acceptance_data_store.get(hash).unwrap_option().ok_or(ConsensusError::MissingData(hash));
+                num_of_merged_blocks += entry.as_ref().map_or(0, |entry| entry.len());
+                if num_of_merged_blocks > merged_blocks_limit {
+                    None
+                } else {
+                    Some(entry)
+                }
+            })
             .collect::<ConsensusResult<Vec<_>>>()
     }
 
@@ -942,7 +980,7 @@ impl ConsensusApi for Consensus {
         Ok(self
             .services
             .window_manager
-            .block_window(&self.ghostdag_primary_store.get_data(hash).unwrap(), WindowType::SampledDifficultyWindow)
+            .block_window(&self.ghostdag_store.get_data(hash).unwrap(), WindowType::DifficultyWindow)
             .unwrap()
             .deref()
             .iter()
@@ -981,7 +1019,7 @@ impl ConsensusApi for Consensus {
         match start_hash {
             Some(hash) => {
                 self.validate_block_exists(hash)?;
-                let ghostdag_data = self.ghostdag_primary_store.get_data(hash).unwrap();
+                let ghostdag_data = self.ghostdag_store.get_data(hash).unwrap();
                 // The selected parent header is used within to check for sampling activation, so we verify its existence first
                 if !self.headers_store.has(ghostdag_data.selected_parent).unwrap() {
                     return Err(ConsensusError::DifficultyError(DifficultyError::InsufficientWindowData(0)));

@@ -1,3 +1,11 @@
+//!
+//! # Transaction
+//!
+//! This module implements consensus [`Transaction`] structure and related types.
+//!
+
+#![allow(non_snake_case)]
+
 mod script_public_key;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -25,6 +33,7 @@ use crate::{
 
 /// COINBASE_TRANSACTION_INDEX is the index of the coinbase transaction in every block
 pub const COINBASE_TRANSACTION_INDEX: usize = 0;
+/// A 32-byte Kaspa transaction identifier.
 pub type TransactionId = kaspa_hashes::Hash;
 
 /// Holds details about an individual transaction output in a utxo
@@ -284,6 +293,8 @@ pub trait VerifiableTransaction {
     fn id(&self) -> TransactionId {
         self.tx().id()
     }
+
+    fn utxo(&self, index: usize) -> Option<&UtxoEntry>;
 }
 
 /// A custom iterator written only so that `populated_inputs` has a known return type and can de defined on the trait level
@@ -310,7 +321,7 @@ impl<'a, T: VerifiableTransaction> Iterator for PopulatedInputIterator<'a, T> {
     }
 }
 
-impl<'a, T: VerifiableTransaction> ExactSizeIterator for PopulatedInputIterator<'a, T> {}
+impl<T: VerifiableTransaction> ExactSizeIterator for PopulatedInputIterator<'_, T> {}
 
 /// Represents a read-only referenced transaction along with fully populated UTXO entry data
 pub struct PopulatedTransaction<'a> {
@@ -325,13 +336,17 @@ impl<'a> PopulatedTransaction<'a> {
     }
 }
 
-impl<'a> VerifiableTransaction for PopulatedTransaction<'a> {
+impl VerifiableTransaction for PopulatedTransaction<'_> {
     fn tx(&self) -> &Transaction {
         self.tx
     }
 
     fn populated_input(&self, index: usize) -> (&TransactionInput, &UtxoEntry) {
         (&self.tx.inputs[index], &self.entries[index])
+    }
+
+    fn utxo(&self, index: usize) -> Option<&UtxoEntry> {
+        self.entries.get(index)
     }
 }
 
@@ -353,13 +368,17 @@ impl<'a> ValidatedTransaction<'a> {
     }
 }
 
-impl<'a> VerifiableTransaction for ValidatedTransaction<'a> {
+impl VerifiableTransaction for ValidatedTransaction<'_> {
     fn tx(&self) -> &Transaction {
         self.tx
     }
 
     fn populated_input(&self, index: usize) -> (&TransactionInput, &UtxoEntry) {
         (&self.tx.inputs[index], &self.entries[index])
+    }
+
+    fn utxo(&self, index: usize) -> Option<&UtxoEntry> {
+        self.entries.get(index)
     }
 }
 
@@ -497,6 +516,10 @@ impl<T: AsRef<Transaction>> VerifiableTransaction for MutableTransactionVerifiab
             &self.inner.tx.as_ref().inputs[index],
             self.inner.entries[index].as_ref().expect("expected to be called only following full UTXO population"),
         )
+    }
+
+    fn utxo(&self, index: usize) -> Option<&UtxoEntry> {
+        self.inner.entries.get(index).and_then(Option::as_ref)
     }
 }
 

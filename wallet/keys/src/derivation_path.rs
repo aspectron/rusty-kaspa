@@ -1,7 +1,13 @@
+//!
+//! Implementation of the [`DerivationPath`] manager for arbitrary derivation paths.
+//!
+
 use crate::imports::*;
 use workflow_wasm::prelude::*;
 
+///
 /// Key derivation path
+///
 /// @category Wallet SDK
 #[derive(Clone, CastFromJs)]
 #[wasm_bindgen]
@@ -51,7 +57,7 @@ impl DerivationPath {
 
 impl TryCastFromJs for DerivationPath {
     type Error = Error;
-    fn try_cast_from<'a, R>(value: &'a R) -> Result<Cast<Self>, Self::Error>
+    fn try_cast_from<'a, R>(value: &'a R) -> Result<Cast<'a, Self>, Self::Error>
     where
         R: AsRef<JsValue> + 'a,
     {
