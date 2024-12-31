@@ -165,30 +165,44 @@ impl ConsensusConverter {
         chain_path: &ChainPath,
         merged_blocks_limit: Option<usize>,
     ) -> RpcResult<Vec<RpcAcceptanceData>> {
-        let acceptance_data = consensus.async_get_blocks_acceptance_data(chain_path.added.clone(), merged_blocks_limit).await.unwrap();
-        let mut acceptance_daa_scores = Vec::with_capacity(chain_path.added.len());
-        for hash in chain_path.added.iter() {
-            acceptance_daa_scores.push(consensus.async_get_compact_header_data(*hash).await?.blue_score);
-        }
-        Ok(acceptance_data
-            .iter()
-            .zip(acceptance_daa_scores)
-            .map(|(block_data, accepting_blue_score)| RpcAcceptanceData {
-                accepting_blue_score,
-                mergeset_block_acceptance_data: block_data
+        let acceptance_data = consensus.async_get_blocks_acceptance_data(chain_path.added.clone(), merged_blocks_limit).await?;
+        let mut r = Vec::with_capacity(acceptance_data.len());
+        for (datum, accepting_block) in acceptance_data.into_iter().zip(chain_path.added.iter()) {
+            let blue_score = consensus.async_get_compact_header_data(*accepting_block).await?.blue_score;
+            let mut acceptance_data = Vec::with_capacity(datum.len());
+            for MergesetBlockAcceptanceData { block_hash, accepted_transactions } in datum.iter() {
+                let block_txs = consensus.async_get_block_even_if_header_only(*block_hash).await?.transactions;
+                let accepted_transactions = block_txs
                     .iter()
-                    .map(|MergesetBlockAcceptanceData { block_hash, accepted_transactions }| {
-                        let mut accepted_transactions = accepted_transactions.clone();
-                        accepted_transactions.sort_unstable_by_key(|entry| entry.index_within_block);
-
-                        RpcMergesetBlockAcceptanceData {
-                            merged_block_hash: *block_hash,
-                            accepted_transaction_ids: accepted_transactions.into_iter().map(|v| v.transaction_id).collect(),
-                        }
-                    })
-                    .collect(),
-            })
-            .collect())
+                    .enumerate()
+                    .filter(|(idx, _tx)| accepted_transactions.iter().any(|accepted| accepted.index_within_block as usize == *idx))
+                    .map(|(_, tx)| tx.into())
+                    .collect();
+                acceptance_data.push(RpcMergesetBlockAcceptanceData { merged_block_hash: *block_hash, accepted_transactions })
+            }
+            r.push(RpcAcceptanceData { accepting_blue_score: blue_score, mergeset_block_acceptance_data: acceptance_data })
+        }
+        Ok(r)
+        // Ok(acceptance_data
+        //     .iter()
+        //     .zip(acceptance_daa_scores)
+        //     .map(|(block_data, accepting_blue_score)| RpcAcceptanceData {
+        //         accepting_blue_score,
+        //         mergeset_block_acceptance_data: block_data
+        //             .iter()
+        //             .map(|MergesetBlockAcceptanceData { block_hash, accepted_transactions }| {
+        //                 let mut accepted_transactions = accepted_transactions.clone();
+        //                 accepted_transactions.sort_unstable_by_key(|entry| entry.index_within_block);
+        //
+        //                 // todo filter block transactions based on it
+        //                 RpcMergesetBlockAcceptanceData {
+        //                     merged_block_hash: *block_hash,
+        //                     accepted_transactions: accepted_transactions.into_iter().map(|v| v.transaction_id).collect(),
+        //                 }
+        //             })
+        //             .collect(),
+        //     })
+        //     .collect())
     }
 }
 

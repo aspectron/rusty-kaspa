@@ -117,7 +117,7 @@ async fn daemon_mining_test() {
     assert_eq!(vc.added_chain_block_hashes.len(), 10);
     assert_eq!(vc.added_acceptance_data.len(), 10);
     for accepted_txs_pair in vc.added_acceptance_data.iter().flat_map(|v| &v.mergeset_block_acceptance_data) {
-        assert_eq!(accepted_txs_pair.accepted_transaction_ids.len(), 1);
+        assert_eq!(accepted_txs_pair.accepted_transactions.len(), 1);
     }
 }
 
@@ -236,7 +236,7 @@ async fn daemon_utxos_propagation_test() {
     assert_eq!(vc.added_chain_block_hashes.len() as u64, initial_blocks);
     assert_eq!(vc.added_acceptance_data.len() as u64, initial_blocks);
     for accepted_txs_pair in vc.added_acceptance_data.iter().flat_map(|v| &v.mergeset_block_acceptance_data) {
-        assert_eq!(accepted_txs_pair.accepted_transaction_ids.len(), 1);
+        assert_eq!(accepted_txs_pair.accepted_transactions.len(), 1);
     }
 
     // Create a multi-listener RPC client on each node...

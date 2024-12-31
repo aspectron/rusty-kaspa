@@ -1,6 +1,5 @@
 use crate::protowire;
 use crate::{from, try_from};
-use kaspa_consensus_core::tx::TransactionId;
 use kaspa_rpc_core::{FromRpcHex, RpcError, RpcHash, RpcMergesetBlockAcceptanceData, RpcResult, RpcScriptVec, ToRpcHex};
 use std::str::FromStr;
 // ----------------------------------------------------------------------------
@@ -82,11 +81,11 @@ from!(item: &kaspa_rpc_core::RpcAcceptanceData, protowire::RpcAcceptanceData, {
             .map(
             |RpcMergesetBlockAcceptanceData{
                 merged_block_hash,
-                accepted_transaction_ids,
+                accepted_transactions,
             }|
             protowire::RpcMergesetBlockAcceptanceData{
                 merged_block_hash: merged_block_hash.to_string(),
-                accepted_transaction_ids: accepted_transaction_ids.iter().map(TransactionId::to_string).collect(),
+                accepted_transactions: accepted_transactions.iter().map(Into::into).collect(),
             }).collect(),
     }
 });
@@ -198,11 +197,11 @@ try_from!(item: &protowire::RpcAcceptanceData, kaspa_rpc_core::RpcAcceptanceData
             .map(
                 |protowire::RpcMergesetBlockAcceptanceData{
                     merged_block_hash,
-                    accepted_transaction_ids,
+                    accepted_transactions,
                 }|  kaspa_rpc_core::RpcResult::Ok(RpcMergesetBlockAcceptanceData{
                     merged_block_hash: RpcHash::from_str(merged_block_hash)?,
-                    accepted_transaction_ids: accepted_transaction_ids.iter()
-                        .map(|txid| RpcHash::from_str(txid))
+                    accepted_transactions: accepted_transactions.iter()
+                        .map(|tx| tx.try_into())
                         .collect::<Result<Vec<_>, _>>()?,
                 })
             )

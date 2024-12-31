@@ -82,6 +82,7 @@ use once_cell::unsync::Lazy;
 use super::errors::{PruningImportError, PruningImportResult};
 use crossbeam_channel::{Receiver as CrossbeamReceiver, Sender as CrossbeamSender};
 use itertools::Itertools;
+use kaspa_consensus_core::acceptance_data::MergesetBlockAcceptanceDataWithTx;
 use kaspa_consensus_core::tx::ValidatedTransaction;
 use kaspa_utils::binary_heap::BinaryHeapExtensions;
 use parking_lot::{RwLock, RwLockUpgradableReadGuard};
@@ -351,6 +352,33 @@ impl VirtualStateProcessor {
             let added_chain_blocks_acceptance_data =
                 chain_path.added.iter().copied().map(|added| self.acceptance_data_store.get(added).unwrap()).collect_vec();
 
+            let added_chain_blocks_acceptance_data = added_chain_blocks_acceptance_data
+                .into_iter()
+                .map(|data| {
+                    Arc::new(
+                        data.iter()
+                            .map(|mergeset| {
+                                let accepted_transactions = self
+                                    .block_transactions_store
+                                    .get(mergeset.block_hash)
+                                    .unwrap()
+                                    .iter()
+                                    .cloned()
+                                    .enumerate()
+                                    .filter(|(index, _)| {
+                                        mergeset
+                                            .accepted_transactions
+                                            .iter()
+                                            .any(|accepted| accepted.index_within_block as usize == *index)
+                                    })
+                                    .map(|(_, tx)| tx)
+                                    .collect_vec();
+                                MergesetBlockAcceptanceDataWithTx { block_hash: mergeset.block_hash, accepted_transactions }
+                            })
+                            .collect_vec(),
+                    )
+                })
+                .collect();
             let added_chain_block_blue_scores =
                 chain_path.added.iter().copied().map(|added| self.headers_store.get_blue_score(added).unwrap()).collect_vec();
             self.notification_root

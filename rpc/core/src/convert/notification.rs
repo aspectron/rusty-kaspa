@@ -6,7 +6,7 @@ use crate::{
     RpcMergesetBlockAcceptanceData, SinkBlueScoreChangedNotification, UtxosChangedNotification, VirtualChainChangedNotification,
     VirtualDaaScoreChangedNotification,
 };
-use kaspa_consensus_core::acceptance_data::{AcceptedTxEntry, MergesetBlockAcceptanceData};
+use kaspa_consensus_core::acceptance_data::MergesetBlockAcceptanceDataWithTx;
 use kaspa_consensus_notify::notification as consensus_notify;
 use kaspa_index_core::notification as index_notify;
 use std::sync::Arc;
@@ -60,15 +60,10 @@ impl From<&consensus_notify::VirtualChainChangedNotification> for VirtualChainCh
                         accepting_blue_score,
                         mergeset_block_acceptance_data: acceptance_data
                             .iter()
-                            .map(|MergesetBlockAcceptanceData { block_hash, accepted_transactions }| {
-                                let mut accepted_transactions: Vec<_> = accepted_transactions.to_vec();
-                                accepted_transactions.sort_unstable_by_key(|entry| entry.index_within_block);
+                            .map(|MergesetBlockAcceptanceDataWithTx { block_hash, accepted_transactions }| {
                                 RpcMergesetBlockAcceptanceData {
                                     merged_block_hash: *block_hash,
-                                    accepted_transaction_ids: accepted_transactions
-                                        .into_iter()
-                                        .map(|AcceptedTxEntry { transaction_id, .. }| transaction_id)
-                                        .collect(),
+                                    accepted_transactions: accepted_transactions.iter().map(Into::into).collect(),
                                 }
                             })
                             .collect(),
