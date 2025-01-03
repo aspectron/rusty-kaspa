@@ -171,14 +171,20 @@ impl ConsensusConverter {
             let blue_score = consensus.async_get_compact_header_data(*accepting_block).await?.blue_score;
             let mut acceptance_data = Vec::with_capacity(datum.len());
             for MergesetBlockAcceptanceData { block_hash, accepted_transactions } in datum.iter() {
-                let block_txs = consensus.async_get_block_even_if_header_only(*block_hash).await?.transactions;
+                let block = consensus.async_get_block_even_if_header_only(*block_hash).await?;
+                let block_timestamp = block.header.timestamp;
+                let block_txs = block.transactions;
                 let accepted_transactions = block_txs
                     .iter()
                     .enumerate()
                     .filter(|(idx, _tx)| accepted_transactions.iter().any(|accepted| accepted.index_within_block as usize == *idx))
                     .map(|(_, tx)| tx.into())
                     .collect();
-                acceptance_data.push(RpcMergesetBlockAcceptanceData { merged_block_hash: *block_hash, accepted_transactions })
+                acceptance_data.push(RpcMergesetBlockAcceptanceData {
+                    merged_block_hash: *block_hash,
+                    merged_block_timestamp: block_timestamp,
+                    accepted_transactions,
+                })
             }
             r.push(RpcAcceptanceData { accepting_blue_score: blue_score, mergeset_block_acceptance_data: acceptance_data })
         }

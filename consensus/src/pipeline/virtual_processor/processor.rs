@@ -373,7 +373,13 @@ impl VirtualStateProcessor {
                                     })
                                     .map(|(_, tx)| tx)
                                     .collect_vec();
-                                MergesetBlockAcceptanceDataWithTx { block_hash: mergeset.block_hash, accepted_transactions }
+                                let block_timestamp =
+                                    self.headers_store.get_compact_header_data(mergeset.block_hash).unwrap().timestamp;
+                                MergesetBlockAcceptanceDataWithTx {
+                                    block_hash: mergeset.block_hash,
+                                    block_timestamp,
+                                    accepted_transactions,
+                                }
                             })
                             .collect_vec(),
                     )

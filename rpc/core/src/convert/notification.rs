@@ -60,9 +60,10 @@ impl From<&consensus_notify::VirtualChainChangedNotification> for VirtualChainCh
                         accepting_blue_score,
                         mergeset_block_acceptance_data: acceptance_data
                             .iter()
-                            .map(|MergesetBlockAcceptanceDataWithTx { block_hash, accepted_transactions }| {
+                            .map(|MergesetBlockAcceptanceDataWithTx { block_hash, block_timestamp, accepted_transactions }| {
                                 RpcMergesetBlockAcceptanceData {
                                     merged_block_hash: *block_hash,
+                                    merged_block_timestamp: *block_timestamp,
                                     accepted_transactions: accepted_transactions.iter().map(Into::into).collect(),
                                 }
                             })

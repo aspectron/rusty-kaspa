@@ -396,6 +396,7 @@ impl Deserializer for RpcTransactionVerboseData {
 #[serde(rename_all = "camelCase")]
 pub struct RpcMergesetBlockAcceptanceData {
     pub merged_block_hash: RpcHash,
+    pub merged_block_timestamp: u64,
     pub accepted_transactions: Vec<RpcTransaction>,
 }
 

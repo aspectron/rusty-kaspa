@@ -81,10 +81,12 @@ from!(item: &kaspa_rpc_core::RpcAcceptanceData, protowire::RpcAcceptanceData, {
             .map(
             |RpcMergesetBlockAcceptanceData{
                 merged_block_hash,
+                merged_block_timestamp,
                 accepted_transactions,
             }|
             protowire::RpcMergesetBlockAcceptanceData{
                 merged_block_hash: merged_block_hash.to_string(),
+                merged_block_timestamp: *merged_block_timestamp,
                 accepted_transactions: accepted_transactions.iter().map(Into::into).collect(),
             }).collect(),
     }
@@ -198,8 +200,10 @@ try_from!(item: &protowire::RpcAcceptanceData, kaspa_rpc_core::RpcAcceptanceData
                 |protowire::RpcMergesetBlockAcceptanceData{
                     merged_block_hash,
                     accepted_transactions,
+                    merged_block_timestamp,
                 }|  kaspa_rpc_core::RpcResult::Ok(RpcMergesetBlockAcceptanceData{
                     merged_block_hash: RpcHash::from_str(merged_block_hash)?,
+                    merged_block_timestamp: *merged_block_timestamp,
                     accepted_transactions: accepted_transactions.iter()
                         .map(|tx| tx.try_into())
                         .collect::<Result<Vec<_>, _>>()?,

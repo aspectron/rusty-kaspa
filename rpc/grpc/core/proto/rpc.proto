@@ -389,6 +389,7 @@ message GetVirtualChainFromBlockRequestMessage{
 message RpcMergesetBlockAcceptanceData {
   string mergedBlockHash = 1;
   repeated RpcTransaction acceptedTransactions = 2; // order according to order within block
+  uint64 mergedBlockTimestamp = 3;
 }
 
 message RpcAcceptanceData {

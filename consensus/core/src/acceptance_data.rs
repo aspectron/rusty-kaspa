@@ -16,6 +16,7 @@ pub struct MergesetBlockAcceptanceData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MergesetBlockAcceptanceDataWithTx {
     pub block_hash: Hash,
+    pub block_timestamp: u64,
     pub accepted_transactions: Vec<Transaction>,
 }
 
