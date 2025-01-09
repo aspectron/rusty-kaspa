@@ -52,4 +52,9 @@ declare_wasm_handlers!([
     TransactionsReplaceNote,
     TransactionsReplaceMetadata,
     AddressBookEnumerate,
+    FeeRateEstimate,
+    FeeRatePollerEnable,
+    FeeRatePollerDisable,
+    AccountsCommitReveal,
+    AccountsCommitRevealManual,
 ]);

@@ -8,6 +8,7 @@
 use crate::imports::*;
 use crate::tx::{Fees, GeneratorSummary, PaymentDestination};
 use kaspa_addresses::Address;
+use kaspa_rpc_core::RpcFeerateBucket;
 
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
@@ -401,11 +402,16 @@ pub struct AccountsEnsureDefaultResponse {
 // TODO
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AccountsImportRequest {}
+pub struct AccountsImportRequest {
+    pub wallet_secret: Secret,
+    pub account_create_args: AccountCreateArgs,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AccountsImportResponse {}
+pub struct AccountsImportResponse {
+    pub account_descriptor: AccountDescriptor,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
@@ -493,6 +499,7 @@ pub struct AccountsSendRequest {
     pub wallet_secret: Secret,
     pub payment_secret: Option<Secret>,
     pub destination: PaymentDestination,
+    pub fee_rate: Option<f64>,
     pub priority_fee_sompi: Fees,
     pub payload: Option<Vec<u8>>,
 }
@@ -512,6 +519,7 @@ pub struct AccountsTransferRequest {
     pub wallet_secret: Secret,
     pub payment_secret: Option<Secret>,
     pub transfer_amount_sompi: u64,
+    pub fee_rate: Option<f64>,
     pub priority_fee_sompi: Option<Fees>,
     // pub priority_fee_sompi: Fees,
 }
@@ -530,6 +538,7 @@ pub struct AccountsTransferResponse {
 pub struct AccountsEstimateRequest {
     pub account_id: AccountId,
     pub destination: PaymentDestination,
+    pub fee_rate: Option<f64>,
     pub priority_fee_sompi: Fees,
     pub payload: Option<Vec<u8>>,
 }
@@ -539,6 +548,55 @@ pub struct AccountsEstimateRequest {
 pub struct AccountsEstimateResponse {
     pub generator_summary: GeneratorSummary,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeeRateEstimateBucket {
+    feerate: f64,
+    seconds: f64,
+}
+
+impl From<RpcFeerateBucket> for FeeRateEstimateBucket {
+    fn from(bucket: RpcFeerateBucket) -> Self {
+        Self { feerate: bucket.feerate, seconds: bucket.estimated_seconds }
+    }
+}
+
+impl From<&RpcFeerateBucket> for FeeRateEstimateBucket {
+    fn from(bucket: &RpcFeerateBucket) -> Self {
+        Self { feerate: bucket.feerate, seconds: bucket.estimated_seconds }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeeRateEstimateRequest {}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeeRateEstimateResponse {
+    pub priority: FeeRateEstimateBucket,
+    pub normal: FeeRateEstimateBucket,
+    pub low: FeeRateEstimateBucket,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeeRatePollerEnableRequest {
+    pub interval_seconds: u64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeeRatePollerEnableResponse {}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeeRatePollerDisableRequest {}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeeRatePollerDisableResponse {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
@@ -610,3 +668,69 @@ pub struct AddressBookEnumerateResponse {}
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WalletNotification {}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountsCommitRevealManualRequest {
+    pub account_id: AccountId,
+    pub script_sig: Vec<u8>,
+    pub start_destination: PaymentDestination,
+    pub end_destination: PaymentDestination,
+    pub wallet_secret: Secret,
+    pub payment_secret: Option<Secret>,
+    pub fee_rate: Option<f64>,
+    pub reveal_fee_sompi: Option<u64>,
+    pub payload: Option<Vec<u8>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountsCommitRevealManualResponse {
+    pub transaction_ids: Vec<TransactionId>,
+}
+
+/// Specifies the type of an account address to be used in
+/// commit reveal redeem script and also to spend reveal
+/// operation to.
+///
+/// @category Wallet API
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, CastFromJs)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "wasm32-sdk", wasm_bindgen)]
+pub enum CommitRevealAddressKind {
+    Receive,
+    Change,
+}
+
+impl FromStr for CommitRevealAddressKind {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "receive" => Ok(CommitRevealAddressKind::Receive),
+            "change" => Ok(CommitRevealAddressKind::Change),
+            _ => Err(Error::custom(format!("Invalid address kind: {s}"))),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountsCommitRevealRequest {
+    pub account_id: AccountId,
+    pub address_type: CommitRevealAddressKind,
+    pub address_index: u32,
+    pub script_sig: Vec<u8>,
+    pub wallet_secret: Secret,
+    pub commit_amount_sompi: u64,
+    pub payment_secret: Option<Secret>,
+    pub fee_rate: Option<f64>,
+    pub reveal_fee_sompi: Option<u64>,
+    pub payload: Option<Vec<u8>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountsCommitRevealResponse {
+    pub transaction_ids: Vec<TransactionId>,
+}

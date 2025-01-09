@@ -310,6 +310,9 @@ pub enum Error {
     #[error("Mass calculation error")]
     MassCalculationError,
 
+    #[error("Transaction fees are too high")]
+    TransactionFeesAreTooHigh,
+
     #[error("Invalid argument: {0}")]
     InvalidArgument(String),
 
@@ -341,6 +344,12 @@ pub enum Error {
 
     #[error("Error generating pending transaction from PSKT: {0}")]
     PendingTransactionFromPSKTError(String),
+
+    #[error("Address not found")]
+    AddressNotFound,
+
+    #[error("Something went wrong while generating commit reveal transaction batch")]
+    CommitRevealBatchGeneratorError,
 }
 
 impl From<Aborted> for Error {
