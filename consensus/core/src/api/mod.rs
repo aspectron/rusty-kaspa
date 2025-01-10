@@ -181,7 +181,7 @@ pub trait ConsensusApi: Send + Sync {
         &self,
         accepting_block_hash: Hash,
         outpoints: Arc<Vec<TransactionOutpoint>>,
-    ) ->  Result<Vec<u64>, UtxoInquirerError> {
+    ) -> Result<Vec<u64>, UtxoInquirerError> {
         unimplemented!()
     }
 

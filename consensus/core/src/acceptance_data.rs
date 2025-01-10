@@ -23,7 +23,7 @@ pub struct MergesetBlockAcceptanceDataWithTx {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransactionWithFee {
     pub tx: Transaction,
-    pub fee: u64
+    pub fee: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

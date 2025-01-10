@@ -1,7 +1,7 @@
 //! Conversion of Transaction related types
 
-use kaspa_consensus_core::acceptance_data::TransactionWithFee;
 use crate::{RpcError, RpcResult, RpcTransaction, RpcTransactionInput, RpcTransactionOutput};
+use kaspa_consensus_core::acceptance_data::TransactionWithFee;
 use kaspa_consensus_core::tx::{Transaction, TransactionInput, TransactionOutput};
 
 // ----------------------------------------------------------------------------
@@ -28,20 +28,19 @@ impl From<&Transaction> for RpcTransaction {
 }
 
 impl From<&TransactionWithFee> for RpcTransaction {
-    fn from(TransactionWithFee {tx,fee}: &TransactionWithFee) -> Self {
+    fn from(TransactionWithFee { tx, fee }: &TransactionWithFee) -> Self {
         let mut rtx = RpcTransaction::from(tx);
         rtx.fee = *fee;
         rtx
     }
 }
 impl From<TransactionWithFee> for RpcTransaction {
-    fn from(TransactionWithFee{tx,fee}: TransactionWithFee) -> Self {
+    fn from(TransactionWithFee { tx, fee }: TransactionWithFee) -> Self {
         let mut rtx = RpcTransaction::from(&tx);
         rtx.fee = fee;
         rtx
     }
 }
-
 
 impl From<&TransactionOutput> for RpcTransactionOutput {
     fn from(item: &TransactionOutput) -> Self {

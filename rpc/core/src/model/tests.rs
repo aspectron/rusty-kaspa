@@ -257,6 +257,7 @@ mod mockery {
                 payload: Hash::mock().as_bytes().to_vec(),
                 mass: mock(),
                 verbose_data: mock(),
+                fee: mock(),
             }
         }
     }

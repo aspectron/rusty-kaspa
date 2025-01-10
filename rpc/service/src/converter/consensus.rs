@@ -176,7 +176,8 @@ impl ConsensusConverter {
             let mut tx_id_input_to_outpoint: BTreeMap<(TransactionId, u32), (TransactionOutpoint, Option<&u64>)> = BTreeMap::new();
             let mut outpoint_to_value = BTreeMap::new();
             let mut acceptance_data = Vec::with_capacity(mergeset_data.len());
-            for MergesetBlockAcceptanceData { block_hash, accepted_transactions: accepted_transaction_entries } in mergeset_data.iter() {
+            for MergesetBlockAcceptanceData { block_hash, accepted_transactions: accepted_transaction_entries } in mergeset_data.iter()
+            {
                 let block = consensus.async_get_block_even_if_header_only(*block_hash).await?;
                 let block_timestamp = block.header.timestamp;
                 let block_txs = block.transactions;
@@ -222,8 +223,11 @@ impl ConsensusConverter {
             acceptance_data.iter_mut().for_each(|d| {
                 d.accepted_transactions.iter_mut().for_each(|rtx| {
                     let tx = Transaction::try_from(rtx.clone()).unwrap(); // lol
-                    let input_sum: u64 =
-                        tx.inputs.iter().map(|input| outpoint_to_value.get(&input.previous_outpoint).cloned().unwrap_or_default()).sum();
+                    let input_sum: u64 = tx
+                        .inputs
+                        .iter()
+                        .map(|input| outpoint_to_value.get(&input.previous_outpoint).cloned().unwrap_or_default())
+                        .sum();
                     let output_sum: u64 = tx.outputs.iter().map(|o| o.value).sum();
                     rtx.fee = input_sum.saturating_sub(output_sum);
                 })

@@ -92,13 +92,13 @@ use rayon::{
     ThreadPool,
 };
 use rocksdb::WriteBatch;
+use std::collections::BTreeMap;
 use std::{
     cmp::min,
     collections::{BinaryHeap, HashMap, VecDeque},
     ops::Deref,
     sync::{atomic::Ordering, Arc},
 };
-use std::collections::BTreeMap;
 
 pub struct VirtualStateProcessor {
     // Channels
@@ -350,21 +350,24 @@ impl VirtualStateProcessor {
             .expect("expecting an open unbounded channel");
         if self.notification_root.has_subscription(EventType::VirtualChainChanged) {
             // check for subscriptions before the heavy lifting
-            let added_chain_blocks_acceptance_data: Vec<(Hash, Arc<AcceptanceData>)> =
-                chain_path.added.iter().copied().map(|added| self.acceptance_data_store.get(added).map(|acceptance_data| (added, acceptance_data)).unwrap()).collect_vec();
+            let added_chain_blocks_acceptance_data: Vec<(Hash, Arc<AcceptanceData>)> = chain_path
+                .added
+                .iter()
+                .copied()
+                .map(|added| self.acceptance_data_store.get(added).map(|acceptance_data| (added, acceptance_data)).unwrap())
+                .collect_vec();
             let added_chain_blocks_acceptance_data = added_chain_blocks_acceptance_data
                 .into_iter()
                 .map(|(accepting_block_hash, mergeset_data)| {
                     // Create maps to track values for fee calculation
                     let mut outpoint_to_value = BTreeMap::new();
-                    let mut tx_id_input_to_outpoint: BTreeMap<(TransactionId, u32), (TransactionOutpoint, Option<u64>)> = BTreeMap::new();
+                    let mut tx_id_input_to_outpoint: BTreeMap<(TransactionId, u32), (TransactionOutpoint, Option<u64>)> =
+                        BTreeMap::new();
 
-                    let acceptance_data = mergeset_data.iter()
+                    let acceptance_data = mergeset_data
+                        .iter()
                         .map(|mined_block| {
-                            let block_transactions = self
-                                .block_transactions_store
-                                .get(mined_block.block_hash)
-                                .unwrap();
+                            let block_transactions = self.block_transactions_store.get(mined_block.block_hash).unwrap();
 
                             let accepted_transactions = block_transactions
                                 .iter()
@@ -379,32 +382,21 @@ impl VirtualStateProcessor {
                                 .map(|(_, tx)| {
                                     // Collect input outpoints for later value lookup
                                     tx.inputs.iter().enumerate().for_each(|(index, input)| {
-                                        tx_id_input_to_outpoint.insert(
-                                            (tx.id(), index as u32),
-                                            (input.previous_outpoint, None)
-                                        );
+                                        tx_id_input_to_outpoint.insert((tx.id(), index as u32), (input.previous_outpoint, None));
                                     });
 
                                     // Store output values
                                     tx.outputs.iter().enumerate().for_each(|(index, out)| {
-                                        outpoint_to_value.insert(
-                                            TransactionOutpoint {
-                                                transaction_id: tx.id(),
-                                                index: index as u32
-                                            },
-                                            out.value
-                                        );
+                                        outpoint_to_value
+                                            .insert(TransactionOutpoint { transaction_id: tx.id(), index: index as u32 }, out.value);
                                     });
 
                                     tx
                                 })
                                 .collect_vec();
 
-                            let block_timestamp = self
-                                .headers_store
-                                .get_compact_header_data(mined_block.block_hash)
-                                .unwrap()
-                                .timestamp;
+                            let block_timestamp =
+                                self.headers_store.get_compact_header_data(mined_block.block_hash).unwrap().timestamp;
 
                             MergesetBlockAcceptanceDataWithTx {
                                 block_hash: mined_block.block_hash,
@@ -414,10 +406,7 @@ impl VirtualStateProcessor {
                                     .map(|tx| {
                                         // Calculate fee
                                         let mut outpoints_requested_from_utxo = Vec::new();
-                                        let input_outpoints: Vec<_> = tx.inputs
-                                            .iter()
-                                            .map(|input| input.previous_outpoint)
-                                            .collect();
+                                        let input_outpoints: Vec<_> = tx.inputs.iter().map(|input| input.previous_outpoint).collect();
 
                                         // Collect outpoints that need values from UTXO diff
                                         let missing_outpoints: Vec<_> = input_outpoints
@@ -436,12 +425,9 @@ impl VirtualStateProcessor {
                                                 });
 
                                             // Store retrieved values
-                                            outpoints_requested_from_utxo
-                                                .iter()
-                                                .zip(values)
-                                                .for_each(|(outpoint, value)| {
-                                                    outpoint_to_value.insert(*outpoint, value);
-                                                });
+                                            outpoints_requested_from_utxo.iter().zip(values).for_each(|(outpoint, value)| {
+                                                outpoint_to_value.insert(*outpoint, value);
+                                            });
                                         }
 
                                         // Calculate fee as input_sum - output_sum

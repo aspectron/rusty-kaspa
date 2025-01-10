@@ -1,11 +1,11 @@
 use std::{cmp, sync::Arc};
 
+use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_consensus_core::{
     acceptance_data::AcceptanceData,
     tx::{SignableTransaction, Transaction, UtxoEntry},
     utxo::{utxo_diff::ImmutableUtxoDiff, utxo_inquirer::UtxoInquirerError},
 };
-use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_core::{trace, warn};
 use kaspa_hashes::Hash;
 
@@ -19,7 +19,6 @@ use super::VirtualStateProcessor;
 // todo get populated transactions by accepting block hash and by previous outpoints
 
 impl VirtualStateProcessor {
-
     pub fn get_utxo_amounts(
         &self,
         accepting_block_hash: Hash,
@@ -37,13 +36,10 @@ impl VirtualStateProcessor {
         let values: Vec<u64> = outpoints
             .iter()
             .map(|outpoint| {
-                removed_diffs
-                    .get(outpoint)
-                    .map(|v| v.amount)
-                    .unwrap_or_else(|| {
-                        log::error!("Missing UTXO entry for outpoint: {:?}", outpoint);
-                        0
-                    })
+                removed_diffs.get(outpoint).map(|v| v.amount).unwrap_or_else(|| {
+                    log::error!("Missing UTXO entry for outpoint: {:?}", outpoint);
+                    0
+                })
             })
             .collect();
 
