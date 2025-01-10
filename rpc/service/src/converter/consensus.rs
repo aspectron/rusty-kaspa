@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use kaspa_addresses::Address;
+use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_consensus_core::{
     acceptance_data::MergesetBlockAcceptanceData,
     block::Block,
@@ -15,11 +16,12 @@ use kaspa_math::Uint256;
 use kaspa_mining::model::{owner_txs::OwnerTransactions, TransactionIdSet};
 use kaspa_notify::converter::Converter;
 use kaspa_rpc_core::{
-    BlockAddedNotification, Notification, RpcAcceptanceData, RpcBlock, RpcBlockVerboseData, RpcHash, RpcMempoolEntry,
+    BlockAddedNotification, Notification, RpcAcceptanceData, RpcBlock, RpcBlockVerboseData, RpcError, RpcHash, RpcMempoolEntry,
     RpcMempoolEntryByAddress, RpcMergesetBlockAcceptanceData, RpcResult, RpcTransaction, RpcTransactionInput, RpcTransactionOutput,
     RpcTransactionOutputVerboseData, RpcTransactionVerboseData,
 };
 use kaspa_txscript::{extract_script_pub_key_address, script_class::ScriptClass};
+use std::collections::BTreeMap;
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 /// Conversion of consensus_core to rpc_core structures
@@ -141,6 +143,7 @@ impl ConsensusConverter {
                 payload: transaction.payload.clone(),
                 mass: transaction.mass(),
                 verbose_data,
+                fee: 0,
             }
         } else {
             transaction.into()
@@ -167,25 +170,64 @@ impl ConsensusConverter {
     ) -> RpcResult<Vec<RpcAcceptanceData>> {
         let acceptance_data = consensus.async_get_blocks_acceptance_data(chain_path.added.clone(), merged_blocks_limit).await?;
         let mut r = Vec::with_capacity(acceptance_data.len());
-        for (datum, accepting_block) in acceptance_data.into_iter().zip(chain_path.added.iter()) {
+        for (mergeset_data, accepting_block) in acceptance_data.into_iter().zip(chain_path.added.iter()) {
             let blue_score = consensus.async_get_compact_header_data(*accepting_block).await?.blue_score;
-            let mut acceptance_data = Vec::with_capacity(datum.len());
-            for MergesetBlockAcceptanceData { block_hash, accepted_transactions } in datum.iter() {
+            // Expected to never fail, since we found the acceptance data and therefore there must be matching diff
+            let mut tx_id_input_to_outpoint: BTreeMap<(TransactionId, u32), (TransactionOutpoint, Option<&u64>)> = BTreeMap::new();
+            let mut outpoint_to_value = BTreeMap::new();
+            let mut acceptance_data = Vec::with_capacity(mergeset_data.len());
+            for MergesetBlockAcceptanceData { block_hash, accepted_transactions: accepted_transaction_entries } in mergeset_data.iter() {
                 let block = consensus.async_get_block_even_if_header_only(*block_hash).await?;
                 let block_timestamp = block.header.timestamp;
                 let block_txs = block.transactions;
-                let accepted_transactions = block_txs
+                let mut accepted_transactions = Vec::new();
+                block_txs
                     .iter()
                     .enumerate()
-                    .filter(|(idx, _tx)| accepted_transactions.iter().any(|accepted| accepted.index_within_block as usize == *idx))
-                    .map(|(_, tx)| tx.into())
-                    .collect();
+                    .filter(|(idx, _tx)| {
+                        accepted_transaction_entries.iter().any(|accepted| accepted.index_within_block as usize == *idx)
+                    })
+                    .map(|(_, tx)| tx)
+                    .for_each(|tx| {
+                        tx.inputs.iter().enumerate().for_each(|(index, input)| {
+                            tx_id_input_to_outpoint.insert((tx.id(), index as u32), (input.previous_outpoint, None));
+                        });
+                        tx.outputs.iter().enumerate().for_each(|(index, out)| {
+                            outpoint_to_value.insert(TransactionOutpoint { transaction_id: tx.id(), index: index as u32 }, out.value);
+                        });
+                        accepted_transactions.push(RpcTransaction::from(tx));
+                    });
+
                 acceptance_data.push(RpcMergesetBlockAcceptanceData {
                     merged_block_hash: *block_hash,
                     merged_block_timestamp: block_timestamp,
                     accepted_transactions,
                 })
             }
+            let mut outpoints_requested_from_unto_diff = vec![];
+            tx_id_input_to_outpoint.values_mut().for_each(|(k, v)| {
+                *v = outpoint_to_value.get(k);
+                if v.is_none() {
+                    outpoints_requested_from_unto_diff.push(*k);
+                }
+            });
+            let outpoints_requested_from_unto_diff = Arc::new(outpoints_requested_from_unto_diff);
+            let amounts = consensus
+                .async_get_utxo_amounts(*accepting_block, outpoints_requested_from_unto_diff.clone())
+                .await
+                .map_err(RpcError::UtxoReturnAddressNotFound)?;
+            outpoints_requested_from_unto_diff.iter().zip(amounts).for_each(|(outpoint, amount)| {
+                outpoint_to_value.insert(*outpoint, amount);
+            });
+            acceptance_data.iter_mut().for_each(|d| {
+                d.accepted_transactions.iter_mut().for_each(|rtx| {
+                    let tx = Transaction::try_from(rtx.clone()).unwrap(); // lol
+                    let input_sum: u64 =
+                        tx.inputs.iter().map(|input| outpoint_to_value.get(&input.previous_outpoint).cloned().unwrap_or_default()).sum();
+                    let output_sum: u64 = tx.outputs.iter().map(|o| o.value).sum();
+                    rtx.fee = input_sum.saturating_sub(output_sum);
+                })
+            });
             r.push(RpcAcceptanceData { accepting_blue_score: blue_score, mergeset_block_acceptance_data: acceptance_data })
         }
         Ok(r)

@@ -17,6 +17,7 @@ from!(item: &kaspa_rpc_core::RpcTransaction, protowire::RpcTransaction, {
         payload: item.payload.to_rpc_hex(),
         mass: item.mass,
         verbose_data: item.verbose_data.as_ref().map(|x| x.into()),
+        fee: item.fee,
     }
 });
 
@@ -123,6 +124,7 @@ try_from!(item: &protowire::RpcTransaction, kaspa_rpc_core::RpcTransaction, {
         payload: Vec::from_rpc_hex(&item.payload)?,
         mass: item.mass,
         verbose_data: item.verbose_data.as_ref().map(kaspa_rpc_core::RpcTransactionVerboseData::try_from).transpose()?,
+        fee: item.fee,
     }
 });
 

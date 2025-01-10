@@ -73,6 +73,7 @@ cfg_if::cfg_if! {
                     payload: inner.payload.clone(),
                     mass: inner.mass,
                     verbose_data: None,
+                    fee: 0,
                 }
             }
         }

@@ -321,6 +321,13 @@ impl ConsensusSessionOwned {
     ) -> Result<SignableTransaction, UtxoInquirerError> {
         self.clone().spawn_blocking(move |c| c.get_populated_transaction(txid, accepting_block_daa_score)).await
     }
+    pub async fn async_get_utxo_amounts(
+        &self,
+        accepting_block_hash: Hash,
+        outpoints: Arc<Vec<TransactionOutpoint>>,
+    ) -> Result<Vec<u64>, UtxoInquirerError> {
+        self.clone().spawn_blocking(move |c| c.get_utxo_amounts(accepting_block_hash, outpoints)).await
+    }
 
     /// Returns the antipast of block `hash` from the POV of `context`, i.e. `antipast(hash) ∩ past(context)`.
     /// Since this might be an expensive operation for deep blocks, we allow the caller to specify a limit

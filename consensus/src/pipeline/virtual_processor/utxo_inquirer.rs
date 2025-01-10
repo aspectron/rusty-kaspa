@@ -5,6 +5,7 @@ use kaspa_consensus_core::{
     tx::{SignableTransaction, Transaction, UtxoEntry},
     utxo::{utxo_diff::ImmutableUtxoDiff, utxo_inquirer::UtxoInquirerError},
 };
+use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_core::{trace, warn};
 use kaspa_hashes::Hash;
 
@@ -15,7 +16,40 @@ use crate::model::stores::{
 
 use super::VirtualStateProcessor;
 
+// todo get populated transactions by accepting block hash and by previous outpoints
+
 impl VirtualStateProcessor {
+
+    pub fn get_utxo_amounts(
+        &self,
+        accepting_block_hash: Hash,
+        outpoints: Arc<Vec<TransactionOutpoint>>,
+    ) -> Result<Vec<u64>, UtxoInquirerError> {
+        // Get the UTXO diff for the accepting block
+        let utxo_diff = self
+            .utxo_diffs_store
+            .get(accepting_block_hash)
+            .map_err(|_| UtxoInquirerError::MissingUtxoDiffForChainBlock(accepting_block_hash))?;
+
+        let removed_diffs = utxo_diff.removed();
+
+        // Collect values for each outpoint
+        let values: Vec<u64> = outpoints
+            .iter()
+            .map(|outpoint| {
+                removed_diffs
+                    .get(outpoint)
+                    .map(|v| v.amount)
+                    .unwrap_or_else(|| {
+                        log::error!("Missing UTXO entry for outpoint: {:?}", outpoint);
+                        0
+                    })
+            })
+            .collect();
+
+        Ok(values)
+    }
+
     /// Returns the fully populated transaction with the given txid which was accepted at the provided accepting_block_daa_score.
     /// The argument `accepting_block_daa_score` is expected to be the DAA score of the accepting chain block of `txid`.
     ///

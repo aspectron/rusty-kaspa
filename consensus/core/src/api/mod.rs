@@ -177,6 +177,14 @@ pub trait ConsensusApi: Send + Sync {
         unimplemented!()
     }
 
+    fn get_utxo_amounts(
+        &self,
+        accepting_block_hash: Hash,
+        outpoints: Arc<Vec<TransactionOutpoint>>,
+    ) ->  Result<Vec<u64>, UtxoInquirerError> {
+        unimplemented!()
+    }
+
     fn get_virtual_parents(&self) -> BlockHashSet {
         unimplemented!()
     }

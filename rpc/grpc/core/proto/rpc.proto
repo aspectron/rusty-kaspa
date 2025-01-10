@@ -64,6 +64,7 @@ message RpcTransaction {
   string payload = 8;
   RpcTransactionVerboseData verboseData = 9;
   uint64 mass = 10;
+  uint64 fee = 255;
 }
 
 message RpcTransactionInput {

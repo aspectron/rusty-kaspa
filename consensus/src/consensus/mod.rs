@@ -688,6 +688,16 @@ impl ConsensusApi for Consensus {
         sample_headers
     }
 
+    fn get_utxo_amounts(
+        &self,
+        accepting_block_hash: Hash,
+        outpoints: Arc<Vec<TransactionOutpoint>>,
+    ) ->  Result<Vec<u64>, UtxoInquirerError>  {
+        // We need consistency between the pruning_point_store, utxo_diffs_store, block_transactions_store, selected chain and headers store reads
+        let _guard = self.pruning_lock.blocking_read();
+        self.virtual_processor.get_utxo_amounts(accepting_block_hash, outpoints)
+    }
+
     fn get_populated_transaction(&self, txid: Hash, accepting_block_daa_score: u64) -> Result<SignableTransaction, UtxoInquirerError> {
         // We need consistency between the pruning_point_store, utxo_diffs_store, block_transactions_store, selected chain and headers store reads
         let _guard = self.pruning_lock.blocking_read();
