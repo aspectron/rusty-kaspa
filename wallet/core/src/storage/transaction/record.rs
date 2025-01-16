@@ -6,6 +6,7 @@ use super::*;
 use crate::imports::*;
 use crate::storage::{Binding, BindingT};
 use crate::tx::PendingTransactionInner;
+use crate::utils::to_js_value_with_u64_as_bigint;
 use workflow_core::time::{unixtime_as_millis_u64, unixtime_to_locale_string};
 use workflow_wasm::utils::try_get_js_value_prop;
 
@@ -23,7 +24,7 @@ export interface IUtxoRecord {
     address?: Address;
     index: number;
     amount: bigint;
-    scriptPublicKey: HexString;
+    scriptPubKey: HexString;
     isCoinbase: boolean;
 }
 
@@ -149,6 +150,21 @@ export interface ITransactionDataOutgoing {
     fees: bigint;
     inputValue: bigint;
     outputValue: bigint;
+    transaction: ITransaction;
+    paymentValue: bigint;
+    changeValue: bigint;
+    acceptedDaaScore?: bigint;
+    utxoEntries: IUtxoRecord[];
+}
+
+/**
+ * Meta transaction data.
+ * @category Wallet SDK
+ */
+export interface ITransactionDataMeta {
+    fees: bigint;
+    aggregateInputValue: bigint;
+    aggregateOutputValue: bigint;
     transaction: ITransaction;
     paymentValue: bigint;
     changeValue: bigint;
@@ -464,6 +480,7 @@ impl TransactionRecord {
             | TransactionData::Incoming { aggregate_input_value, .. }
             | TransactionData::External { aggregate_input_value, .. }
             | TransactionData::Outgoing { aggregate_input_value, .. }
+            | TransactionData::Meta { aggregate_input_value, .. }
             | TransactionData::Batch { aggregate_input_value, .. }
             | TransactionData::TransferIncoming { aggregate_input_value, .. }
             | TransactionData::TransferOutgoing { aggregate_input_value, .. }
@@ -546,11 +563,22 @@ impl TransactionRecord {
             note: None,
         }
     }
-
     pub fn new_outgoing(
         utxo_context: &UtxoContext,
         outgoing_tx: &OutgoingTransaction,
         accepted_daa_score: Option<u64>,
+    ) -> Result<Self> {
+        Self::new_outgoing_impl(utxo_context, outgoing_tx, accepted_daa_score, false)
+    }
+    pub fn new_meta(utxo_context: &UtxoContext, outgoing_tx: &OutgoingTransaction, accepted_daa_score: Option<u64>) -> Result<Self> {
+        Self::new_outgoing_impl(utxo_context, outgoing_tx, accepted_daa_score, true)
+    }
+
+    fn new_outgoing_impl(
+        utxo_context: &UtxoContext,
+        outgoing_tx: &OutgoingTransaction,
+        accepted_daa_score: Option<u64>,
+        is_meta_tx: bool,
     ) -> Result<Self> {
         let binding = Binding::from(utxo_context.binding());
         let block_daa_score =
@@ -573,15 +601,28 @@ impl TransactionRecord {
         let transaction = signable_tx.lock().unwrap().tx.clone();
         let id = transaction.id();
 
-        let transaction_data = TransactionData::Outgoing {
-            fees: *fees,
-            aggregate_input_value: *aggregate_input_value,
-            aggregate_output_value: *aggregate_output_value,
-            transaction,
-            payment_value: *payment_value,
-            change_value: *change_output_value,
-            accepted_daa_score,
-            utxo_entries,
+        let transaction_data = if is_meta_tx {
+            TransactionData::Meta {
+                fees: *fees,
+                aggregate_input_value: *aggregate_input_value,
+                aggregate_output_value: *aggregate_output_value,
+                transaction,
+                payment_value: *payment_value,
+                change_value: *change_output_value,
+                accepted_daa_score,
+                utxo_entries,
+            }
+        } else {
+            TransactionData::Outgoing {
+                fees: *fees,
+                aggregate_input_value: *aggregate_input_value,
+                aggregate_output_value: *aggregate_output_value,
+                transaction,
+                payment_value: *payment_value,
+                change_value: *change_output_value,
+                accepted_daa_score,
+                utxo_entries,
+            }
         };
 
         Ok(TransactionRecord {
@@ -815,7 +856,8 @@ impl TransactionRecord {
 
     #[wasm_bindgen(getter, js_name = "data")]
     pub fn data_as_js_value(&self) -> TransactionDataT {
-        try_get_js_value_prop(&serde_wasm_bindgen::to_value(&self.transaction_data).unwrap(), "data").unwrap().unchecked_into()
+        let value = to_js_value_with_u64_as_bigint(&self.transaction_data).unwrap();
+        try_get_js_value_prop(&value, "data").unwrap().unchecked_into()
     }
 
     #[wasm_bindgen(getter, js_name = "type")]

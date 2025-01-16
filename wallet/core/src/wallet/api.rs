@@ -479,7 +479,7 @@ impl WalletApi for super::Wallet {
             )
             .await?;
 
-        let transaction_ids = account.pskb_broadcast(&bundle).await?;
+        let transaction_ids = account.pskb_broadcast(&bundle, true).await?;
         Ok(AccountsCommitRevealManualResponse { transaction_ids })
     }
 
@@ -529,7 +529,7 @@ impl WalletApi for super::Wallet {
             )
             .await?;
 
-        let transaction_ids = account.pskb_broadcast(&bundle).await?;
+        let transaction_ids = account.pskb_broadcast(&bundle, true).await?;
         Ok(AccountsCommitRevealResponse { transaction_ids })
     }
 

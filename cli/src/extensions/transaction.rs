@@ -15,6 +15,7 @@ impl TransactionTypeExtension for TransactionKind {
         match self {
             TransactionKind::Incoming => style(s).green().to_string(),
             TransactionKind::Outgoing => style(s).red().to_string(),
+            TransactionKind::Meta => style(s).dim().to_string(),
             TransactionKind::External => style(s).red().to_string(),
             TransactionKind::Batch => style(s).dim().to_string(),
             TransactionKind::Reorg => style(s).dim().to_string(),
@@ -153,6 +154,7 @@ impl TransactionExtension for TransactionRecord {
                 }
             }
             TransactionData::Outgoing { fees, aggregate_input_value, transaction, payment_value, change_value, .. }
+            | TransactionData::Meta { fees, aggregate_input_value, transaction, payment_value, change_value, .. }
             | TransactionData::Batch { fees, aggregate_input_value, transaction, payment_value, change_value, .. }
             | TransactionData::TransferIncoming { fees, aggregate_input_value, transaction, payment_value, change_value, .. }
             | TransactionData::TransferOutgoing { fees, aggregate_input_value, transaction, payment_value, change_value, .. } => {

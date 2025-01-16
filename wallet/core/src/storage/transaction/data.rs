@@ -72,6 +72,20 @@ pub enum TransactionData {
         #[serde(default)]
         utxo_entries: Vec<UtxoRecord>,
     },
+    #[serde(rename_all = "camelCase")]
+    Meta {
+        fees: u64,
+        #[serde(rename = "inputValue")]
+        aggregate_input_value: u64,
+        #[serde(rename = "outputValue")]
+        aggregate_output_value: u64,
+        transaction: Transaction,
+        payment_value: Option<u64>,
+        change_value: u64,
+        accepted_daa_score: Option<u64>,
+        #[serde(default)]
+        utxo_entries: Vec<UtxoRecord>,
+    },
     TransferIncoming {
         fees: u64,
         #[serde(rename = "inputValue")]
@@ -132,6 +146,7 @@ impl TransactionData {
             TransactionData::Incoming { .. } => TransactionKind::Incoming,
             TransactionData::External { .. } => TransactionKind::External,
             TransactionData::Outgoing { .. } => TransactionKind::Outgoing,
+            TransactionData::Meta { .. } => TransactionKind::Meta,
             TransactionData::Batch { .. } => TransactionKind::Batch,
             TransactionData::TransferIncoming { .. } => TransactionKind::TransferIncoming,
             TransactionData::TransferOutgoing { .. } => TransactionKind::TransferOutgoing,
@@ -146,6 +161,7 @@ impl TransactionData {
             TransactionData::Incoming { utxo_entries, .. } => utxo_entries.iter().any(|utxo| utxo.address.as_ref() == Some(address)),
             TransactionData::External { utxo_entries, .. } => utxo_entries.iter().any(|utxo| utxo.address.as_ref() == Some(address)),
             TransactionData::Outgoing { utxo_entries, .. } => utxo_entries.iter().any(|utxo| utxo.address.as_ref() == Some(address)),
+            TransactionData::Meta { utxo_entries, .. } => utxo_entries.iter().any(|utxo| utxo.address.as_ref() == Some(address)),
             TransactionData::Batch { utxo_entries, .. } => utxo_entries.iter().any(|utxo| utxo.address.as_ref() == Some(address)),
             TransactionData::TransferIncoming { utxo_entries, .. } => {
                 utxo_entries.iter().any(|utxo| utxo.address.as_ref() == Some(address))
@@ -202,6 +218,25 @@ impl BorshSerialize for TransactionData {
                 BorshSerialize::serialize(utxo_entries, writer)?;
             }
             TransactionData::Outgoing {
+                fees,
+                aggregate_input_value,
+                aggregate_output_value,
+                transaction,
+                payment_value,
+                change_value,
+                accepted_daa_score,
+                utxo_entries,
+            } => {
+                BorshSerialize::serialize(fees, writer)?;
+                BorshSerialize::serialize(aggregate_input_value, writer)?;
+                BorshSerialize::serialize(aggregate_output_value, writer)?;
+                BorshSerialize::serialize(transaction, writer)?;
+                BorshSerialize::serialize(payment_value, writer)?;
+                BorshSerialize::serialize(change_value, writer)?;
+                BorshSerialize::serialize(accepted_daa_score, writer)?;
+                BorshSerialize::serialize(utxo_entries, writer)?;
+            }
+            TransactionData::Meta {
                 fees,
                 aggregate_input_value,
                 aggregate_output_value,
@@ -339,6 +374,26 @@ impl BorshDeserialize for TransactionData {
                 let accepted_daa_score: Option<u64> = BorshDeserialize::deserialize_reader(reader)?;
                 let utxo_entries: Vec<UtxoRecord> = BorshDeserialize::deserialize_reader(reader)?;
                 Ok(TransactionData::Outgoing {
+                    fees,
+                    aggregate_input_value,
+                    aggregate_output_value,
+                    transaction,
+                    payment_value,
+                    change_value,
+                    accepted_daa_score,
+                    utxo_entries,
+                })
+            }
+            TransactionKind::Meta => {
+                let fees: u64 = BorshDeserialize::deserialize_reader(reader)?;
+                let aggregate_input_value: u64 = BorshDeserialize::deserialize_reader(reader)?;
+                let aggregate_output_value: u64 = BorshDeserialize::deserialize_reader(reader)?;
+                let transaction: Transaction = BorshDeserialize::deserialize_reader(reader)?;
+                let payment_value: Option<u64> = BorshDeserialize::deserialize_reader(reader)?;
+                let change_value: u64 = BorshDeserialize::deserialize_reader(reader)?;
+                let accepted_daa_score: Option<u64> = BorshDeserialize::deserialize_reader(reader)?;
+                let utxo_entries: Vec<UtxoRecord> = BorshDeserialize::deserialize_reader(reader)?;
+                Ok(TransactionData::Meta {
                     fees,
                     aggregate_input_value,
                     aggregate_output_value,

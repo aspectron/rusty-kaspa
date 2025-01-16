@@ -151,14 +151,14 @@ impl PendingTransaction {
     /// # Important
     ///
     /// Make sure to consume the returned `txid` value. Always invoke this method
-    /// as follows `let txid = await pendingTransaction.submit(rpc);`. If you do not
+    /// as follows `let txid = await pendingTransaction.submit(rpc, is_meta_tx);`. If you do not
     /// consume the returned value and the rpc object is temporary, the GC will
     /// collect the `rpc` object passed to submit() potentially causing a panic.
     ///
     /// @see {@link RpcClient.submitTransaction}
-    pub async fn submit(&self, wasm_rpc_client: &RpcClient) -> Result<String> {
+    pub async fn submit(&self, wasm_rpc_client: &RpcClient, is_meta_tx: bool) -> Result<String> {
         let rpc: Arc<DynRpcApi> = wasm_rpc_client.client().clone();
-        let txid = self.inner.try_submit(&rpc).await?;
+        let txid = self.inner.try_submit(&rpc, is_meta_tx).await?;
         Ok(txid.to_string())
     }
 

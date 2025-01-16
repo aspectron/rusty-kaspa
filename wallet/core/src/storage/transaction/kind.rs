@@ -27,7 +27,7 @@ export enum TransactionKind {
 "#;
 
 // Do not change the order of the variants in this enum.
-seal! { 0x93c6, {
+seal! { 0x34bf, {
         #[derive(Debug, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Eq, PartialEq)]
         #[serde(rename_all = "kebab-case")]
         pub enum TransactionKind {
@@ -65,6 +65,9 @@ seal! { 0x93c6, {
             /// Outgoing transfer transaction. A transfer between multiple
             /// accounts managed by the wallet runtime.
             TransferOutgoing,
+            /// Meta transaction. A transaction that is not a regular outgoing transaction
+            /// but used for krc20/krc721 meta transactions.
+            Meta,
         }
     }
 }
@@ -76,6 +79,7 @@ impl TransactionKind {
         match self {
             TransactionKind::Incoming => "+",
             TransactionKind::Outgoing => "-",
+            TransactionKind::Meta => "-",
             TransactionKind::External => "-",
             TransactionKind::Batch => "",
             TransactionKind::Reorg => "-",
@@ -93,6 +97,7 @@ impl std::fmt::Display for TransactionKind {
         let s = match self {
             TransactionKind::Incoming => "incoming",
             TransactionKind::Outgoing => "outgoing",
+            TransactionKind::Meta => "meta",
             TransactionKind::External => "external",
             TransactionKind::Batch => "batch",
             TransactionKind::Reorg => "reorg",
@@ -113,6 +118,7 @@ impl TryFrom<JsValue> for TransactionKind {
                 "incoming" => Ok(TransactionKind::Incoming),
                 "outgoing" => Ok(TransactionKind::Outgoing),
                 "external" => Ok(TransactionKind::External),
+                "meta" => Ok(TransactionKind::Meta),
                 "batch" => Ok(TransactionKind::Batch),
                 "reorg" => Ok(TransactionKind::Reorg),
                 "stasis" => Ok(TransactionKind::Stasis),
