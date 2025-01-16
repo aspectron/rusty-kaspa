@@ -78,6 +78,7 @@ from!(item: &kaspa_rpc_core::RpcTransactionOutputVerboseData, protowire::RpcTran
 from!(item: &kaspa_rpc_core::RpcAcceptanceData, protowire::RpcAcceptanceData, {
     Self {
         accepting_blue_score: item.accepting_blue_score,
+        accepting_daa_score: item.accepting_daa_score,
         mergeset_block_acceptance_data: item.mergeset_block_acceptance_data.iter()
             .map(
             |RpcMergesetBlockAcceptanceData{
@@ -197,6 +198,7 @@ try_from!(item: &protowire::RpcTransactionOutputVerboseData, kaspa_rpc_core::Rpc
 try_from!(item: &protowire::RpcAcceptanceData, kaspa_rpc_core::RpcAcceptanceData, {
     Self {
         accepting_blue_score: item.accepting_blue_score,
+        accepting_daa_score: item.accepting_daa_score,
         mergeset_block_acceptance_data: item.mergeset_block_acceptance_data.iter()
             .map(
                 |protowire::RpcMergesetBlockAcceptanceData{

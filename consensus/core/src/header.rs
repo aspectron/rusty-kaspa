@@ -105,7 +105,7 @@ impl MemSizeEstimator for Header {
     }
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct CompactHeaderData {
     pub daa_score: u64,
     pub timestamp: u64,

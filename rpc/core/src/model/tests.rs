@@ -655,7 +655,7 @@ mod mockery {
 
     impl Mock for RpcAcceptanceData {
         fn mock() -> Self {
-            RpcAcceptanceData { accepting_blue_score: mock(), mergeset_block_acceptance_data: mock() }
+            RpcAcceptanceData { accepting_blue_score: mock(), accepting_daa_score: mock(), mergeset_block_acceptance_data: mock() }
         }
     }
 

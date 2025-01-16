@@ -1,5 +1,6 @@
 use derive_more::Display;
 use kaspa_consensus_core::acceptance_data::AcceptanceDataWithTx;
+use kaspa_consensus_core::header::CompactHeaderData;
 use kaspa_consensus_core::{block::Block, utxo::utxo_diff::UtxoDiff};
 use kaspa_hashes::Hash;
 use kaspa_notify::{
@@ -109,7 +110,7 @@ impl BlockAddedNotification {
 pub struct VirtualChainChangedNotification {
     pub added_chain_block_hashes: Arc<Vec<Hash>>,
     pub removed_chain_block_hashes: Arc<Vec<Hash>>,
-    pub added_chain_block_blue_scores: Arc<Vec<u64>>,
+    pub added_chain_block_blue_scores: Arc<Vec<CompactHeaderData>>,
 
     pub added_chain_blocks_acceptance_data: Arc<Vec<Arc<AcceptanceDataWithTx>>>,
 }
@@ -118,7 +119,7 @@ impl VirtualChainChangedNotification {
         added_chain_block_hashes: Arc<Vec<Hash>>,
         removed_chain_block_hashes: Arc<Vec<Hash>>,
         added_chain_blocks_acceptance_data: Arc<Vec<Arc<AcceptanceDataWithTx>>>,
-        added_chain_block_blue_scores: Arc<Vec<u64>>,
+        added_chain_block_blue_scores: Arc<Vec<CompactHeaderData>>,
     ) -> Self {
         Self {
             added_chain_block_hashes,

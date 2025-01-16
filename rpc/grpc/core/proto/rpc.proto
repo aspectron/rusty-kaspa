@@ -396,6 +396,7 @@ message RpcMergesetBlockAcceptanceData {
 message RpcAcceptanceData {
   uint64 acceptingBlueScore = 1;
   repeated RpcMergesetBlockAcceptanceData mergesetBlockAcceptanceData = 2;
+  uint64 acceptingDaaScore = 3;
 }
 
 message GetVirtualChainFromBlockResponseMessage {

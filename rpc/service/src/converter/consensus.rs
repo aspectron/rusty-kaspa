@@ -171,7 +171,7 @@ impl ConsensusConverter {
         let acceptance_data = consensus.async_get_blocks_acceptance_data(chain_path.added.clone(), merged_blocks_limit).await?;
         let mut r = Vec::with_capacity(acceptance_data.len());
         for (mergeset_data, accepting_block) in acceptance_data.into_iter().zip(chain_path.added.iter()) {
-            let blue_score = consensus.async_get_compact_header_data(*accepting_block).await?.blue_score;
+            let compact_header_data = consensus.async_get_compact_header_data(*accepting_block).await?;
             // Expected to never fail, since we found the acceptance data and therefore there must be matching diff
             let mut tx_id_input_to_outpoint: BTreeMap<(TransactionId, u32), (TransactionOutpoint, Option<&u64>)> = BTreeMap::new();
             let mut outpoint_to_value = BTreeMap::new();
@@ -232,7 +232,11 @@ impl ConsensusConverter {
                     rtx.fee = input_sum.saturating_sub(output_sum);
                 })
             });
-            r.push(RpcAcceptanceData { accepting_blue_score: blue_score, mergeset_block_acceptance_data: acceptance_data })
+            r.push(RpcAcceptanceData {
+                accepting_blue_score: compact_header_data.blue_score,
+                accepting_daa_score: compact_header_data.daa_score,
+                mergeset_block_acceptance_data: acceptance_data,
+            })
         }
         Ok(r)
         // Ok(acceptance_data

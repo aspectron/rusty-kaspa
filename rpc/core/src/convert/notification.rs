@@ -56,8 +56,9 @@ impl From<&consensus_notify::VirtualChainChangedNotification> for VirtualChainCh
                 item.added_chain_blocks_acceptance_data
                     .iter()
                     .zip(item.added_chain_block_blue_scores.iter())
-                    .map(|(acceptance_data, &accepting_blue_score)| RpcAcceptanceData {
-                        accepting_blue_score,
+                    .map(|(acceptance_data, &accepting_compact_header)| RpcAcceptanceData {
+                        accepting_blue_score: accepting_compact_header.blue_score,
+                        accepting_daa_score: accepting_compact_header.daa_score,
                         mergeset_block_acceptance_data: acceptance_data
                             .iter()
                             .map(|MergesetBlockAcceptanceDataWithTx { block_hash, block_timestamp, accepted_transactions }| {

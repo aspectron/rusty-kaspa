@@ -407,5 +407,6 @@ pub struct RpcMergesetBlockAcceptanceData {
 #[serde(rename_all = "camelCase")]
 pub struct RpcAcceptanceData {
     pub accepting_blue_score: u64,
+    pub accepting_daa_score: u64,
     pub mergeset_block_acceptance_data: Vec<RpcMergesetBlockAcceptanceData>,
 }

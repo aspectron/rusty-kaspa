@@ -908,7 +908,7 @@ impl GetVirtualChainFromBlockResponse {
 
 impl Serializer for GetVirtualChainFromBlockResponse {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        store!(u16, &254, writer)?;
+        store!(u16, &255, writer)?;
         store!(Vec<RpcHash>, &self.removed_chain_block_hashes, writer)?;
         store!(Vec<RpcHash>, &self.added_chain_block_hashes, writer)?;
         store!(Vec<RpcAcceptanceData>, &self.added_acceptance_data, writer)?;
@@ -920,8 +920,8 @@ impl Serializer for GetVirtualChainFromBlockResponse {
 impl Deserializer for GetVirtualChainFromBlockResponse {
     fn deserialize<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let _version = load!(u16, reader)?;
-        if _version != 254 {
-            return Err(std::io::Error::new(ErrorKind::Other, "Expected 254-th version"));
+        if _version != 255 {
+            return Err(std::io::Error::new(ErrorKind::Other, "Expected 255-th version"));
         }
         let removed_chain_block_hashes = load!(Vec<RpcHash>, reader)?;
         let added_chain_block_hashes = load!(Vec<RpcHash>, reader)?;
@@ -2884,7 +2884,7 @@ pub struct VirtualChainChangedNotification {
 
 impl Serializer for VirtualChainChangedNotification {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        store!(u16, &254, writer)?;
+        store!(u16, &255, writer)?;
         store!(Vec<RpcHash>, &self.removed_chain_block_hashes, writer)?;
         store!(Vec<RpcHash>, &self.added_chain_block_hashes, writer)?;
         store!(Vec<RpcAcceptanceData>, &self.added_acceptance_data, writer)?;
@@ -2895,8 +2895,8 @@ impl Serializer for VirtualChainChangedNotification {
 impl Deserializer for VirtualChainChangedNotification {
     fn deserialize<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let _version = load!(u16, reader)?;
-        if _version != 254 {
-            return Err(std::io::Error::new(ErrorKind::Other, "expected 254-th version"));
+        if _version != 255 {
+            return Err(std::io::Error::new(ErrorKind::Other, "expected 255-th version"));
         }
         let removed_chain_block_hashes = load!(Vec<RpcHash>, reader)?;
         let added_chain_block_hashes = load!(Vec<RpcHash>, reader)?;

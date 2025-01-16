@@ -449,7 +449,7 @@ impl VirtualStateProcessor {
                 })
                 .collect();
             let added_chain_block_blue_scores =
-                chain_path.added.iter().copied().map(|added| self.headers_store.get_blue_score(added).unwrap()).collect_vec();
+                chain_path.added.iter().copied().map(|added| self.headers_store.get_compact_header_data(added).unwrap()).collect_vec();
             self.notification_root
                 .notify(Notification::VirtualChainChanged(VirtualChainChangedNotification::new(
                     chain_path.added.into(),
