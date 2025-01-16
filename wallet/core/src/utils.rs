@@ -7,6 +7,9 @@ use kaspa_addresses::Address;
 use kaspa_consensus_core::constants::*;
 use kaspa_consensus_core::network::NetworkType;
 use separator::{separated_float, separated_int, separated_uint_with_output, Separatable};
+use serde::Serialize;
+use serde_json::Value;
+use wasm_bindgen::JsValue;
 use workflow_log::style;
 
 pub fn try_kaspa_str_to_sompi<S: Into<String>>(s: S) -> Result<Option<u64>> {
@@ -107,4 +110,32 @@ fn str_to_sompi(amount: &str) -> Result<u64> {
         decimal[..8].parse::<u64>()?
     };
     Ok(integer + decimal)
+}
+
+// Helper function to recursively convert `u64` to bigint in `serde_json::Value`.
+pub fn convert_u64_to_bigint(value: Value) -> Result<JsValue> {
+    match value {
+        Value::Number(num) if num.is_u64() => Ok(js_sys::BigInt::from(num.as_u64().unwrap()).into()),
+        Value::Array(arr) => {
+            let mut values = Vec::new();
+            for v in arr {
+                values.push(convert_u64_to_bigint(v)?);
+            }
+            Ok(js_sys::Array::from_iter(values).into())
+        }
+        Value::Object(map) => {
+            let obj = js_sys::Object::new();
+            for (k, v) in map {
+                js_sys::Reflect::set(&obj, &JsValue::from(k), &convert_u64_to_bigint(v)?)?;
+            }
+            Ok(obj.into())
+        }
+        _ => Ok(serde_wasm_bindgen::to_value(&value)?),
+    }
+}
+
+// Main function to serialize the enum to `JsValue`
+pub fn to_js_value_with_u64_as_bigint<T: Serialize>(value: &T) -> Result<JsValue> {
+    let json_value = serde_json::to_value(value)?;
+    convert_u64_to_bigint(json_value)
 }
