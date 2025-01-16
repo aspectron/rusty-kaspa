@@ -334,7 +334,7 @@ pub trait Account: AnySync + Send + Sync + 'static {
         let mut ids = vec![];
         while let Some(transaction) = stream.try_next().await? {
             transaction.try_sign()?;
-            ids.push(transaction.try_submit(&self.wallet().rpc_api()).await?);
+            ids.push(transaction.try_submit(&self.wallet().rpc_api(), false).await?);
 
             if let Some(notifier) = notifier.as_ref() {
                 notifier(&transaction);
@@ -370,7 +370,7 @@ pub trait Account: AnySync + Send + Sync + 'static {
         let mut ids = vec![];
         while let Some(transaction) = stream.try_next().await? {
             transaction.try_sign()?;
-            ids.push(transaction.try_submit(&self.wallet().rpc_api()).await?);
+            ids.push(transaction.try_submit(&self.wallet().rpc_api(), false).await?);
 
             if let Some(notifier) = notifier.as_ref() {
                 notifier(&transaction);
@@ -476,7 +476,7 @@ pub trait Account: AnySync + Send + Sync + 'static {
         }
     }
 
-    async fn pskb_broadcast(self: Arc<Self>, bundle: &Bundle) -> Result<Vec<Hash>, Error> {
+    async fn pskb_broadcast(self: Arc<Self>, bundle: &Bundle, is_meta_tx: bool) -> Result<Vec<Hash>, Error> {
         let mut ids = Vec::new();
         let mut stream = bundle_to_finalizer_stream(bundle);
 
@@ -484,8 +484,9 @@ pub trait Account: AnySync + Send + Sync + 'static {
             match result {
                 Ok(pskt) => {
                     let change = self.change_address()?;
-                    let transaction = pskt_to_pending_transaction(pskt, self.wallet().network_id()?, change)?;
-                    ids.push(transaction.try_submit(&self.wallet().rpc_api()).await?);
+                    let transaction =
+                        pskt_to_pending_transaction(pskt, self.wallet().network_id()?, change, self.utxo_context().clone().into())?;
+                    ids.push(transaction.try_submit(&self.wallet().rpc_api(), is_meta_tx).await?);
                 }
                 Err(e) => {
                     eprintln!("Error processing a PSKT from bundle: {:?}", e);
@@ -536,7 +537,7 @@ pub trait Account: AnySync + Send + Sync + 'static {
         let mut ids = vec![];
         while let Some(transaction) = stream.try_next().await? {
             transaction.try_sign()?;
-            ids.push(transaction.try_submit(&self.wallet().rpc_api()).await?);
+            ids.push(transaction.try_submit(&self.wallet().rpc_api(), false).await?);
 
             if let Some(notifier) = notifier.as_ref() {
                 notifier(&transaction);
@@ -714,7 +715,7 @@ pub trait DerivationCapableAccount: Account {
                     let mut stream = generator.stream();
                     while let Some(transaction) = stream.try_next().await? {
                         transaction.try_sign_with_keys(&keys, None)?;
-                        let id = transaction.try_submit(&rpc).await?;
+                        let id = transaction.try_submit(&rpc, false).await?;
                         if let Some(notifier) = notifier {
                             notifier(index, aggregate_utxo_count, balance, Some(id));
                         }

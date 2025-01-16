@@ -92,6 +92,8 @@ pub struct Context {
     /// Confirmation occurs when the transaction UTXOs are
     /// removed from the context by the UTXO change notification.
     pub(crate) outgoing: AHashMap<TransactionId, OutgoingTransaction>,
+    /// Outgoing transactions that have used for krc20, krc721 transactions.
+    pub(crate) meta: AHashMap<TransactionId, OutgoingTransaction>,
     /// Total balance of all UTXOs in this context (mature, pending)
     balance: Option<Balance>,
     /// Addresses monitored by this UTXO context
@@ -106,6 +108,7 @@ impl Default for Context {
             stasis: AHashMap::default(),
             map: AHashMap::default(),
             outgoing: AHashMap::default(),
+            meta: AHashMap::default(),
             balance: None,
             addresses: Arc::new(DashSet::new()),
         }
@@ -123,6 +126,7 @@ impl Context {
         self.stasis.clear();
         self.pending.clear();
         self.outgoing.clear();
+        self.meta.clear();
         self.addresses.clear();
         self.balance = None;
     }
@@ -243,7 +247,7 @@ impl UtxoContext {
 
     /// Process pending transaction. Remove mature UTXO entries and add them to the consumed set.
     /// Produces a notification on the even multiplexer.
-    pub(crate) async fn register_outgoing_transaction(&self, pending_tx: &PendingTransaction) -> Result<()> {
+    pub(crate) async fn register_outgoing_transaction(&self, pending_tx: &PendingTransaction, is_meta_tx: bool) -> Result<()> {
         {
             let current_daa_score =
                 self.processor().current_daa_score().ok_or(Error::MissingDaaScore("register_outgoing_transaction()"))?;
@@ -254,21 +258,32 @@ impl UtxoContext {
 
             let outgoing_transaction = OutgoingTransaction::new(current_daa_score, self.clone(), pending_tx.clone());
             self.processor().register_outgoing_transaction(outgoing_transaction.clone());
-            context.outgoing.insert(outgoing_transaction.id(), outgoing_transaction);
+            if is_meta_tx {
+                context.meta.insert(outgoing_transaction.id(), outgoing_transaction);
+            } else {
+                context.outgoing.insert(outgoing_transaction.id(), outgoing_transaction);
+            }
         }
 
         Ok(())
     }
 
     pub(crate) async fn notify_outgoing_transaction(&self, pending_tx: &PendingTransaction) -> Result<()> {
-        let outgoing_tx = self.processor().outgoing().get(&pending_tx.id()).expect("outgoing transaction for notification");
+        let record = { self.context().meta.get(&pending_tx.id()).cloned() };
 
-        if pending_tx.is_batch() {
-            let record = TransactionRecord::new_batch(self, &outgoing_tx, None)?;
+        if let Some(outgoing_tx) = record {
+            let record = TransactionRecord::new_meta(self, &outgoing_tx, None)?;
             self.processor().notify(Events::Pending { record }).await?;
         } else {
-            let record = TransactionRecord::new_outgoing(self, &outgoing_tx, None)?;
-            self.processor().notify(Events::Pending { record }).await?;
+            let outgoing_tx = self.processor().outgoing().get(&pending_tx.id()).expect("outgoing transaction for notification");
+
+            if pending_tx.is_batch() {
+                let record = TransactionRecord::new_batch(self, &outgoing_tx, None)?;
+                self.processor().notify(Events::Pending { record }).await?;
+            } else {
+                let record = TransactionRecord::new_outgoing(self, &outgoing_tx, None)?;
+                self.processor().notify(Events::Pending { record }).await?;
+            }
         }
         self.update_balance().await?;
         Ok(())
@@ -547,7 +562,6 @@ impl UtxoContext {
 
             if let Some(outgoing_transaction) = outgoing_transaction {
                 accepted_outgoing_transactions.insert((*outgoing_transaction).clone());
-
                 if outgoing_transaction.is_batch() {
                     let record = TransactionRecord::new_batch(self, &outgoing_transaction, Some(current_daa_score))?;
                     self.processor().notify(Events::Maturity { record }).await?;
@@ -589,7 +603,10 @@ impl UtxoContext {
         }
 
         for accepted_outgoing_transaction in accepted_outgoing_transactions.into_iter() {
-            if accepted_outgoing_transaction.is_batch() {
+            if self.context().meta.contains_key(&accepted_outgoing_transaction.id()) {
+                let record = TransactionRecord::new_meta(self, &accepted_outgoing_transaction, Some(current_daa_score))?;
+                self.processor().notify(Events::Maturity { record }).await?;
+            } else if accepted_outgoing_transaction.is_batch() {
                 let record = TransactionRecord::new_batch(self, &accepted_outgoing_transaction, Some(current_daa_score))?;
                 self.processor().notify(Events::Maturity { record }).await?;
             } else if accepted_outgoing_transaction.destination_context().is_some() {

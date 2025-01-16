@@ -223,7 +223,7 @@ impl PendingTransaction {
     }
 
     /// Submit the transaction on the supplied rpc
-    pub async fn try_submit(&self, rpc: &Arc<DynRpcApi>) -> Result<RpcTransactionId> {
+    pub async fn try_submit(&self, rpc: &Arc<DynRpcApi>, is_meta_tx: bool) -> Result<RpcTransactionId> {
         // sanity check to prevent multiple invocations (for API use)
         self.inner.is_submitted.load(Ordering::SeqCst).then(|| {
             panic!("PendingTransaction::try_submit() called multiple times");
@@ -238,7 +238,7 @@ impl PendingTransaction {
             let _lock = utxo_context.processor().notification_lock().await;
 
             // register pending UTXOs with UtxoProcessor
-            utxo_context.register_outgoing_transaction(self).await?;
+            utxo_context.register_outgoing_transaction(self, is_meta_tx).await?;
 
             // try to submit transaction
             match rpc.submit_transaction(rpc_transaction, false).await {

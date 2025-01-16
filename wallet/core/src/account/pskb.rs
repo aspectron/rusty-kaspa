@@ -292,6 +292,7 @@ pub fn pskt_to_pending_transaction(
     finalized_pskt: PSKT<Finalizer>,
     network_id: NetworkId,
     change_address: Address,
+    source_utxo_context: Option<UtxoContext>,
 ) -> Result<PendingTransaction, Error> {
     let mass = 10;
     let (signed_tx, _) = match finalized_pskt.clone().extractor() {
@@ -341,7 +342,7 @@ pub fn pskt_to_pending_transaction(
         change_address,
         utxo_iterator,
         priority_utxo_entries: None,
-        source_utxo_context: None,
+        source_utxo_context,
         destination_utxo_context: None,
         fee_rate: None,
         final_transaction_priority_fee: fee_u.into(),
@@ -491,6 +492,7 @@ pub async fn commit_reveal_batch_bundle(
                     pskt_finalizer.clone(),
                     network_id,
                     account.clone().as_derivation_capable()?.change_address()?,
+                    account.utxo_context().clone().into(),
                 ) {
                     Ok(tx) => Ok(tx.id()),
                     Err(e) => Err(e),
