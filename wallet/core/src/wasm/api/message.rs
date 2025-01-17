@@ -1651,7 +1651,8 @@ declare! {
     export interface ITransactionsDataGetRequest {
         accountId : HexString;
         networkId : NetworkId | string;
-        filter? : TransactionKind[];
+        kindFilter? : TransactionKind[];
+        groupFilter? : TransactionGroup[];
         start : bigint;
         end : bigint;
     }
@@ -1661,8 +1662,11 @@ declare! {
 try_from! ( args: ITransactionsDataGetRequest, TransactionsDataGetRequest, {
     let account_id = args.get_account_id("accountId")?;
     let network_id = args.get_network_id("networkId")?;
-    let filter = args.get_vec("filter").ok().map(|filter| {
-        filter.into_iter().map(TransactionKind::try_from).collect::<Result<Vec<TransactionKind>>>()
+    let kind_filter = args.get_vec("kindFilter").ok().map(|kind_filter| {
+        kind_filter.into_iter().map(TransactionKind::try_from).collect::<Result<Vec<TransactionKind>>>()
+    }).transpose()?;
+    let group_filter = args.get_vec("groupFilter").ok().map(|group_filter| {
+        group_filter.into_iter().map(TransactionGroup::try_from).collect::<Result<Vec<TransactionGroup>>>()
     }).transpose()?;
     let start = args.get_u64("start")?;
     let end = args.get_u64("end")?;
@@ -1670,7 +1674,8 @@ try_from! ( args: ITransactionsDataGetRequest, TransactionsDataGetRequest, {
     let request = TransactionsDataGetRequest {
         account_id,
         network_id,
-        filter,
+        kind_filter,
+        group_filter,
         start,
         end,
     };

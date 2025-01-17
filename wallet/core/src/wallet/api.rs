@@ -560,7 +560,7 @@ impl WalletApi for super::Wallet {
     }
 
     async fn transactions_data_get_call(self: Arc<Self>, request: TransactionsDataGetRequest) -> Result<TransactionsDataGetResponse> {
-        let TransactionsDataGetRequest { account_id, network_id, filter, start, end } = request;
+        let TransactionsDataGetRequest { account_id, network_id, kind_filter, group_filter, start, end } = request;
 
         if start > end {
             return Err(Error::InvalidRange(start, end));
@@ -569,7 +569,7 @@ impl WalletApi for super::Wallet {
         let binding = Binding::Account(account_id);
         let store = self.store().as_transaction_record_store()?;
         let TransactionRangeResult { transactions, total } =
-            store.load_range(&binding, &network_id, filter, start as usize..end as usize).await?;
+            store.load_range(&binding, &network_id, kind_filter, group_filter, start as usize..end as usize).await?;
 
         Ok(TransactionsDataGetResponse { transactions, total, account_id, start })
     }

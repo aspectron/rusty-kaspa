@@ -124,7 +124,8 @@ pub trait TransactionRecordStore: Send + Sync {
         &self,
         binding: &Binding,
         network_id: &NetworkId,
-        filter: Option<Vec<TransactionKind>>,
+        kind_filter: Option<Vec<TransactionKind>>,
+        group_filter: Option<Vec<TransactionGroup>>,
         range: std::ops::Range<usize>,
     ) -> Result<TransactionRangeResult>;
 

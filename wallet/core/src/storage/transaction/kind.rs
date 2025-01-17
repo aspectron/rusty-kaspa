@@ -133,3 +133,49 @@ impl TryFrom<JsValue> for TransactionKind {
         }
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Eq, PartialEq)]
+pub enum TransactionGroup {
+    Native,
+    Meta,
+}
+
+impl std::fmt::Display for TransactionGroup {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            TransactionGroup::Native => "native",
+            TransactionGroup::Meta => "meta",
+        };
+        write!(f, "{s}")
+    }
+}
+
+impl TryFrom<JsValue> for TransactionGroup {
+    type Error = Error;
+    fn try_from(js_value: JsValue) -> std::result::Result<Self, Self::Error> {
+        if let Some(s) = js_value.as_string() {
+            match s.as_str() {
+                "native" => Ok(TransactionGroup::Native),
+                "meta" => Ok(TransactionGroup::Meta),
+                _ => Err(Error::Custom(format!("InvalidTransactionGroup: {:?}", s))),
+            }
+        } else {
+            Err(Error::Custom(format!("InvalidTransactionGroup: {:?}", js_value)))
+        }
+    }
+}
+impl From<TransactionGroup> for JsValue {
+    fn from(group: TransactionGroup) -> Self {
+        JsValue::from_str(group.to_string().as_str())
+    }
+}
+
+impl From<TransactionKind> for TransactionGroup {
+    fn from(kind: TransactionKind) -> Self {
+        if kind == TransactionKind::Meta {
+            TransactionGroup::Meta
+        } else {
+            TransactionGroup::Native
+        }
+    }
+}

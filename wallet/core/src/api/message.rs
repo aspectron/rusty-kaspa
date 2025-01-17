@@ -603,14 +603,15 @@ pub struct FeeRatePollerDisableResponse {}
 pub struct TransactionsDataGetRequest {
     pub account_id: AccountId,
     pub network_id: NetworkId,
-    pub filter: Option<Vec<TransactionKind>>,
+    pub kind_filter: Option<Vec<TransactionKind>>,
+    pub group_filter: Option<Vec<TransactionGroup>>,
     pub start: u64,
     pub end: u64,
 }
 
 impl TransactionsDataGetRequest {
     pub fn with_range(account_id: AccountId, network_id: NetworkId, range: std::ops::Range<u64>) -> Self {
-        Self { account_id, network_id, filter: None, start: range.start, end: range.end }
+        Self { account_id, network_id, kind_filter: None, group_filter: None, start: range.start, end: range.end }
     }
 }
 

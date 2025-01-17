@@ -6,6 +6,8 @@ use crate::result::Result;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::constants::*;
 use kaspa_consensus_core::network::NetworkType;
+use workflow_core::task::sleep;
+use workflow_core::time::Duration;
 //use kaspa_consensus_core::subnets::SubnetworkId;
 use crate::error::Error;
 use separator::{separated_float, separated_int, separated_uint_with_output, Separatable};
@@ -14,8 +16,8 @@ use serde::Serialize;
 use serde_json::Value;
 use wasm_bindgen::JsValue;
 use workflow_http::get_json;
-use workflow_log::style;
 use workflow_log::log_warn;
+use workflow_log::style;
 // use crate::utxo::context::UtxoContext;
 // use crate::storage::transaction::record::TransactionRecord;
 // use crate::storage::transaction::data::TransactionData;
@@ -171,8 +173,21 @@ pub async fn get_transaction_by_id(txid: &str) -> Result<Transaction> {
     let url = format!("https://api.kaspa.org/transactions/{}", txid);
 
     let res = get_json::<Transaction>(&url).await.map_err(|e| Error::custom(e.to_string()));
-    log_warn!("### get_transaction_by_id: {:?}", res);
-    return res;
+    log_warn!("### get_transaction_by_id1: {txid} {:?}", res);
+    match res {
+        Ok(tx) => Ok(tx),
+        Err(_) => {
+            let res = async {
+                sleep(Duration::from_secs(1)).await;
+                get_json::<Transaction>(&url).await.map_err(|e| Error::custom(e.to_string()))
+            }
+            .await;
+            if res.is_err() {
+                log_warn!("### get_transaction_by_id2: {txid} {:?}", res);
+            }
+            res
+        }
+    }
 }
 
 pub fn try_kaspa_str_to_sompi<S: Into<String>>(s: S) -> Result<Option<u64>> {

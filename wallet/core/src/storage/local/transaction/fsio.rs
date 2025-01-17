@@ -136,14 +136,37 @@ impl TransactionRecordStore for TransactionStore {
         &self,
         binding: &Binding,
         network_id: &NetworkId,
-        filter: Option<Vec<TransactionKind>>,
+        kind_filter: Option<Vec<TransactionKind>>,
+        group_filter: Option<Vec<TransactionGroup>>,
         range: std::ops::Range<usize>,
     ) -> Result<TransactionRangeResult> {
         let folder = self.ensure_folder(binding, network_id).await?;
         let ids = self.enumerate(binding, network_id).await?;
         let mut transactions = vec![];
+        let total = if let Some(group_filter) = group_filter {
+            let mut located = 0;
 
-        let total = if let Some(filter) = filter {
+            for id in ids {
+                let path = folder.join(id.to_hex());
+
+                match read(&path, None).await {
+                    Ok(tx) => {
+                        if group_filter.contains(&tx.kind().into()) {
+                            if located >= range.start && located < range.end {
+                                transactions.push(Arc::new(tx));
+                            }
+
+                            located += 1;
+                        }
+                    }
+                    Err(err) => {
+                        log_error!("Error loading transaction {id}: {:?}", err);
+                    }
+                }
+            }
+
+            located
+        } else if let Some(filter) = kind_filter {
             let mut located = 0;
 
             for id in ids {

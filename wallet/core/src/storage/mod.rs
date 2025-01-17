@@ -28,7 +28,7 @@ pub use keydata::{AssocPrvKeyDataIds, PrvKeyData, PrvKeyDataId, PrvKeyDataInfo, 
 pub use local::interface::make_filename;
 pub use metadata::AccountMetadata;
 pub use storable::Storable;
-pub use transaction::{TransactionData, TransactionId, TransactionKind, TransactionRecord};
+pub use transaction::{TransactionData, TransactionGroup, TransactionId, TransactionKind, TransactionRecord};
 
 #[cfg(test)]
 mod tests {
