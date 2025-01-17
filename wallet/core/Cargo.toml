@@ -99,6 +99,7 @@ workflow-node.workspace = true
 workflow-rpc.workspace = true
 workflow-store.workspace = true
 workflow-wasm.workspace = true
+workflow-http.workspace = true
 xxhash-rust.workspace = true
 zeroize.workspace = true
 indexed_db_futures.workspace = true

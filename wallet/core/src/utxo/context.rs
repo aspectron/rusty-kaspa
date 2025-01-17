@@ -10,6 +10,7 @@ use crate::imports::*;
 use crate::result::Result;
 use crate::storage::TransactionRecord;
 use crate::tx::PendingTransaction;
+use crate::utils::{detect_meta_tokens, get_transaction_by_id};
 use crate::utxo::{
     Maturity, NetworkParams, OutgoingTransaction, PendingUtxoEntryReference, UtxoContextBinding, UtxoEntryId, UtxoEntryReference,
     UtxoEntryReferenceExtension, UtxoProcessor,
@@ -575,8 +576,30 @@ impl UtxoContext {
                 }
             } else if !is_coinbase_stasis {
                 // do not notify if coinbase transaction is in stasis
-                let record = TransactionRecord::new_incoming(self, txid, &utxos);
-                self.processor().notify(Events::Pending { record }).await?;
+                log_warn!("### incoming transaction: {:?}", txid);
+                let record = if let Ok(tx) = get_transaction_by_id(&txid.to_string()).await {
+                    log_warn!("### incoming transaction tx: {:?}", tx);
+                    if tx.inputs.is_not_empty() && detect_meta_tokens(&tx.inputs[0].signature_script) {
+                        log_warn!("Skipping Meta transaction: {:?}", tx);
+                        // TODO: Implement meta transaction record creation
+                        //match tx.meta_transaction_record(self, &utxos) {
+                        //     Ok(record) => record,
+                        //     Err(e) => {
+                        //         log_error!("Error: unable to create meta transaction record from tx: {:?}, error: {:?}", tx, e);
+                        //         return Err(e);
+                        //     }
+                        // }
+                        None
+                    } else {
+                        log_warn!("### incoming transaction tx.inputs: {:?}", tx.inputs);
+                        Some(TransactionRecord::new_incoming(self, txid, &utxos))
+                    }
+                } else {
+                    Some(TransactionRecord::new_incoming(self, txid, &utxos))
+                };
+                if let Some(record) = record {
+                    self.processor().notify(Events::Pending { record }).await?;
+                }
             }
         }
 

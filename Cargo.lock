@@ -3371,6 +3371,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "workflow-core",
+ "workflow-http",
  "workflow-log",
  "workflow-node",
  "workflow-rpc",
