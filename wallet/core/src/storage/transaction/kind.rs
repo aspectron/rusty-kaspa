@@ -23,6 +23,7 @@ export enum TransactionKind {
     External = "external",
     TransferIncoming = "transfer-incoming",
     TransferOutgoing = "transfer-outgoing",
+    Meta = "meta",
 }
 "#;
 

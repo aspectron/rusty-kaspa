@@ -64,6 +64,11 @@ export enum TransactionDataType {
      */
     Outgoing = "outgoing",
     /**
+     * Transaction is a meta transaction.
+     * @see {@link ITransactionDataMeta}
+     */
+    Meta = "meta",
+    /**
      * Transaction is a batch transaction (compounding UTXOs to an internal change address).
      * @see {@link ITransactionDataBatch}
      */
