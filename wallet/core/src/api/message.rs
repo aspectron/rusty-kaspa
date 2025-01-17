@@ -401,11 +401,16 @@ pub struct AccountsEnsureDefaultResponse {
 // TODO
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AccountsImportRequest {}
+pub struct AccountsImportRequest {
+    pub wallet_secret: Secret,
+    pub account_create_args: AccountCreateArgs,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AccountsImportResponse {}
+pub struct AccountsImportResponse {
+    pub account_descriptor: AccountDescriptor,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
@@ -493,6 +498,7 @@ pub struct AccountsSendRequest {
     pub wallet_secret: Secret,
     pub payment_secret: Option<Secret>,
     pub destination: PaymentDestination,
+    pub fee_rate: Option<f64>,
     pub priority_fee_sompi: Fees,
     pub payload: Option<Vec<u8>>,
 }
@@ -512,6 +518,7 @@ pub struct AccountsTransferRequest {
     pub wallet_secret: Secret,
     pub payment_secret: Option<Secret>,
     pub transfer_amount_sompi: u64,
+    pub fee_rate: Option<f64>,
     pub priority_fee_sompi: Option<Fees>,
     // pub priority_fee_sompi: Fees,
 }
@@ -530,6 +537,7 @@ pub struct AccountsTransferResponse {
 pub struct AccountsEstimateRequest {
     pub account_id: AccountId,
     pub destination: PaymentDestination,
+    pub fee_rate: Option<f64>,
     pub priority_fee_sompi: Fees,
     pub payload: Option<Vec<u8>>,
 }
