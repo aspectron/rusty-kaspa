@@ -134,6 +134,14 @@ impl TryFrom<JsValue> for TransactionKind {
     }
 }
 
+#[wasm_bindgen(typescript_custom_section)]
+const TS_TRANSACTION_GROUP: &'static str = r#"
+export enum TransactionGroup {
+    Native = "native",
+    Meta = "meta",
+}
+"#;
+
 #[derive(Debug, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Eq, PartialEq)]
 pub enum TransactionGroup {
     Native,
