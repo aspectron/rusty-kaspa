@@ -20,10 +20,13 @@ use crate::compat::gen1::decrypt_mnemonic;
 use crate::error::Error::Custom;
 use crate::factory::try_load_account;
 use crate::imports::*;
+use crate::prelude::AccountsEstimateRequest;
 use crate::settings::{SettingsStore, WalletSettings};
 use crate::storage::interface::{OpenArgs, StorageDescriptor};
 use crate::storage::local::interface::LocalStore;
 use crate::storage::local::Storage;
+use crate::tx::GeneratorSummary;
+use crate::tx::{Fees, PaymentOutput};
 use crate::wallet::maps::ActiveAccountMap;
 use kaspa_bip32::{ExtendedKey, Language, Mnemonic, Prefix as KeyPrefix, WordCount};
 use kaspa_notify::{
@@ -1710,6 +1713,63 @@ impl Wallet {
 
     pub fn network_format_xpub(&self, xpub_key: &ExtendedPublicKeySecp256k1) -> String {
         NetworkTaggedXpub::from((xpub_key.clone(), self.network_id().unwrap())).to_string()
+    }
+
+    /// Estimate fee for a transaction
+    async fn _fee_estimate(
+        self: Arc<Self>,
+        account_id: AccountId,
+        amount_sompi: u64,
+        priority_fee_sompi: u64,
+    ) -> Result<GeneratorSummary> {
+        let address = {
+            // let guard = self.guard();
+            // let guard = guard.lock().await;
+            // let account = self.get_account_by_id(&account_id, &guard).await?.ok_or(Error::AccountNotFound(account_id))?;
+            // account.receive_address()?
+            match NetworkType::from(self.network_id()?) {
+                NetworkType::Testnet => {
+                    Address::try_from("kaspatest:qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqhqrxplya").unwrap()
+                }
+                NetworkType::Mainnet => {
+                    Address::try_from("kaspa:qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx9awp4e").unwrap()
+                }
+                _ => panic!("Unsupported network"),
+            }
+        };
+        let destination = PaymentOutput::new(address, amount_sompi);
+        let base_response = self
+            .clone()
+            .accounts_estimate_call(AccountsEstimateRequest {
+                account_id,
+                destination: destination.clone().into(),
+                priority_fee_sompi: Fees::SenderPays(0),
+                fee_rate: Some(0.0),
+                payload: None,
+            })
+            .await;
+
+        let base_mass = base_response.map(|r| r.generator_summary.aggregate_mass).unwrap_or_default();
+
+        let fee_rate = if base_mass == 0 { 1.0 } else { priority_fee_sompi as f64 / base_mass as f64 };
+
+        let final_response = self
+            .accounts_estimate_call(AccountsEstimateRequest {
+                account_id,
+                destination: destination.into(),
+                priority_fee_sompi: Fees::SenderPays(0),
+                fee_rate: Some(fee_rate),
+                payload: None,
+            })
+            .await?;
+
+        // for calculating priority fee in ux
+        // let priority_fee_sompi = final_response.generator_summary.aggregate_mass * fee_rate;
+        // what will be network fee = generator_summary.aggregate_fees - priority_fee_sompi ?
+        // or let network_fee = generator_summary.aggregate_fees;
+        // but but mass will be different if we use priority fee
+
+        Ok(final_response.generator_summary)
     }
 }
 
