@@ -112,8 +112,8 @@ impl PendingTransaction {
 
     /// Sets a signature to the input at the specified index.
     #[wasm_bindgen(js_name = fillInput)]
-    pub fn fill_input(&self, input_index: u8, signature_script: BinaryT) -> Result<()> {
-        self.inner.fill_input(input_index.into(), signature_script.try_as_vec_u8()?)
+    pub fn fill_input(&self, input_index: u8, signature_script: BinaryT, sig_op_count: Option<u8>) -> Result<()> {
+        self.inner.fill_input(input_index.into(), signature_script.try_as_vec_u8()?, sig_op_count)
     }
 
     /// Signs the input at the specified index with the supplied private key

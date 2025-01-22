@@ -278,11 +278,16 @@ impl PendingTransaction {
         Ok(sign_input(&verifiable_tx, input_index, private_key, hash_type))
     }
 
-    pub fn fill_input(&self, input_index: usize, signature_script: Vec<u8>) -> Result<()> {
+    pub fn fill_input(&self, input_index: usize, signature_script: Vec<u8>, sig_op_count: Option<u8>) -> Result<()> {
         let mut mutable_tx = self.inner.signable_tx.lock()?.clone();
-        mutable_tx.tx.inputs[input_index].signature_script = signature_script;
-        *self.inner.signable_tx.lock().unwrap() = mutable_tx;
+        let input = &mut mutable_tx.tx.inputs[input_index];
 
+        input.signature_script = signature_script;
+        if let Some(sig_op) = sig_op_count {
+            input.sig_op_count = sig_op;
+        }
+
+        *self.inner.signable_tx.lock().unwrap() = mutable_tx;
         Ok(())
     }
 

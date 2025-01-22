@@ -8,6 +8,7 @@ use kaspa_addresses::AddressOrStringArrayT;
 use kaspa_consensus_client::UtxoEntryReferenceArrayT;
 use kaspa_hashes::Hash;
 use kaspa_wallet_macros::declare_typescript_wasm_interface as declare;
+use kaspa_wasm_core::types::HexString;
 
 declare! {
     IUtxoContextArgs,
@@ -145,6 +146,12 @@ impl UtxoContext {
     /// (followed by address re-registration).  
     pub async fn clear(&self) -> Result<()> {
         self.inner().clear().await
+    }
+
+    /// Deterministic ID of the context, allows differentiation across event notifications.
+    #[wasm_bindgen(getter, js_name = "id")]
+    pub fn id(&self) -> HexString {
+        self.inner.id().to_hex().into()
     }
 
     #[wasm_bindgen(getter, js_name = "isActive")]

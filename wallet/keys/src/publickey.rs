@@ -19,6 +19,7 @@
 
 use crate::imports::*;
 
+use kaspa_addresses::AddressT;
 use kaspa_consensus_core::network::NetworkType;
 use ripemd::{Digest, Ripemd160};
 use sha2::Sha256;
@@ -236,8 +237,9 @@ impl XOnlyPublicKey {
     }
 
     #[wasm_bindgen(js_name = fromAddress)]
-    pub fn from_address(address: &Address) -> Result<XOnlyPublicKey> {
-        Ok(secp256k1::XOnlyPublicKey::from_slice(&address.payload)?.into())
+    pub fn from_address(address: &AddressT) -> Result<XOnlyPublicKey> {
+        let address = Address::try_cast_from(address)?;
+        Ok(secp256k1::XOnlyPublicKey::from_slice(&address.as_ref().payload)?.into())
     }
 }
 
