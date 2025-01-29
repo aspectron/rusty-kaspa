@@ -454,6 +454,7 @@ impl PSKT<Extractor> {
                 log_info!("2");
 
                 TxScriptEngine::from_transaction_input(&tx, input, idx, entry, &reused_values, &cache, false).execute()?;
+                log_info!("3");
                 <Result<(), ExtractError>>::Ok(())
             })?;
         }

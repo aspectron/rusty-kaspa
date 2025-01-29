@@ -308,7 +308,13 @@ pub fn pskt_to_pending_transaction(
     let mass = 10;
     let (signed_tx, _) = match finalized_pskt.clone().extractor() {
         Ok(extractor) => match extractor.extract_tx() {
-            Ok(once_mass) => once_mass(mass),
+            Ok(once_mass) =>{
+                log_info!("extracted tx from PSKT");
+                let mass=once_mass(mass);
+                log_info!("mass set");
+                mass
+
+            },
             Err(e) => return Err(Error::PendingTransactionFromPSKTError(e.to_string())),
         },
         Err(e) => return Err(Error::PendingTransactionFromPSKTError(e.to_string())),
