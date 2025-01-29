@@ -29,6 +29,7 @@ pub mod prelude {
     pub use super::standard::*;
 }
 pub use standard::*;
+use workflow_log::log_info;
 
 pub const MAX_SCRIPT_PUBLIC_KEY_VERSION: u16 = 0;
 pub const MAX_STACK_SIZE: usize = 244;
@@ -256,6 +257,8 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
     }
 
     fn execute_script(&mut self, script: &[u8], verify_only_push: bool) -> Result<(), TxScriptError> {
+        log_info!("0 in depth exec");
+
         let script_result = parse_script(script).try_for_each(|opcode| {
             let opcode = opcode?;
             if opcode.is_disabled() {
@@ -269,6 +272,7 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
             if verify_only_push && !opcode.is_push_opcode() {
                 return Err(TxScriptError::SignatureScriptNotPushOnly);
             }
+            log_info!("opcode exec");
 
             self.execute_opcode(opcode)?;
 
@@ -278,6 +282,7 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
             }
             Ok(())
         });
+        log_info!("1 in depth exec");
 
         // Moving between scripts - we can't be inside an if
         if script_result.is_ok() && !self.cond_stack.is_empty() {
@@ -292,6 +297,7 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
     }
 
     pub fn execute(&mut self) -> Result<(), TxScriptError> {
+        log_info!("A Executing script");
         let (scripts, is_p2sh) = match &self.script_source {
             ScriptSource::TxInput { input, utxo_entry, is_p2sh, .. } => {
                 if utxo_entry.script_public_key.version() > MAX_SCRIPT_PUBLIC_KEY_VERSION {
@@ -302,6 +308,7 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
             }
             ScriptSource::StandAloneScripts(scripts) => (scripts.clone(), false),
         };
+        log_info!("B Executing script");
 
         // TODO: run all in same iterator?
         // When both the signature script and public key script are empty the
@@ -318,6 +325,7 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
         if let Some(s) = scripts.iter().find(|e| e.len() > MAX_SCRIPTS_SIZE) {
             return Err(TxScriptError::ScriptSize(s.len(), MAX_SCRIPTS_SIZE));
         }
+        log_info!("C Executing script");
 
         let mut saved_stack: Option<Vec<Vec<u8>>> = None;
         // try_for_each quits only if an error occurred. So, we always run over all scripts if
@@ -331,6 +339,7 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
             }
             self.execute_script(s, verify_only_push)
         })?;
+        log_info!("D Executing script");
 
         if is_p2sh {
             self.check_error_condition(false)?;
@@ -338,6 +347,7 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
             let script = self.dstack.pop().ok_or(TxScriptError::EmptyStack)?;
             self.execute_script(script.as_slice(), false)?
         }
+        log_info!("E Executing script");
 
         self.check_error_condition(true)?;
         Ok(())

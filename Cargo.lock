@@ -3182,6 +3182,7 @@ dependencies = [
  "smallvec",
  "thiserror",
  "wasm-bindgen",
+ "workflow-log",
  "workflow-wasm",
 ]
 
@@ -3446,6 +3447,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-test",
  "web-sys",
+ "workflow-log",
  "workflow-wasm",
 ]
 
