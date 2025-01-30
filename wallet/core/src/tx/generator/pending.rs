@@ -14,9 +14,12 @@ use kaspa_consensus_core::sign::{sign_input, sign_with_multiple_v2, Signed};
 use kaspa_consensus_core::tx::{SignableTransaction, Transaction, TransactionId, TransactionInput, TransactionOutput};
 use kaspa_rpc_core::{RpcTransaction, RpcTransactionId};
 
+use super::Signer;
+
 pub(crate) struct PendingTransactionInner {
-    /// Generator that produced the transaction
-    pub(crate) generator: Generator,
+    pub(crate) signer:Signer,
+    /// UtxoContext
+    pub(crate) utxo_context: Option<UtxoContext>,
     /// UtxoEntryReferences of the pending transaction
     pub(crate) utxo_entries: AHashMap<UtxoEntryId, UtxoEntryReference>,
     /// Transaction Id (cached in pending to avoid mutex lock)
@@ -101,7 +104,8 @@ pub struct PendingTransaction {
 impl PendingTransaction {
     #[allow(clippy::too_many_arguments)]
     pub fn try_new(
-        generator: &Generator,
+        signer:Signer,
+        utxo_context: UtxoContext,
         transaction: Transaction,
         utxo_entries: Vec<UtxoEntryReference>,
         addresses: Vec<Address>,
@@ -121,7 +125,7 @@ impl PendingTransaction {
         let utxo_entries = utxo_entries.into_iter().map(|entry| (entry.id(), entry)).collect::<AHashMap<_, _>>();
         Ok(Self {
             inner: Arc::new(PendingTransactionInner {
-                generator: generator.clone(),
+                generator: Some(generator.clone()),
                 id,
                 signable_tx,
                 utxo_entries,
@@ -148,12 +152,12 @@ impl PendingTransaction {
         &self.inner.generator
     }
 
-    pub fn source_utxo_context(&self) -> &Option<UtxoContext> {
-        self.inner.generator.source_utxo_context()
+    pub fn source_utxo_context(&self) -> Result<&Option<UtxoContext>> {
+        Ok(self.inner.generator.as_ref().ok_or(Error::GeneratorIsMissing)?.source_utxo_context())
     }
 
-    pub fn destination_utxo_context(&self) -> &Option<UtxoContext> {
-        self.inner.generator.destination_utxo_context()
+    pub fn destination_utxo_context(&self) -> Result<&Option<UtxoContext>> {
+        Ok(self.inner.generator.as_ref().ok_or(Error::GeneratorIsMissing)?.destination_utxo_context())
     }
 
     /// Addresses used by the pending transaction
@@ -206,8 +210,8 @@ impl PendingTransaction {
         !self.inner.kind.is_final()
     }
 
-    pub fn network_type(&self) -> NetworkType {
-        self.inner.generator.network_type()
+    pub fn network_type(&self) -> Result<NetworkType> {
+        Ok(self.inner.generator.as_ref().ok_or(Error::GeneratorIsMissing)?.network_type())
     }
 
     pub fn transaction(&self) -> Transaction {
@@ -233,7 +237,7 @@ impl PendingTransaction {
         let rpc_transaction: RpcTransaction = self.rpc_transaction();
 
         // if we are running under UtxoProcessor
-        if let Some(utxo_context) = self.inner.generator.source_utxo_context() {
+        if let Some(utxo_context) = self.inner.generator.as_ref().ok_or(Error::GeneratorIsMissing)?.source_utxo_context() {
             // lock UtxoProcessor notification ingest
             let _lock = utxo_context.processor().notification_lock().await;
 
@@ -265,7 +269,7 @@ impl PendingTransaction {
     }
 
     pub fn try_sign(&self) -> Result<()> {
-        let signer = self.inner.generator.signer().as_ref().expect("no signer in tx generator");
+        let signer = self.inner.generator.ok_or(Error::GeneratorIsMissing)?.signer().as_ref().expect("no signer in tx generator");
         let signed_tx = signer.try_sign(self.inner.signable_tx.lock()?.clone(), self.addresses())?;
         *self.inner.signable_tx.lock().unwrap() = signed_tx;
         Ok(())
@@ -319,141 +323,141 @@ impl PendingTransaction {
         Ok(())
     }
 
-    pub fn increase_fees_for_rbf(&self, additional_fees: u64) -> Result<PendingTransaction> {
-        #![allow(unused_mut)]
-        #![allow(unused_variables)]
-
-        let PendingTransactionInner {
-            generator,
-            utxo_entries,
-            id,
-            signable_tx,
-            addresses,
-            is_submitted,
-            payment_value,
-            change_output_index,
-            change_output_value,
-            aggregate_input_value,
-            aggregate_output_value,
-            minimum_signatures,
-            mass,
-            fees,
-            kind,
-        } = &*self.inner;
-
-        let generator = generator.clone();
-        let utxo_entries = utxo_entries.clone();
-        let id = *id;
-        // let signable_tx = Mutex::new(signable_tx.lock()?.clone());
-        let mut signable_tx = signable_tx.lock()?.clone();
-        let addresses = addresses.clone();
-        let is_submitted = AtomicBool::new(false);
-        let payment_value = *payment_value;
-        let mut change_output_index = *change_output_index;
-        let mut change_output_value = *change_output_value;
-        let mut aggregate_input_value = *aggregate_input_value;
-        let mut aggregate_output_value = *aggregate_output_value;
-        let minimum_signatures = *minimum_signatures;
-        let mass = *mass;
-        let fees = *fees;
-        let kind = *kind;
-
-        #[allow(clippy::single_match)]
-        match kind {
-            DataKind::Final => {
-                // change output has sufficient amount to cover fee increase
-                // if change_output_value > fee_increase && change_output_index.is_some() {
-                if let (Some(index), true) = (change_output_index, change_output_value >= additional_fees) {
-                    change_output_value -= additional_fees;
-                    if generator.mass_calculator().is_dust(change_output_value) {
-                        aggregate_output_value -= change_output_value;
-                        signable_tx.tx.outputs.remove(index);
-                        change_output_index = None;
-                        change_output_value = 0;
-                    } else {
-                        signable_tx.tx.outputs[index].value = change_output_value;
-                    }
-                } else {
-                    // we need more utxos...
-                    let mut utxo_entries_rbf = vec![];
-                    let mut available = change_output_value;
-
-                    let utxo_context = generator.source_utxo_context().as_ref().ok_or(Error::custom("No utxo context"))?;
-                    let mut context_utxo_entries = UtxoIterator::new(utxo_context);
-                    while available < additional_fees {
-                        // let utxo_entry = utxo_entries.next().ok_or(Error::InsufficientFunds { additional_needed: additional_fees - available, origin: "increase_fees_for_rbf" })?;
-                        // let utxo_entry = generator.get_utxo_entry_for_rbf()?;
-                        if let Some(utxo_entry) = context_utxo_entries.next() {
-                            // let utxo = utxo_entry.utxo.as_ref();
-                            let value = utxo_entry.amount();
-                            available += value;
-                            // aggregate_input_value += value;
-
-                            utxo_entries_rbf.push(utxo_entry);
-                            // signable_tx.lock().unwrap().tx.inputs.push(utxo.as_input());
-                        } else {
-                            // generator.stash(utxo_entries_rbf);
-                            // utxo_entries_rbf.into_iter().for_each(|utxo_entry|generator.stash(utxo_entry));
-                            return Err(Error::InsufficientFunds {
-                                additional_needed: additional_fees - available,
-                                origin: "increase_fees_for_rbf",
-                            });
-                        }
-                    }
-
-                    let utxo_entries_vec = utxo_entries
-                        .iter()
-                        .map(|(_, utxo_entry)| utxo_entry.as_ref().clone())
-                        .chain(utxo_entries_rbf.iter().map(|utxo_entry| utxo_entry.as_ref().clone()))
-                        .collect::<Vec<_>>();
-
-                    let inputs = utxo_entries_rbf
-                        .into_iter()
-                        .map(|utxo| TransactionInput::new(utxo.outpoint().clone().into(), vec![], 0, generator.sig_op_count()));
-
-                    signable_tx.tx.inputs.extend(inputs);
-
-                    // let transaction_mass = generator.mass_calculator().calc_overall_mass_for_unsigned_consensus_transaction(
-                    //     &signable_tx.tx,
-                    //     &utxo_entries_vec,
-                    //     self.inner.minimum_signatures,
-                    // )?;
-                    // if transaction_mass > MAXIMUM_STANDARD_TRANSACTION_MASS {
-                    //     // this should never occur as we should not produce transactions higher than the mass limit
-                    //     return Err(Error::MassCalculationError);
-                    // }
-                    // signable_tx.tx.set_mass(transaction_mass);
-
-                    // utxo
-
-                    // let input = ;
-                }
-            }
-            _ => {}
-        }
-
-        let inner = PendingTransactionInner {
-            generator,
-            utxo_entries,
-            id,
-            signable_tx: Mutex::new(signable_tx),
-            addresses,
-            is_submitted,
-            payment_value,
-            change_output_index,
-            change_output_value,
-            aggregate_input_value,
-            aggregate_output_value,
-            minimum_signatures,
-            mass,
-            fees,
-            kind,
-        };
-
-        Ok(PendingTransaction { inner: Arc::new(inner) })
-
-        // let mut mutable_tx = self.inner.signable_tx.lock()?.clone();
-        // mutable_tx.tx.fee += fees;
-        // *self.inner.signable_tx.lock().unwrap() = mutable_tx;
-    }
+    //pub fn increase_fees_for_rbf(&self, additional_fees: u64) -> Result<PendingTransaction> {
+    //    #![allow(unused_mut)]
+    //    #![allow(unused_variables)]
+    //
+    //    let PendingTransactionInner {
+    //        generator,
+    //        utxo_entries,
+    //        id,
+    //        signable_tx,
+    //        addresses,
+    //        is_submitted,
+    //        payment_value,
+    //        change_output_index,
+    //        change_output_value,
+    //        aggregate_input_value,
+    //        aggregate_output_value,
+    //        minimum_signatures,
+    //        mass,
+    //        fees,
+    //        kind,
+    //    } = &*self.inner;
+    //
+    //    let generator = generator.clone();
+    //    let utxo_entries = utxo_entries.clone();
+    //    let id = *id;
+    //    // let signable_tx = Mutex::new(signable_tx.lock()?.clone());
+    //    let mut signable_tx = signable_tx.lock()?.clone();
+    //    let addresses = addresses.clone();
+    //    let is_submitted = AtomicBool::new(false);
+    //    let payment_value = *payment_value;
+    //    let mut change_output_index = *change_output_index;
+    //    let mut change_output_value = *change_output_value;
+    //    let mut aggregate_input_value = *aggregate_input_value;
+    //    let mut aggregate_output_value = *aggregate_output_value;
+    //    let minimum_signatures = *minimum_signatures;
+    //    let mass = *mass;
+    //    let fees = *fees;
+    //    let kind = *kind;
+    //
+    //    #[allow(clippy::single_match)]
+    //    match kind {
+    //        DataKind::Final => {
+    //            // change output has sufficient amount to cover fee increase
+    //            // if change_output_value > fee_increase && change_output_index.is_some() {
+    //            if let (Some(index), true) = (change_output_index, change_output_value >= additional_fees) {
+    //                change_output_value -= additional_fees;
+    //                if generator.mass_calculator().is_dust(change_output_value) {
+    //                    aggregate_output_value -= change_output_value;
+    //                    signable_tx.tx.outputs.remove(index);
+    //                    change_output_index = None;
+    //                    change_output_value = 0;
+    //                } else {
+    //                    signable_tx.tx.outputs[index].value = change_output_value;
+    //                }
+    //            } else {
+    //                // we need more utxos...
+    //                let mut utxo_entries_rbf = vec![];
+    //                let mut available = change_output_value;
+    //
+    //                let utxo_context = generator.source_utxo_context().as_ref().ok_or(Error::custom("No utxo context"))?;
+    //                let mut context_utxo_entries = UtxoIterator::new(utxo_context);
+    //                while available < additional_fees {
+    //                    // let utxo_entry = utxo_entries.next().ok_or(Error::InsufficientFunds { additional_needed: additional_fees - available, origin: "increase_fees_for_rbf" })?;
+    //                    // let utxo_entry = generator.get_utxo_entry_for_rbf()?;
+    //                    if let Some(utxo_entry) = context_utxo_entries.next() {
+    //                        // let utxo = utxo_entry.utxo.as_ref();
+    //                        let value = utxo_entry.amount();
+    //                        available += value;
+    //                        // aggregate_input_value += value;
+    //
+    //                        utxo_entries_rbf.push(utxo_entry);
+    //                        // signable_tx.lock().unwrap().tx.inputs.push(utxo.as_input());
+    //                    } else {
+    //                        // generator.stash(utxo_entries_rbf);
+    //                        // utxo_entries_rbf.into_iter().for_each(|utxo_entry|generator.stash(utxo_entry));
+    //                        return Err(Error::InsufficientFunds {
+    //                            additional_needed: additional_fees - available,
+    //                            origin: "increase_fees_for_rbf",
+    //                        });
+    //                    }
+    //                }
+    //
+    //                let utxo_entries_vec = utxo_entries
+    //                    .iter()
+    //                    .map(|(_, utxo_entry)| utxo_entry.as_ref().clone())
+    //                    .chain(utxo_entries_rbf.iter().map(|utxo_entry| utxo_entry.as_ref().clone()))
+    //                    .collect::<Vec<_>>();
+    //
+    //                let inputs = utxo_entries_rbf
+    //                    .into_iter()
+    //                    .map(|utxo| TransactionInput::new(utxo.outpoint().clone().into(), vec![], 0, generator.sig_op_count()));
+    //
+    //                signable_tx.tx.inputs.extend(inputs);
+    //
+    //                // let transaction_mass = generator.mass_calculator().calc_overall_mass_for_unsigned_consensus_transaction(
+    //                //     &signable_tx.tx,
+    //                //     &utxo_entries_vec,
+    //                //     self.inner.minimum_signatures,
+    //                // )?;
+    //                // if transaction_mass > MAXIMUM_STANDARD_TRANSACTION_MASS {
+    //                //     // this should never occur as we should not produce transactions higher than the mass limit
+    //                //     return Err(Error::MassCalculationError);
+    //                // }
+    //                // signable_tx.tx.set_mass(transaction_mass);
+    //
+    //                // utxo
+    //
+    //                // let input = ;
+    //            }
+    //        }
+    //        _ => {}
+    //    }
+    //
+    //    let inner = PendingTransactionInner {
+    //        generator,
+    //        utxo_entries,
+    //        id,
+    //        signable_tx: Mutex::new(signable_tx),
+    //        addresses,
+    //        is_submitted,
+    //        payment_value,
+    //        change_output_index,
+    //        change_output_value,
+    //        aggregate_input_value,
+    //        aggregate_output_value,
+    //        minimum_signatures,
+    //        mass,
+    //        fees,
+    //        kind,
+    //    };
+    //
+    //    Ok(PendingTransaction { inner: Arc::new(inner) })
+    //
+    //    // let mut mutable_tx = self.inner.signable_tx.lock()?.clone();
+    //    // mutable_tx.tx.fee += fees;
+    //    // *self.inner.signable_tx.lock().unwrap() = mutable_tx;
+    //}
 }

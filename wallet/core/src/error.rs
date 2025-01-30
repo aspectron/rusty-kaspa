@@ -253,6 +253,9 @@ pub enum Error {
     #[error(transparent)]
     ConsensusWasm(#[from] kaspa_consensus_wasm::error::Error),
 
+    #[error("Generator is missing")]
+    GeneratorIsMissing,
+
     #[error("Fees::SenderPays or Fees::ReceiverPays are not allowed in sweep transactions")]
     GeneratorFeesInSweepTransaction,
 
