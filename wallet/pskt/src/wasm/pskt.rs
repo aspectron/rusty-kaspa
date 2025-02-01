@@ -348,7 +348,7 @@ impl PSKT {
     }
 
     #[wasm_bindgen(js_name = calculateMass)]
-    pub fn calculate_mass(&self, data: &JsValue) -> Result<u64> {
+    pub fn to_transation(&self, data: &JsValue) -> Result<Transaction> {
         let obj = js_sys::Object::from(data.clone());
         let network_id = js_sys::Reflect::get(&obj, &"networkId".into())
             .map_err(|_| Error::custom("networkId is missing"))?
@@ -366,11 +366,6 @@ impl PSKT {
 
             match finalizer_state {
                 State::Finalizer(pskt) => {
-                    for input in pskt.inputs.iter() {
-                        if input.redeem_script.is_some() {
-                            return Err(Error::custom("Mass calculation is not supported for inputs with redeem scripts"));
-                        }
-                    }
                     let pskt = pskt
                         .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>> { Ok(vec![vec![0u8, 65]; inner.inputs.len()]) })
                         .map_err(|e| Error::custom(format!("Failed to finalize PSKT: {e}")))?;
@@ -379,9 +374,11 @@ impl PSKT {
                 _ => panic!("Finalizer state is not valid"),
             }
         };
+
         let tx = extractor
             .extract_tx_unchecked(&network_id.into())
             .map_err(|e| Error::custom(format!("Failed to extract transaction: {e}")))?;
-        Ok(tx.tx.mass())
+        let wasm_tx = Transaction::from(tx.tx);
+        Ok(wasm_tx)
     }
 }
