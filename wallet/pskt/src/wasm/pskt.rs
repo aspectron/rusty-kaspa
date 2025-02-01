@@ -347,7 +347,7 @@ impl PSKT {
         }
     }
 
-    #[wasm_bindgen(js_name = calculateMass)]
+    #[wasm_bindgen(js_name = toTransaction)]
     pub fn to_transation(&self, data: &JsValue) -> Result<Transaction> {
         let obj = js_sys::Object::from(data.clone());
         let network_id = js_sys::Reflect::get(&obj, &"networkId".into())
