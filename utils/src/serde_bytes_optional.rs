@@ -30,7 +30,6 @@ mod de {
 
     impl<'de, T: crate::serde_bytes::Deserialize<'de>> Deserialize<'de> for Option<T>
     where
-        <T as TryFrom<&'de [u8]>>::Error: Display,
         T: FromHex,
     {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
