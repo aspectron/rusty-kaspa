@@ -49,9 +49,14 @@ impl PSKBSigner {
         // Skip addresses that are already present in the key map.
         let addresses = addresses.iter().filter(|a| !keys.contains_key(a)).collect::<Vec<_>>();
         if !addresses.is_empty() {
-            let account = self.inner.account.clone().as_derivation_capable().expect("expecting derivation capable account");
-            let (receive, change) = account.derivation().addresses_indexes(&addresses)?;
-            let private_keys = account.create_private_keys(&self.inner.keydata, &self.inner.payment_secret, &receive, &change)?;
+            // let account = self.inner.account.clone().as_derivation_capable().expect("expecting derivation capable account");
+            // let (receive, change) = account.derivation().addresses_indexes(&addresses)?;
+            // let private_keys = account.create_private_keys(&self.inner.keydata, &self.inner.payment_secret, &receive, &change)?;
+            let private_keys = self.inner.account.clone().create_address_private_keys(
+                &self.inner.keydata,
+                &self.inner.payment_secret,
+                addresses.as_slice(),
+            )?;
             for (address, private_key) in private_keys {
                 keys.insert(address.clone(), private_key.to_bytes());
             }
@@ -158,8 +163,8 @@ pub async fn pskb_signer_for_address(
     signer: Arc<PSKBSigner>,
     network_id: NetworkId,
     sign_for_address: Option<&Address>,
-    derivation_path: DerivationPath,
-    key_fingerprint: KeyFingerprint,
+    derivation_path: Option<DerivationPath>,
+    key_fingerprint: Option<KeyFingerprint>,
 ) -> Result<Bundle, Error> {
     let mut signed_bundle = Bundle::new();
 
@@ -189,6 +194,15 @@ pub async fn pskb_signer_for_address(
     let all_addresses: Vec<Address> = addresses_per_pskt.iter().flat_map(|addresses| addresses.iter().cloned()).collect();
     signer.ingest(all_addresses.as_slice())?;
 
+    // in case of keypair account, we don't have a derivation path,
+    // so we need to skip the key source
+    let mut key_source = None;
+    if let Some(key_fingerprint) = key_fingerprint {
+        if let Some(derivation_path) = derivation_path {
+            key_source = Some(KeySource { key_fingerprint, derivation_path: derivation_path.clone() });
+        }
+    }
+
     // Process each PSKT in the bundle
     for (pskt_idx, pskt_inner) in bundle.iter().cloned().enumerate() {
         let pskt: PSKT<Signer> = PSKT::from(pskt_inner);
@@ -215,15 +229,11 @@ pub async fn pskb_signer_for_address(
                                 current_addresses.get(input_idx).ok_or_else(|| format!("No address found for input {}", input_idx))?
                             };
 
-                            let public_key = signer.public_key(address).map_err(|e| format!("Failed to get public key: {}", e))?;
+                            let pub_key = signer.public_key(address).map_err(|e| format!("Failed to get public key: {}", e))?;
 
                             let signature = signer.sign_schnorr(address, msg).map_err(|e| format!("Failed to sign: {}", e))?;
 
-                            Ok(SignInputOk {
-                                signature: Signature::Schnorr(signature),
-                                pub_key: public_key,
-                                key_source: Some(KeySource { key_fingerprint, derivation_path: derivation_path.clone() }),
-                            })
+                            Ok(SignInputOk { signature: Signature::Schnorr(signature), pub_key, key_source: key_source.clone() })
                         })
                         .collect()
                 })
@@ -305,51 +315,50 @@ pub fn pskt_to_pending_transaction(
     change_address: Address,
     source_utxo_context: Option<UtxoContext>,
 ) -> Result<PendingTransaction, Error> {
-    let mass = 10;
-    let (signed_tx, _) = match finalized_pskt.clone().extractor() {
-        Ok(extractor) => match extractor.extract_tx() {
-            Ok(once_mass) => once_mass(mass),
-            Err(e) => return Err(Error::PendingTransactionFromPSKTError(e.to_string())),
-        },
-        Err(e) => return Err(Error::PendingTransactionFromPSKTError(e.to_string())),
-    };
-
-    let inner_pskt = finalized_pskt.deref().clone();
-
+    let inner_pskt = finalized_pskt.deref();
     let (utxo_entries_ref, aggregate_input_value): (Vec<UtxoEntryReference>, u64) = inner_pskt
         .inputs
         .iter()
         .filter_map(|input| {
-            if let Some(ue) = input.clone().utxo_entry {
-                return Some((
+            input.utxo_entry.as_ref().map(|ue| {
+                (
                     UtxoEntryReference {
                         utxo: Arc::new(ClientUTXO {
                             address: Some(extract_script_pub_key_address(&ue.script_public_key, network_id.into()).unwrap()),
                             amount: ue.amount,
                             outpoint: input.previous_outpoint.into(),
-                            script_public_key: ue.script_public_key,
+                            script_public_key: ue.script_public_key.clone(),
                             block_daa_score: ue.block_daa_score,
                             is_coinbase: ue.is_coinbase,
                         }),
                     },
                     ue.amount,
-                ));
-            }
-            None
+                )
+            })
         })
         .fold((Vec::new(), 0), |(mut vec, sum), (entry, amount)| {
             vec.push(entry);
             (vec, sum + amount)
         });
-
-    let output: Vec<kaspa_consensus_core::tx::TransactionOutput> = signed_tx.outputs.clone();
+    let signed_tx = match finalized_pskt.extractor() {
+        Ok(extractor) => match extractor.extract_tx(&network_id.into()) {
+            Ok(tx) => tx.tx,
+            Err(e) => return Err(Error::PendingTransactionFromPSKTError(e.to_string())),
+        },
+        Err(e) => return Err(Error::PendingTransactionFromPSKTError(e.to_string())),
+    };
+    let output: &Vec<kaspa_consensus_core::tx::TransactionOutput> = &signed_tx.outputs;
+    if output.is_empty() {
+        return Err(Error::Custom("0 outputs pskt is not supported".to_string()));
+        // todo support 0 outputs
+    }
     let recipient = extract_script_pub_key_address(&output[0].script_public_key, network_id.into())?;
     let fee_u: u64 = 0;
 
     let utxo_iterator: Box<dyn Iterator<Item = UtxoEntryReference> + Send + Sync + 'static> =
         Box::new(utxo_entries_ref.clone().into_iter());
 
-    let final_transaction_destination = PaymentDestination::PaymentOutputs(PaymentOutputs::from((recipient.clone(), output[0].value)));
+    let final_transaction_destination = PaymentDestination::PaymentOutputs(PaymentOutputs::from((recipient, output[0].value)));
 
     let settings = GeneratorSettings {
         network_id,
@@ -370,7 +379,7 @@ pub fn pskt_to_pending_transaction(
     // Create the Generator
     let generator = Generator::try_new(settings, None, None)?;
 
-    let aggregate_output_value = output.clone().iter().map(|output| output.value).sum::<u64>();
+    let aggregate_output_value = output.iter().map(|output| output.value).sum::<u64>();
 
     let (change_output_index, change_output_value) = output
         .iter()
@@ -389,11 +398,13 @@ pub fn pskt_to_pending_transaction(
         .unwrap_or((None, 0));
 
     // Create PendingTransaction (WIP)
+    let addresses = utxo_entries_ref.iter().filter_map(|a| a.address()).collect();
+    // todo where the source of mass and fees. why does it equal to zero?
     let pending_tx = PendingTransaction::try_new(
         &generator,
-        signed_tx.clone(),
-        utxo_entries_ref.clone(),
-        utxo_entries_ref.iter().filter_map(|a| a.address()).collect(),
+        signed_tx,
+        utxo_entries_ref,
+        addresses,
         Some(aggregate_output_value),
         change_output_index,
         change_output_value,
@@ -529,7 +540,7 @@ pub async fn commit_reveal_batch_bundle(
         let transaction_id = pskt_to_pending_transaction(
             pskt_finalizer.clone(),
             network_id,
-            account.clone().as_derivation_capable()?.change_address()?,
+            account.change_address()?,
             account.utxo_context().clone().into(),
         )
         .map_err(|_| Error::CommitTransactionIdExtractionError)?
