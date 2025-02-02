@@ -381,3 +381,59 @@ impl PSKT {
         Ok(tx.tx.mass())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::pskt::Inner;
+
+    #[test]
+    fn test_serialization_pskt() {
+        let str = r#"{
+  "global": {
+    "version": 0,
+    "txVersion": 0,
+    "fallbackLockTime": null,
+    "inputsModifiable": false,
+    "outputsModifiable": false,
+    "inputCount": 1,
+    "outputCount": 1,
+    "xpubs": {},
+    "id": null,
+    "proprietaries": {}
+  },
+  "inputs": [
+    {
+      "utxoEntry": {
+        "amount": 100000000,
+        "scriptPublicKey": "0000aa204e17420aaf9028334fd2f00202f8b91a3e07b0ee6d45d6f85a0fef6895141aa687",
+        "blockDaaScore": 18446744073709551615,
+        "isCoinbase": false
+      },
+      "previousOutpoint": {
+        "transactionId": "89543bfe95972714a54470bf976909d633b16cb6c660d3fc3e50813f93bd145c",
+        "index": 0
+      },
+      "sequence": null,
+      "minTime": null,
+      "partialSigs": {},
+      "sighashType": 1,
+      "sigOpCount": 1,
+      "bip32Derivations": {},
+      "finalScriptSig": null,
+      "proprietaries": {},
+      "redeemScript": "208bbfa8a564ce8807469a59af211fec744024bec5b54a4fb5f7f96fba12d225c2ac0063076b6173706c6578004c8a7b2270223a226b72632d3230222c226f70223a227472616e73666572222c227469636b223a224e4143484f222c22616d74223a22323030303030303030222c22746f223a226b617370613a71716b6335397135756368717338616b686e6d7966656a676378717872733539323436753433657a6c70336a666a6b6572686730356368396437786c64227d68"
+    }
+  ],
+  "outputs": [
+    {
+      "amount": 50000000,
+      "scriptPublicKey": "0000208bbfa8a564ce8807469a59af211fec744024bec5b54a4fb5f7f96fba12d225c2ac",
+      "redeemScript": null,
+      "bip32Derivations": {},
+      "proprietaries": {}
+    }
+  ]
+}"#;
+        let inner: Inner = serde_json::from_str(str).unwrap();
+    }
+}
