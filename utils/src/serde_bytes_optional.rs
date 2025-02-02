@@ -18,9 +18,9 @@ where
 }
 
 mod de {
-    use std::fmt::Display;
     use crate::hex::FromHex;
     use crate::serde_bytes::FromHexVisitor;
+    use std::fmt::Display;
 
     pub trait Deserialize<'de>: Sized {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
