@@ -347,8 +347,8 @@ impl PSKT {
         }
     }
 
-    #[wasm_bindgen(js_name = toTransaction)]
-    pub fn to_transation(&self, data: &JsValue) -> Result<Transaction> {
+    #[wasm_bindgen(js_name = calculateMass)]
+    pub fn calculate_mass(&self, data: &JsValue) -> Result<u64> {
         let obj = js_sys::Object::from(data.clone());
         let network_id = js_sys::Reflect::get(&obj, &"networkId".into())
             .map_err(|_| Error::custom("networkId is missing"))?
@@ -378,7 +378,6 @@ impl PSKT {
         let tx = extractor
             .extract_tx_unchecked(&network_id.into())
             .map_err(|e| Error::custom(format!("Failed to extract transaction: {e}")))?;
-        let wasm_tx = Transaction::from(tx.tx);
-        Ok(wasm_tx)
+        Ok(tx.tx.mass())
     }
 }

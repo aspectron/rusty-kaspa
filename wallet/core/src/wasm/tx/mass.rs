@@ -21,7 +21,7 @@ pub fn maximum_standard_transaction_mass() -> u64 {
     MAXIMUM_STANDARD_TRANSACTION_MASS
 }
 
-/// `calculateTransactionMass()` returns the mass of the passed transaction.
+/// `calculateUnsignedTransactionMass()` returns the mass of the passed transaction.
 /// If the transaction is invalid, or the mass can not be calculated
 /// the function throws an error.
 ///
@@ -31,7 +31,7 @@ pub fn maximum_standard_transaction_mass() -> u64 {
 /// @category Wallet SDK
 /// @see {@link maximumStandardTransactionMass}
 ///
-#[wasm_bindgen(js_name = calculateTransactionMass)]
+#[wasm_bindgen(js_name = calculateUnsignedTransactionMass)]
 pub fn calculate_unsigned_transaction_mass(network_id: NetworkIdT, tx: &TransactionT, minimum_signatures: Option<u16>) -> Result<u64> {
     let tx = Transaction::try_cast_from(tx)?;
     let network_id = NetworkId::try_owned_from(network_id)?;
