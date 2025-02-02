@@ -19,6 +19,8 @@ where
 
 mod de {
     use std::fmt::Display;
+    use crate::hex::FromHex;
+    use crate::serde_bytes::FromHexVisitor;
 
     pub trait Deserialize<'de>: Sized {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -29,6 +31,7 @@ mod de {
     impl<'de, T: crate::serde_bytes::Deserialize<'de>> Deserialize<'de> for Option<T>
     where
         <T as TryFrom<&'de [u8]>>::Error: Display,
+        T: FromHex,
     {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where
@@ -40,7 +43,7 @@ mod de {
 
             impl<'de, T> serde::de::Visitor<'de> for OptionalVisitor<T>
             where
-                T: crate::serde_bytes::Deserialize<'de>,
+                T: crate::serde_bytes::Deserialize<'de> + FromHex,
             {
                 type Value = Option<T>;
 
@@ -60,7 +63,11 @@ mod de {
                 where
                     D: serde::Deserializer<'de>,
                 {
-                    T::deserialize(deserializer).map(Some)
+                    if deserializer.is_human_readable() {
+                        deserializer.deserialize_str(FromHexVisitor::default()).map(Some)
+                    } else {
+                        T::deserialize(deserializer).map(Some)
+                    }
                 }
             }
 
@@ -74,7 +81,6 @@ mod ser {
     use serde::Serializer;
 
     pub trait Serialize {
-        #[allow(missing_docs)]
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: Serializer;
