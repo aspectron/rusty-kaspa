@@ -13,7 +13,7 @@ pub enum Error {
     #[error("Expected state: {0}")]
     ExpectedState(String),
 
-    #[error("Constructor argument must be a valid payload, another PSKT instance, Transaction or undefined")]
+    #[error("Constructor argument must be a valid payload, another PSKT instance, Transaction or undefined {0}")]
     Ctor(String),
 
     #[error("Invalid payload")]
