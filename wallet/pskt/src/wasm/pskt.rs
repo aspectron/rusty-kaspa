@@ -3,6 +3,7 @@ use crate::role::*;
 use kaspa_consensus_core::network::NetworkType;
 use kaspa_consensus_core::tx::TransactionId;
 use wasm_bindgen::prelude::*;
+use workflow_log::log_info;
 // use js_sys::Object;
 use crate::pskt::Inner;
 use kaspa_consensus_client::{Transaction, TransactionInput, TransactionInputT, TransactionOutput, TransactionOutputT};
@@ -100,6 +101,7 @@ impl TryCastFromJs for PSKT {
             if JsValue::is_undefined(value.as_ref()) {
                 Ok(PSKT::from(State::Creator(Native::<Creator>::default())))
             } else if let Some(data) = value.as_ref().as_string() {
+                log_info!("PSKT from string: {data}");
                 let pskt_inner: Inner = serde_json::from_str(&data).map_err(|err| Error::InvalidPayload(err.to_string()))?;
                 Ok(PSKT::from(State::NoOp(Some(pskt_inner))))
             } else if let Ok(transaction) = Transaction::try_owned_from(value) {
