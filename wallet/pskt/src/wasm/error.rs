@@ -17,7 +17,7 @@ pub enum Error {
     Ctor(String),
 
     #[error("Invalid payload")]
-    InvalidPayload,
+    InvalidPayload(String),
 
     #[error("Transaction not finalized")]
     TxNotFinalized(#[from] crate::pskt::TxNotFinalized),
