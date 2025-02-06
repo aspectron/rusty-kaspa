@@ -19,6 +19,7 @@ pub use variants::*;
 use crate::derivation::build_derivate_paths;
 use crate::derivation::AddressDerivationManagerTrait;
 use crate::imports::*;
+use crate::message::{verify_message, PersonalMessage, SignMessageOptions};
 use crate::storage::account::AccountSettings;
 use crate::storage::AccountMetadata;
 use crate::storage::{PrvKeyData, PrvKeyDataId};
@@ -30,6 +31,7 @@ use kaspa_bip32::{ChildNumber, ExtendedPrivateKey, PrivateKey};
 use kaspa_consensus_client::UtxoEntry;
 use kaspa_consensus_client::UtxoEntryReference;
 use kaspa_wallet_keys::derivation::gen0::WalletDerivationManagerV0;
+use secp256k1::PublicKey;
 use workflow_core::abortable::Abortable;
 
 /// Notification callback type used by [`Account::sweep`] and [`Account::send`].
@@ -504,6 +506,27 @@ pub trait Account: AnySync + Send + Sync + 'static {
             }
         }
         Ok(ids)
+    }
+
+    async fn sign_message(
+        self: Arc<Self>,
+        message: &str,
+        address: &Address,
+        wallet_secret: Secret,
+        payment_secret: Option<Secret>,
+        no_aux_rand: bool,
+    ) -> Result<(String, PublicKey)> {
+        let keydata = self.prv_key_data(wallet_secret).await?;
+        let signer = Arc::new(Signer::new(self.clone().as_dyn_arc(), keydata, payment_secret));
+        let options = SignMessageOptions { no_aux_rand };
+        signer.sign_message(message, address, options).await
+    }
+
+    async fn verify_message(self: Arc<Self>, message: &str, signature: &str, public_key: PublicKey) -> Result<bool> {
+        let pm = PersonalMessage(message);
+        let mut signature_bytes = [0u8; 64];
+        faster_hex::hex_decode(signature.as_bytes(), &mut signature_bytes)?;
+        Ok(verify_message(&pm, &signature_bytes.to_vec(), &public_key.into()).is_ok())
     }
 
     async fn get_utxos(self: Arc<Self>, addresses: Option<Vec<Address>>, min_amount_sompi: Option<u64>) -> Result<Vec<UtxoEntry>> {
