@@ -3,8 +3,10 @@
 //!
 
 use crate::imports::*;
+use crate::message::{sign_message, PersonalMessage, SignMessageOptions};
 use kaspa_bip32::PrivateKey;
 use kaspa_consensus_core::{sign::sign_with_multiple_v2, tx::SignableTransaction};
+use secp256k1::PublicKey;
 
 pub trait SignerT: Send + Sync + 'static {
     fn try_sign(&self, transaction: SignableTransaction, addresses: &[Address]) -> Result<SignableTransaction>;
@@ -45,6 +47,24 @@ impl Signer {
         }
 
         Ok(())
+    }
+
+    pub async fn sign_message(
+        &self,
+        message: &str,
+        address: &Address,
+        sign_options: SignMessageOptions,
+    ) -> Result<(String, PublicKey)> {
+        let private_keys =
+            self.inner.account.clone().create_address_private_keys(&self.inner.keydata, &self.inner.payment_secret, &[address])?;
+        if private_keys.is_empty() {
+            return Err(Error::custom(format!("No private key found for address: {}", address)));
+        }
+        let private_key = private_keys[0].1;
+        let privkey_bytes = private_key.to_bytes();
+        let pm = PersonalMessage(message);
+        let sig_vec = sign_message(&pm, &privkey_bytes, &sign_options)?;
+        Ok((faster_hex::hex_string(sig_vec.as_slice()), PublicKey::from_secret_key_global(&private_key)))
     }
 }
 

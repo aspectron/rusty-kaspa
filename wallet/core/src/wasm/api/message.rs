@@ -1648,6 +1648,116 @@ try_from! ( args: AccountsPskbSendResponse, IAccountsPskbSendResponse, {
 // ---
 
 declare! {
+    IAccountsSignMessageRequest,
+    r#"
+    /**
+     * 
+     *  
+     * @category Wallet API 
+     */
+    export interface IAccountsSignMessageRequest {
+        accountId : HexString;
+        message : string;
+        walletSecret : string;
+        paymentSecret? : string;
+        noAuxRand? : boolean;
+        address? : Address | string;
+    }
+    "#,
+}
+
+try_from! ( args: IAccountsSignMessageRequest, AccountsSignMessageRequest, {
+    let account_id = args.get_account_id("accountId")?;
+    let message = args.get_string("message")?;
+    let wallet_secret = args.get_secret("walletSecret")?;
+    let payment_secret = args.try_get_secret("paymentSecret")?;
+    let no_aux_rand = args.get_bool("noAuxRand").ok();
+    let address = match args.try_get_value("address")? {
+        Some(v) => Some(Address::try_cast_from(&v)?.into_owned()),
+        None => None,
+    };
+    Ok(AccountsSignMessageRequest { account_id, message, wallet_secret, payment_secret, no_aux_rand, address })
+});
+
+declare! {
+    IAccountsSignMessageResponse,
+    r#"
+    /**
+     * 
+     *  
+     * @category Wallet API
+     */ 
+    export interface IAccountsSignMessageResponse {
+        signature : string;
+        publicKey : string;
+    }
+    "#,
+}
+
+try_from! ( args: AccountsSignMessageResponse, IAccountsSignMessageResponse, {
+    let response = IAccountsSignMessageResponse::default();
+    response.set("signature", &args.signature.into())?;
+    response.set("publicKey", &args.public_key.into())?;
+    Ok(response)
+});
+
+// ---
+
+declare! {
+    IAccountsVerifyMessageRequest,
+    r#"
+    /**
+     * 
+     *  
+     * @category Wallet API
+     */
+    export interface IAccountsVerifyMessageRequest {
+        accountId : HexString;
+        message : string;
+        signature : string;
+        walletSecret : string;
+        paymentSecret? : string;
+        address? : Address | string;
+    }
+    "#,
+}
+
+try_from! ( args: IAccountsVerifyMessageRequest, AccountsVerifyMessageRequest, {
+    let account_id = args.get_account_id("accountId")?;
+    let message = args.get_string("message")?;
+    let signature = args.get_string("signature")?;
+    let wallet_secret = args.get_secret("walletSecret")?;
+    let payment_secret = args.try_get_secret("paymentSecret")?;
+    let address = match args.try_get_value("address")? {
+        Some(v) => Some(Address::try_cast_from(&v)?.into_owned()),
+        None => None,
+    };
+    Ok(AccountsVerifyMessageRequest { account_id, message, signature, wallet_secret, payment_secret, address })
+});
+
+declare! {
+    IAccountsVerifyMessageResponse,
+    r#"
+    /**
+     * 
+     *  
+     * @category Wallet API
+     */ 
+    export interface IAccountsVerifyMessageResponse {
+        verified : boolean;
+    }
+    "#,
+}
+
+try_from! ( args: AccountsVerifyMessageResponse, IAccountsVerifyMessageResponse, {
+    let response = IAccountsVerifyMessageResponse::default();
+    response.set("verified", &args.verified.into())?;
+    Ok(response)
+});
+
+// ---
+
+declare! {
     IAccountsGetUtxosRequest,
     r#"
     /**
