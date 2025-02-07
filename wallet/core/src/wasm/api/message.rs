@@ -1715,7 +1715,9 @@ declare! {
         accountId : HexString;
         message : string;
         signature : string;
-        publicKey : string;
+        walletSecret : string;
+        paymentSecret? : string;
+        address? : Address | string;
     }
     "#,
 }
@@ -1724,9 +1726,13 @@ try_from! ( args: IAccountsVerifyMessageRequest, AccountsVerifyMessageRequest, {
     let account_id = args.get_account_id("accountId")?;
     let message = args.get_string("message")?;
     let signature = args.get_string("signature")?;
-    //let public_key = PublicKey::from_str(&args.get_string("publicKey")?)?;
-    let public_key = args.get_string("publicKey")?;
-    Ok(AccountsVerifyMessageRequest { account_id, message, signature, public_key })
+    let wallet_secret = args.get_secret("walletSecret")?;
+    let payment_secret = args.try_get_secret("paymentSecret")?;
+    let address = match args.try_get_value("address")? {
+        Some(v) => Some(Address::try_cast_from(&v)?.into_owned()),
+        None => None,
+    };
+    Ok(AccountsVerifyMessageRequest { account_id, message, signature, wallet_secret, payment_secret, address })
 });
 
 declare! {

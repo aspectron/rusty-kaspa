@@ -522,9 +522,23 @@ pub trait Account: AnySync + Send + Sync + 'static {
         signer.sign_message(message, address, options).await
     }
 
-    async fn verify_message(self: Arc<Self>, message: &str, signature: &str, public_key: PublicKey) -> Result<bool> {
+    async fn verify_message(
+        self: Arc<Self>,
+        message: &str,
+        signature: &str,
+        address: &Address,
+        wallet_secret: Secret,
+        payment_secret: Option<Secret>,
+    ) -> Result<bool> {
         let pm = PersonalMessage(message);
         let mut signature_bytes = [0u8; 64];
+        let keydata = self.prv_key_data(wallet_secret).await?;
+        let private_keys = self.clone().create_address_private_keys(&keydata, &payment_secret, &[address])?;
+        if private_keys.is_empty() {
+            return Err(Error::custom(format!("No private key found for address: {}", address)));
+        }
+        let private_key = private_keys[0].1;
+        let public_key = PublicKey::from_secret_key_global(&private_key);
         faster_hex::hex_decode(signature.as_bytes(), &mut signature_bytes)?;
         Ok(verify_message(&pm, &signature_bytes.to_vec(), &public_key.into()).is_ok())
     }

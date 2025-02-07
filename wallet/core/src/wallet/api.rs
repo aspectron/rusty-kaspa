@@ -449,13 +449,14 @@ impl WalletApi for super::Wallet {
         self: Arc<Self>,
         request: AccountsVerifyMessageRequest,
     ) -> Result<AccountsVerifyMessageResponse> {
-        let AccountsVerifyMessageRequest { account_id, message, signature, public_key } = request;
+        let AccountsVerifyMessageRequest { account_id, message, signature, wallet_secret, payment_secret, address } = request;
 
         let guard = self.guard();
         let guard = guard.lock().await;
 
         let account = self.get_account_by_id(&account_id, &guard).await?.ok_or(Error::AccountNotFound(account_id))?;
-        let verified = account.verify_message(&message, &signature, secp256k1::PublicKey::from_str(&public_key)?).await?;
+        let address = address.unwrap_or(account.receive_address()?);
+        let verified = account.verify_message(&message, &signature, &address, wallet_secret, payment_secret).await?;
         Ok(AccountsVerifyMessageResponse { verified })
     }
 

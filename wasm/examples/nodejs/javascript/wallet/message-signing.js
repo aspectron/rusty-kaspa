@@ -100,21 +100,26 @@ setDefaultStorageFolder(storageFolder);
             accountId: firstAccount.accountId,
             message,
             walletSecret,
-            noAuxRand: true //optional
-            //address: firstAccount.receiveAddress //optional 
+            //optional noAuxRand, if not provided, it will use the auxiliary randomness
+            //please see: <https://github.com/sipa/bips/issues/195>
+            //noAuxRand: true, 
+
+            //optional address, default is receive address
+            //address: firstAccount.changeAddress 
         });
 
         console.log("Sign response:", signResponse);
 
-        const verified = await wallet.accountsVerifyMessage({
+        const verificationResponse = await wallet.accountsVerifyMessage({
             accountId: firstAccount.accountId,
             message,
             signature: signResponse.signature,
-            publicKey: signResponse.publicKey
-            // should we support address? to verified instead of publicKey?
+            walletSecret,
+            //optional address, default is receive address
+            //address: firstAccount.changeAddress
         });
 
-        console.log("Verify response:", verified);
+        console.log("Verification response:", verificationResponse);
 
         // if (verifyMessage({message, signature: signResponse.signature, publicKey: signResponse.publicKey})) {
         //     console.info('Signature verified!');

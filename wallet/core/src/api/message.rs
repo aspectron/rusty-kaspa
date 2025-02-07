@@ -671,7 +671,9 @@ pub struct AccountsVerifyMessageRequest {
     pub account_id: AccountId,
     pub message: String,
     pub signature: String,
-    pub public_key: String,
+    pub wallet_secret: Secret,
+    pub payment_secret: Option<Secret>,
+    pub address: Option<Address>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
