@@ -537,7 +537,20 @@ pub struct AccountsPskbBroadcastRequest {
 
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PskbBroadcastRequest {
+    pub pskb: String,
+    pub network_id: NetworkId,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AccountsPskbBroadcastResponse {
+    pub transaction_ids: Vec<TransactionId>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PskbBroadcastResponse {
     pub transaction_ids: Vec<TransactionId>,
 }
 
