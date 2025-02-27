@@ -275,7 +275,7 @@ indexed_db_futures = "0.5.0"
 # workflow-perf-monitor = { path = "../../../workflow-perf-monitor-rs" }
 workflow-perf-monitor = "0.0.2"
 nw-sys = "0.1.6"
-rustls = { version = "0.23", default-features = false, features = ["ring"] }
+rustls = { version = "0.23", default-features = false }
 
 # workflow dependencies
 workflow-core = { version = "0.18.0" }
