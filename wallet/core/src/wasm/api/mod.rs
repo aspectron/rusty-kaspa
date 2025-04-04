@@ -49,6 +49,8 @@ declare_wasm_handlers!([
     AccountsPskbSign,
     AccountsPskbBroadcast,
     AccountsPskbSend,
+    AccountsSignMessage,
+    AccountsVerifyMessage,
     AccountsGetUtxos,
     AccountsTransfer,
     AccountsEstimate,

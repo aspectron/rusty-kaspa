@@ -432,6 +432,34 @@ impl WalletApi for super::Wallet {
         Ok(AccountsPskbBroadcastResponse { transaction_ids })
     }
 
+    async fn accounts_sign_message_call(self: Arc<Self>, request: AccountsSignMessageRequest) -> Result<AccountsSignMessageResponse> {
+        let AccountsSignMessageRequest { account_id, message, wallet_secret, payment_secret, no_aux_rand, address } = request;
+
+        let guard = self.guard();
+        let guard = guard.lock().await;
+
+        let account = self.get_account_by_id(&account_id, &guard).await?.ok_or(Error::AccountNotFound(account_id))?;
+        let address = address.unwrap_or(account.receive_address()?);
+        let (signature, public_key) =
+            account.sign_message(&message, &address, wallet_secret, payment_secret, no_aux_rand.unwrap_or(false)).await?;
+        Ok(AccountsSignMessageResponse { signature, public_key: public_key.to_string() })
+    }
+
+    async fn accounts_verify_message_call(
+        self: Arc<Self>,
+        request: AccountsVerifyMessageRequest,
+    ) -> Result<AccountsVerifyMessageResponse> {
+        let AccountsVerifyMessageRequest { account_id, message, signature, wallet_secret, payment_secret, address } = request;
+
+        let guard = self.guard();
+        let guard = guard.lock().await;
+
+        let account = self.get_account_by_id(&account_id, &guard).await?.ok_or(Error::AccountNotFound(account_id))?;
+        let address = address.unwrap_or(account.receive_address()?);
+        let verified = account.verify_message(&message, &signature, &address, wallet_secret, payment_secret).await?;
+        Ok(AccountsVerifyMessageResponse { verified })
+    }
+
     async fn accounts_get_utxos_call(self: Arc<Self>, request: AccountsGetUtxosRequest) -> Result<AccountsGetUtxosResponse> {
         let AccountsGetUtxosRequest { account_id, addresses, min_amount_sompi } = request;
         let guard = self.guard();

@@ -649,6 +649,41 @@ impl From<UtxoEntry> for UtxoEntryWrapper {
 
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AccountsSignMessageRequest {
+    pub account_id: AccountId,
+    pub message: String,
+    pub wallet_secret: Secret,
+    pub payment_secret: Option<Secret>,
+    pub no_aux_rand: Option<bool>,
+    pub address: Option<Address>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountsSignMessageResponse {
+    pub signature: String,
+    pub public_key: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountsVerifyMessageRequest {
+    pub account_id: AccountId,
+    pub message: String,
+    pub signature: String,
+    pub wallet_secret: Secret,
+    pub payment_secret: Option<Secret>,
+    pub address: Option<Address>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountsVerifyMessageResponse {
+    pub verified: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AccountsTransferRequest {
     pub source_account_id: AccountId,
     pub destination_account_id: AccountId,
