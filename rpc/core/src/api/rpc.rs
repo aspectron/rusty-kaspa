@@ -1,8 +1,10 @@
-//! The client API
+//!
+//! The main [`RpcApi`] trait that defines all RPC methods available in the Rusty Kaspa p2p node.
 //!
 //! Rpc = External RPC Service
-//! All data provided by the RCP server can be trusted by the client
-//! No data submitted by the client to the server can be trusted
+//! All data provided by the RPC server can be trusted by the client
+//! No data submitted by the client to the node can be trusted
+//!
 
 use crate::api::connection::DynRpcConnection;
 use crate::{model::*, notify::connection::ChannelConnection, RpcResult};
@@ -435,6 +437,18 @@ pub trait RpcApi: Sync + Send + AnySync {
         connection: Option<&DynRpcConnection>,
         request: GetDaaScoreTimestampEstimateRequest,
     ) -> RpcResult<GetDaaScoreTimestampEstimateResponse>;
+
+    async fn get_utxo_return_address(&self, txid: RpcHash, accepting_block_daa_score: u64) -> RpcResult<RpcAddress> {
+        Ok(self
+            .get_utxo_return_address_call(None, GetUtxoReturnAddressRequest { txid, accepting_block_daa_score })
+            .await?
+            .return_address)
+    }
+    async fn get_utxo_return_address_call(
+        &self,
+        _connection: Option<&DynRpcConnection>,
+        request: GetUtxoReturnAddressRequest,
+    ) -> RpcResult<GetUtxoReturnAddressResponse>;
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // Fee estimation API

@@ -1,3 +1,11 @@
+//!
+//! Kaspa [`Address`] implementation.
+//!
+//! In it's string form, the Kaspa [`Address`] is represented by a `bech32`-encoded
+//! address string combined with a network type.  The `bech32` string encoding is
+//! comprised of a public key, the public key version and the resulting checksum.
+//!
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use smallvec::SmallVec;
@@ -11,6 +19,7 @@ use workflow_wasm::{
 
 mod bech32;
 
+/// Error type produced by [`Address`] operations.
 #[derive(Error, PartialEq, Eq, Debug, Clone)]
 pub enum AddressError {
     #[error("The address has an invalid prefix {0}")]
@@ -190,7 +199,8 @@ pub const PAYLOAD_VECTOR_SIZE: usize = 36;
 /// Used as the underlying type for address payload, optimized for the largest version length (33).
 pub type PayloadVec = SmallVec<[u8; PAYLOAD_VECTOR_SIZE]>;
 
-/// Kaspa `Address` struct that serializes to and from an address format string: `kaspa:qz0s...t8cv`.
+/// Kaspa [`Address`] struct that serializes to and from an address format string: `kaspa:qz0s...t8cv`.
+///
 /// @category Address
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Hash, CastFromJs)]
 #[wasm_bindgen(inspectable)]
@@ -496,7 +506,7 @@ impl<'de> Deserialize<'de> for Address {
 
 impl TryCastFromJs for Address {
     type Error = AddressError;
-    fn try_cast_from<'a, R>(value: &'a R) -> Result<Cast<Self>, Self::Error>
+    fn try_cast_from<'a, R>(value: &'a R) -> Result<Cast<'a, Self>, Self::Error>
     where
         R: AsRef<JsValue> + 'a,
     {
@@ -516,12 +526,24 @@ impl TryCastFromJs for Address {
 
 #[wasm_bindgen]
 extern "C" {
+    /// WASM (TypeScript) type representing an Address-like object: `Address | string`.
+    ///
+    /// @category Address
     #[wasm_bindgen(extends = js_sys::Array, typescript_type = "Address | string")]
     pub type AddressT;
+    /// WASM (TypeScript) type representing an array of Address-like objects: `(Address | string)[]`.
+    ///
+    /// @category Address
     #[wasm_bindgen(extends = js_sys::Array, typescript_type = "(Address | string)[]")]
     pub type AddressOrStringArrayT;
+    /// WASM (TypeScript) type representing an array of [`Address`] objects: `Address[]`.
+    ///
+    /// @category Address
     #[wasm_bindgen(extends = js_sys::Array, typescript_type = "Address[]")]
     pub type AddressArrayT;
+    /// WASM (TypeScript) type representing an [`Address`] or an undefined value: `Address | undefined`.
+    ///
+    /// @category Address
     #[wasm_bindgen(typescript_type = "Address | undefined")]
     pub type AddressOrUndefinedT;
 }
@@ -616,11 +638,16 @@ mod tests {
         // cspell:enable
     }
 
+    #[cfg(target_arch = "wasm32")]
     use js_sys::Object;
+    #[cfg(target_arch = "wasm32")]
     use wasm_bindgen::{JsValue, __rt::IntoJsResult};
+    #[cfg(target_arch = "wasm32")]
     use wasm_bindgen_test::wasm_bindgen_test;
+    #[cfg(target_arch = "wasm32")]
     use workflow_wasm::{extensions::ObjectExtension, serde::from_value, serde::to_value};
 
+    #[cfg(target_arch = "wasm32")]
     #[wasm_bindgen_test]
     pub fn test_wasm_serde_constructor() {
         let str = "kaspa:qpauqsvk7yf9unexwmxsnmg547mhyga37csh0kj53q6xxgl24ydxjsgzthw5j";
@@ -632,6 +659,7 @@ mod tests {
         assert_eq!(a, from_value(value).unwrap());
     }
 
+    #[cfg(target_arch = "wasm32")]
     #[wasm_bindgen_test]
     pub fn test_wasm_js_serde_object() {
         let expected = Address::constructor("kaspa:qpauqsvk7yf9unexwmxsnmg547mhyga37csh0kj53q6xxgl24ydxjsgzthw5j");
@@ -656,6 +684,7 @@ mod tests {
         assert_eq!(expected, actual);
     }
 
+    #[cfg(target_arch = "wasm32")]
     #[wasm_bindgen_test]
     pub fn test_wasm_serde_object() {
         use wasm_bindgen::convert::IntoWasmAbi;

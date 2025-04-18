@@ -1,3 +1,7 @@
+//!
+//! RPC Operations used to identify RPC methods during transport and in various RPC-related macros.
+//!
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use kaspa_notify::events::EventType;
 use serde::{Deserialize, Serialize};
@@ -132,6 +136,8 @@ pub enum RpcApiOps {
     GetFeeEstimateExperimental = 148,
     /// Block color determination by iterating DAG.
     GetCurrentBlockColor = 149,
+    /// Get UTXO Return Addresses
+    GetUtxoReturnAddress = 150,
 }
 
 impl RpcApiOps {

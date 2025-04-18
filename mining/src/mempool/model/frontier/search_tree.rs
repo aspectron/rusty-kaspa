@@ -111,7 +111,7 @@ impl<'a> PrefixWeightVisitor<'a> {
     }
 }
 
-impl<'a> DescendVisit<FeerateKey, (), FeerateWeight> for PrefixWeightVisitor<'a> {
+impl DescendVisit<FeerateKey, (), FeerateWeight> for PrefixWeightVisitor<'_> {
     type Result = f64;
 
     fn visit_inner(&mut self, keys: &[FeerateKey], arguments: &[FeerateWeight]) -> DescendVisitResult<Self::Result> {
@@ -157,8 +157,9 @@ type InnerTree = BPlusTree<NodeStoreVec<FeerateKey, (), FeerateWeight>>;
 ///        is recomputed from subtree weights for each item insertion/removal
 ///
 /// Computing the prefix weight is a crucial operation if the tree is used for random sampling and
-/// the tree is highly imbalanced in terms of weight variance. See [`Frontier::sample_inplace`] for
-/// more details.  
+/// the tree is highly imbalanced in terms of weight variance.
+/// See [`Frontier::sample_inplace()`](crate::mempool::model::frontier::Frontier::sample_inplace)
+/// for more details.  
 pub struct SearchTree {
     tree: InnerTree,
 }

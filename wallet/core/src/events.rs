@@ -245,6 +245,12 @@ impl Events {
     }
 }
 
+///
+/// Event kind representing [`Events`] variant.
+/// Used primarily by WASM bindings to identify event types
+/// by their string representation. Can be obtained from the
+/// event via [`Events::kind()`].
+///
 #[derive(Clone, Copy, Debug, Serialize, Eq, PartialEq, Hash)]
 #[serde(rename_all = "kebab-case")]
 pub enum EventKind {
@@ -284,7 +290,7 @@ pub enum EventKind {
 impl From<&Events> for EventKind {
     fn from(event: &Events) -> Self {
         match event {
-            Events::WalletPing { .. } => EventKind::WalletStart,
+            Events::WalletPing => EventKind::WalletStart,
 
             Events::Connect { .. } => EventKind::Connect,
             Events::Disconnect { .. } => EventKind::Disconnect,

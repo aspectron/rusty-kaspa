@@ -1,3 +1,9 @@
+//!
+//! Implementation of the client-side [`TransactionOutput`] used by the [`Transaction`] struct.
+//!
+
+#![allow(non_snake_case)]
+
 use crate::imports::*;
 
 #[wasm_bindgen(typescript_custom_section)]
@@ -28,14 +34,21 @@ export interface ITransactionOutputVerboseData {
 
 #[wasm_bindgen]
 extern "C" {
+    /// WASM (TypeScript) type representing `ITransactionOutput | TransactionOutput`
+    /// @category Consensus
     #[wasm_bindgen(typescript_type = "ITransactionOutput | TransactionOutput")]
     pub type TransactionOutputT;
+    /// WASM (TypeScript) type representing `ITransactionOutput[] | TransactionOutput[]`
+    /// @category Consensus
     #[wasm_bindgen(typescript_type = "(ITransactionOutput | TransactionOutput)[]")]
     pub type TransactionOutputArrayAsArgT;
+    /// WASM (TypeScript) type representing `TransactionOutput[]`
+    /// @category Consensus
     #[wasm_bindgen(typescript_type = "TransactionOutput[]")]
     pub type TransactionOutputArrayAsResultT;
 }
 
+/// Inner type used by [`TransactionOutput`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransactionOutputInner {
@@ -126,7 +139,7 @@ impl From<&TransactionOutput> for cctx::TransactionOutput {
 
 impl TryCastFromJs for TransactionOutput {
     type Error = Error;
-    fn try_cast_from<'a, R>(value: &'a R) -> std::result::Result<Cast<Self>, Self::Error>
+    fn try_cast_from<'a, R>(value: &'a R) -> std::result::Result<Cast<'a, Self>, Self::Error>
     where
         R: AsRef<JsValue> + 'a,
     {
