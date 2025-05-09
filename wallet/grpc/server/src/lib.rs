@@ -70,15 +70,19 @@ impl Kaspawalletd for Service {
 
     async fn broadcast(&self, request: Request<BroadcastRequest>) -> Result<Response<BroadcastResponse>, Status> {
         let request = request.into_inner();
-        let txs: Vec<Result<RpcTransaction, Status>> = request.transactions.into_iter().map(|tx| -> Result<_, Status> {
-            if request.is_domain {
-                let tx = TransactionMessage::decode(tx.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
-                let tx = RpcTransaction::try_from(tx)?;
-                Ok(tx)
-            } else {
-                todo!()
-            }
-        }).collect();
+        let txs: Vec<Result<RpcTransaction, Status>> = request
+            .transactions
+            .into_iter()
+            .map(|tx| -> Result<_, Status> {
+                if request.is_domain {
+                    let tx = TransactionMessage::decode(tx.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
+                    let tx = RpcTransaction::try_from(tx)?;
+                    Ok(tx)
+                } else {
+                    todo!()
+                }
+            })
+            .collect();
         let mut tx_ids: Vec<String> = Vec::with_capacity(txs.len());
         for (i, tx) in txs.iter().enumerate() {
             match tx {
@@ -87,7 +91,7 @@ impl Kaspawalletd for Service {
                     match tx_id {
                         Ok(tx_id) => {
                             tx_ids[i] = tx_id.to_string();
-                        },
+                        }
                         Err(_) => {
                             todo!()
                         }
@@ -97,7 +101,7 @@ impl Kaspawalletd for Service {
                     todo!()
                 }
             }
-        };
+        }
         // let a = self.wallet().rpc_api().submit_transaction();
         Ok(Response::new(BroadcastResponse { tx_ids }))
     }
