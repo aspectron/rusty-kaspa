@@ -14,7 +14,7 @@ use kaspa_wallet_grpc_core::kaspawalletd::{
     NewAddressResponse, SendRequest, SendResponse, ShowAddressesRequest, ShowAddressesResponse, ShutdownRequest, ShutdownResponse,
     SignRequest, SignResponse,
 };
-use kaspa_wallet_grpc_core::protoserialization::TransactionMessage;
+use kaspa_wallet_grpc_core::protoserialization::{PartiallySignedTransaction, TransactionMessage};
 use prost::Message;
 use service::Service;
 use tonic::{Request, Response, Status};
@@ -79,7 +79,10 @@ impl Kaspawalletd for Service {
                     let tx = RpcTransaction::try_from(tx)?;
                     Ok(tx)
                 } else {
-                    todo!()
+                    let tx =
+                        PartiallySignedTransaction::decode(tx.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
+                    let tx = RpcTransaction::try_from(tx)?;
+                    Ok(tx)
                 }
             })
             .collect();

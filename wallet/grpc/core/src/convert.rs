@@ -3,6 +3,7 @@ use crate::protoserialization;
 use kaspa_rpc_core::{RpcTransaction, RpcTransactionInput, RpcTransactionOutpoint};
 use kaspa_wallet_core::api::{ScriptPublicKeyWrapper, TransactionOutpointWrapper, UtxoEntryWrapper};
 // use std::num::TryFromIntError;
+use crate::protoserialization::PartiallySignedTransaction;
 use tonic::Status;
 
 impl From<TransactionOutpointWrapper> for Outpoint {
@@ -77,5 +78,13 @@ impl TryFrom<protoserialization::Outpoint> for RpcTransactionOutpoint {
     ) -> Result<Self, Self::Error> {
         todo!()
         // Ok(RpcTransactionOutpoint { transaction_id: Default::default(), index: 0 })
+    }
+}
+
+impl TryFrom<protoserialization::PartiallySignedTransaction> for RpcTransaction {
+    type Error = Status;
+
+    fn try_from(_value: PartiallySignedTransaction) -> Result<Self, Self::Error> {
+        todo!()
     }
 }
