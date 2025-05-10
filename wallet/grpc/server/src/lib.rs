@@ -7,6 +7,7 @@ use kaspa_wallet_core::{
     prelude::Address,
     tx::{Fees, PaymentDestination, PaymentOutputs},
 };
+use kaspa_wallet_grpc_core::convert::{deserialize_domain_tx, extract_tx};
 use kaspa_wallet_grpc_core::kaspawalletd::{
     fee_policy::FeePolicy, kaspawalletd_server::Kaspawalletd, BroadcastRequest, BroadcastResponse, BumpFeeRequest, BumpFeeResponse,
     CreateUnsignedTransactionsRequest, CreateUnsignedTransactionsResponse, GetBalanceRequest, GetBalanceResponse,
@@ -14,8 +15,6 @@ use kaspa_wallet_grpc_core::kaspawalletd::{
     NewAddressResponse, SendRequest, SendResponse, ShowAddressesRequest, ShowAddressesResponse, ShutdownRequest, ShutdownResponse,
     SignRequest, SignResponse,
 };
-use kaspa_wallet_grpc_core::protoserialization::{PartiallySignedTransaction, TransactionMessage};
-use prost::Message;
 use service::Service;
 use tonic::{Code, Request, Response, Status};
 
@@ -75,14 +74,9 @@ impl Kaspawalletd for Service {
             .into_iter()
             .map(|tx| -> Result<_, Status> {
                 if request.is_domain {
-                    let tx = TransactionMessage::decode(tx.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
-                    let tx = RpcTransaction::try_from(tx)?;
-                    Ok(tx)
+                    deserialize_domain_tx(tx)
                 } else {
-                    let tx =
-                        PartiallySignedTransaction::decode(tx.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
-                    let tx = RpcTransaction::try_from(tx)?;
-                    Ok(tx)
+                    extract_tx(tx)
                 }
             })
             .collect();

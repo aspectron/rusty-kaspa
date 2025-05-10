@@ -2,10 +2,23 @@ use crate::kaspawalletd::{Outpoint, ScriptPublicKey, UtxoEntry, UtxosByAddresses
 use crate::protoserialization;
 use kaspa_rpc_core::{RpcSubnetworkId, RpcTransaction, RpcTransactionInput, RpcTransactionOutpoint, RpcTransactionOutput};
 use kaspa_wallet_core::api::{ScriptPublicKeyWrapper, TransactionOutpointWrapper, UtxoEntryWrapper};
+use prost::Message;
 use std::num::TryFromIntError;
 // use std::num::TryFromIntError;
-use crate::protoserialization::{PartiallySignedTransaction, SubnetworkId, TransactionOutput};
+use crate::protoserialization::{PartiallySignedTransaction, SubnetworkId, TransactionMessage, TransactionOutput};
 use tonic::Status;
+
+pub fn deserialize_domain_tx(tx: Vec<u8>) -> Result<RpcTransaction, Status> {
+    let tx = TransactionMessage::decode(tx.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
+    let tx = RpcTransaction::try_from(tx)?;
+    Ok(tx)
+}
+
+pub fn extract_tx(tx: Vec<u8>) -> Result<RpcTransaction, Status> {
+    let tx = PartiallySignedTransaction::decode(tx.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
+    let tx = RpcTransaction::try_from(tx)?;
+    Ok(tx)
+}
 
 impl From<TransactionOutpointWrapper> for Outpoint {
     fn from(wrapper: kaspa_wallet_core::api::TransactionOutpointWrapper) -> Self {
