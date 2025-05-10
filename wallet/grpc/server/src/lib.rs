@@ -17,7 +17,7 @@ use kaspa_wallet_grpc_core::kaspawalletd::{
 use kaspa_wallet_grpc_core::protoserialization::{PartiallySignedTransaction, TransactionMessage};
 use prost::Message;
 use service::Service;
-use tonic::{Request, Response, Status};
+use tonic::{Code, Request, Response, Status};
 
 #[tonic::async_trait]
 impl Kaspawalletd for Service {
@@ -95,12 +95,10 @@ impl Kaspawalletd for Service {
                         Ok(tx_id) => {
                             tx_ids[i] = tx_id.to_string();
                         }
-                        Err(_) => {
-                            todo!()
-                        }
+                        Err(err) => return Err(Status::new(Code::Unknown, err.to_string())),
                     }
                 }
-                Err(_) => {
+                Err(_err) => {
                     todo!()
                 }
             }

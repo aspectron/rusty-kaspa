@@ -1,9 +1,10 @@
 use crate::kaspawalletd::{Outpoint, ScriptPublicKey, UtxoEntry, UtxosByAddressesEntry};
 use crate::protoserialization;
-use kaspa_rpc_core::{RpcTransaction, RpcTransactionInput, RpcTransactionOutpoint};
+use kaspa_rpc_core::{RpcSubnetworkId, RpcTransaction, RpcTransactionInput, RpcTransactionOutpoint, RpcTransactionOutput};
 use kaspa_wallet_core::api::{ScriptPublicKeyWrapper, TransactionOutpointWrapper, UtxoEntryWrapper};
+use std::num::TryFromIntError;
 // use std::num::TryFromIntError;
-use crate::protoserialization::PartiallySignedTransaction;
+use crate::protoserialization::{PartiallySignedTransaction, SubnetworkId, TransactionOutput};
 use tonic::Status;
 
 impl From<TransactionOutpointWrapper> for Outpoint {
@@ -38,20 +39,30 @@ impl TryFrom<protoserialization::TransactionMessage> for RpcTransaction {
 
     fn try_from(
         // protoserialization::TransactionMessage { version, inputs, outputs, lock_time, subnetwork_id, gas, payload }: protoserialization::TransactionMessage,
-        _: protoserialization::TransactionMessage,
+        value: protoserialization::TransactionMessage,
     ) -> Result<Self, Self::Error> {
-        todo!()
-        // Ok(RpcTransaction {
-        //     version: version.try_into().map_err(|err: TryFromIntError| Status::invalid_argument(err.to_string()))?,
-        //     inputs: vec![],
-        //     outputs: vec![],
-        //     lock_time: 0,
-        //     subnetwork_id: Default::default(),
-        //     gas: 0,
-        //     payload: vec![],
-        //     mass: 0,
-        //     verbose_data: None,
-        // })
+        let version: u16 = value.version.try_into().map_err(|e: TryFromIntError| Status::invalid_argument(e.to_string()))?;
+        let inputs: Result<Vec<RpcTransactionInput>, Status> = value
+            .inputs
+            .into_iter()
+            .map(|i| RpcTransactionInput::try_from(i).map_err(|e| Status::invalid_argument(e.to_string())))
+            .collect();
+        let outputs: Result<Vec<RpcTransactionOutput>, Status> = value
+            .outputs
+            .into_iter()
+            .map(|i| RpcTransactionOutput::try_from(i).map_err(|e| Status::invalid_argument(e.to_string())))
+            .collect();
+        Ok(RpcTransaction {
+            version,
+            inputs: inputs?,
+            outputs: outputs?,
+            lock_time: value.lock_time,
+            subnetwork_id: value.subnetwork_id.unwrap().try_into()?,
+            gas: value.gas,
+            payload: value.payload,
+            mass: 0,
+            verbose_data: None,
+        })
     }
 }
 
@@ -67,6 +78,21 @@ impl TryFrom<protoserialization::TransactionInput> for RpcTransactionInput {
         //     sig_op_count: 0,
         //     verbose_data: None,
         // }
+    }
+}
+
+impl TryFrom<TransactionOutput> for RpcTransactionOutput {
+    type Error = Status;
+
+    fn try_from(_value: TransactionOutput) -> Result<Self, Self::Error> {
+        todo!()
+    }
+}
+
+impl TryFrom<SubnetworkId> for RpcSubnetworkId {
+    type Error = Status;
+    fn try_from(_value: SubnetworkId) -> Result<Self, Self::Error> {
+        todo!()
     }
 }
 
