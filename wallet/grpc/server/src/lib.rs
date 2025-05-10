@@ -1,13 +1,12 @@
 pub mod service;
 
-use kaspa_rpc_core::RpcTransaction;
 use kaspa_wallet_core::api::WalletApi;
 use kaspa_wallet_core::{
     api::{AccountsGetUtxosRequest, AccountsSendRequest, NewAddressKind},
     prelude::Address,
     tx::{Fees, PaymentDestination, PaymentOutputs},
 };
-use kaspa_wallet_grpc_core::convert::{deserialize_domain_tx, extract_tx};
+use kaspa_wallet_grpc_core::convert::deserialize_txs;
 use kaspa_wallet_grpc_core::kaspawalletd::{
     fee_policy::FeePolicy, kaspawalletd_server::Kaspawalletd, BroadcastRequest, BroadcastResponse, BumpFeeRequest, BumpFeeResponse,
     CreateUnsignedTransactionsRequest, CreateUnsignedTransactionsResponse, GetBalanceRequest, GetBalanceResponse,
@@ -69,33 +68,12 @@ impl Kaspawalletd for Service {
 
     async fn broadcast(&self, request: Request<BroadcastRequest>) -> Result<Response<BroadcastResponse>, Status> {
         let request = request.into_inner();
-        let txs: Vec<Result<RpcTransaction, Status>> = request
-            .transactions
-            .into_iter()
-            .map(|tx| -> Result<_, Status> {
-                if request.is_domain {
-                    deserialize_domain_tx(tx)
-                } else {
-                    extract_tx(tx)
-                }
-            })
-            .collect();
+        let txs = deserialize_txs(request.transactions, request.is_domain)?;
         let mut tx_ids: Vec<String> = Vec::with_capacity(txs.len());
-        for (i, tx) in txs.iter().enumerate() {
-            match tx {
-                Ok(rpc) => {
-                    let tx_id = self.wallet().rpc_api().submit_transaction(rpc.clone(), false).await;
-                    match tx_id {
-                        Ok(tx_id) => {
-                            tx_ids[i] = tx_id.to_string();
-                        }
-                        Err(err) => return Err(Status::new(Code::Unknown, err.to_string())),
-                    }
-                }
-                Err(_err) => {
-                    todo!()
-                }
-            }
+        for tx in txs {
+            let tx_id =
+                self.wallet().rpc_api().submit_transaction(tx, false).await.map_err(|e| Status::new(Code::Internal, e.to_string()))?;
+            tx_ids.push(tx_id.to_string());
         }
         // let a = self.wallet().rpc_api().submit_transaction();
         Ok(Response::new(BroadcastResponse { tx_ids }))

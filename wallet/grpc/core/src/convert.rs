@@ -8,12 +8,16 @@ use std::num::TryFromIntError;
 use crate::protoserialization::{PartiallySignedTransaction, SubnetworkId, TransactionMessage, TransactionOutput};
 use tonic::Status;
 
-pub fn deserialize_domain_tx(tx: Vec<u8>) -> Result<RpcTransaction, Status> {
+pub fn deserialize_txs(txs: Vec<Vec<u8>>, is_domain: bool) -> Result<Vec<RpcTransaction>, Status> {
+    txs.into_iter().map(|tx| if is_domain { deserialize_domain_tx(tx) } else { extract_tx(tx) }).collect::<Result<Vec<_>, Status>>()
+}
+
+fn deserialize_domain_tx(tx: Vec<u8>) -> Result<RpcTransaction, Status> {
     let tx = TransactionMessage::decode(tx.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
     RpcTransaction::try_from(tx)
 }
 
-pub fn extract_tx(tx: Vec<u8>) -> Result<RpcTransaction, Status> {
+fn extract_tx(tx: Vec<u8>) -> Result<RpcTransaction, Status> {
     let tx = PartiallySignedTransaction::decode(tx.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
     RpcTransaction::try_from(tx)
 }
