@@ -10,14 +10,12 @@ use tonic::Status;
 
 pub fn deserialize_domain_tx(tx: Vec<u8>) -> Result<RpcTransaction, Status> {
     let tx = TransactionMessage::decode(tx.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
-    let tx = RpcTransaction::try_from(tx)?;
-    Ok(tx)
+    RpcTransaction::try_from(tx)
 }
 
 pub fn extract_tx(tx: Vec<u8>) -> Result<RpcTransaction, Status> {
     let tx = PartiallySignedTransaction::decode(tx.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
-    let tx = RpcTransaction::try_from(tx)?;
-    Ok(tx)
+    RpcTransaction::try_from(tx)
 }
 
 impl From<TransactionOutpointWrapper> for Outpoint {
