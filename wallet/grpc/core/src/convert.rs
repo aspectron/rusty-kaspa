@@ -8,7 +8,7 @@ use prost::Message;
 use std::num::TryFromIntError;
 // use std::num::TryFromIntError;
 use crate::protoserialization::{
-    PartiallySignedInput, PartiallySignedTransaction, SubnetworkId, TransactionMessage, TransactionOutput,
+    PartiallySignedInput, PartiallySignedTransaction, PubKeySignaturePair, SubnetworkId, TransactionMessage, TransactionOutput,
 };
 use kaspa_txscript::script_builder::ScriptBuilder;
 use tonic::Status;
@@ -81,7 +81,15 @@ fn extract_tx_deserialized(mut partially_signed_tx: PartiallySignedTransaction, 
     Ok(partially_signed_tx.tx.unwrap())
 }
 
-fn partially_signed_input_multisig_redeem_script(_input: &PartiallySignedInput, _ecdsa: bool) -> Vec<u8> {
+fn partially_signed_input_multisig_redeem_script(input: &PartiallySignedInput, ecdsa: bool) -> Vec<u8> {
+    let mut extended_pub_keys = Vec::with_capacity(input.pub_key_signature_pairs.len());
+    for key in input.pub_key_signature_pairs.iter() {
+        extended_pub_keys.push(key);
+    }
+    multi_sig_redeem_script(extended_pub_keys, input.minimum_signatures, "m", ecdsa)
+}
+
+fn multi_sig_redeem_script(_pub_keys: Vec<&PubKeySignaturePair>, _minimum_sig: u32, _path: &str, _ecdsa: bool) -> Vec<u8> {
     todo!()
 }
 
