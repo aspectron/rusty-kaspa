@@ -1,6 +1,8 @@
 use crate::kaspawalletd::{Outpoint, ScriptPublicKey, UtxoEntry, UtxosByAddressesEntry};
 use crate::protoserialization;
-use kaspa_rpc_core::{RpcSubnetworkId, RpcTransaction, RpcTransactionInput, RpcTransactionOutpoint, RpcTransactionOutput};
+use kaspa_rpc_core::{
+    RpcScriptPublicKey, RpcSubnetworkId, RpcTransaction, RpcTransactionInput, RpcTransactionOutpoint, RpcTransactionOutput,
+};
 use kaspa_wallet_core::api::{ScriptPublicKeyWrapper, TransactionOutpointWrapper, UtxoEntryWrapper};
 use prost::Message;
 use std::num::TryFromIntError;
@@ -107,23 +109,35 @@ impl TryFrom<protoserialization::TransactionMessage> for RpcTransaction {
 
 impl TryFrom<protoserialization::TransactionInput> for RpcTransactionInput {
     type Error = Status;
-
-    fn try_from(_value: protoserialization::TransactionInput) -> Result<Self, Self::Error> {
-        todo!()
-        // RpcTransactionInput{
-        //     previous_outpoint: RpcTransactionOutpoint {},
-        //     signature_script: vec![],
-        //     sequence: 0,
-        //     sig_op_count: 0,
-        //     verbose_data: None,
-        // }
+    fn try_from(value: protoserialization::TransactionInput) -> Result<Self, Self::Error> {
+        let previous_outpoint = value.previous_outpoint.unwrap().try_into()?;
+        let sig_op_count: u8 = value.sig_op_count.try_into().map_err(|e: TryFromIntError| Status::invalid_argument(e.to_string()))?;
+        Ok(RpcTransactionInput {
+            previous_outpoint,
+            signature_script: value.signature_script,
+            sequence: value.sequence,
+            sig_op_count,
+            verbose_data: None,
+        })
     }
 }
 
 impl TryFrom<TransactionOutput> for RpcTransactionOutput {
     type Error = Status;
 
-    fn try_from(_value: TransactionOutput) -> Result<Self, Self::Error> {
+    fn try_from(value: TransactionOutput) -> Result<Self, Self::Error> {
+        Ok(RpcTransactionOutput {
+            value: value.value,
+            script_public_key: value.script_public_key.unwrap().try_into()?,
+            verbose_data: None,
+        })
+    }
+}
+
+impl TryFrom<protoserialization::ScriptPublicKey> for RpcScriptPublicKey {
+    type Error = Status;
+
+    fn try_from(_value: protoserialization::ScriptPublicKey) -> Result<Self, Self::Error> {
         todo!()
     }
 }
