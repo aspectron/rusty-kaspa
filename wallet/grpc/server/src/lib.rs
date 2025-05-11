@@ -66,6 +66,11 @@ impl Kaspawalletd for Service {
         Ok(Response::new(ShutdownResponse {}))
     }
 
+    // TODO: Consider implementing parallel transaction processing in the future:
+    // - Server-side configuration processes messages sequentially
+    // - It might be possible to start processing a new message before writing the response to the socket
+    // - New parameters like allow_parallel should be introduced
+    // - Client behavior should be considered as they may expect sequential processing until the first error when sending batches
     async fn broadcast(&self, request: Request<BroadcastRequest>) -> Result<Response<BroadcastResponse>, Status> {
         let request = request.into_inner();
         let txs = deserialize_txs(request.transactions, request.is_domain)?;
@@ -75,7 +80,6 @@ impl Kaspawalletd for Service {
                 self.wallet().rpc_api().submit_transaction(tx, false).await.map_err(|e| Status::new(Code::Internal, e.to_string()))?;
             tx_ids.push(tx_id.to_string());
         }
-        // let a = self.wallet().rpc_api().submit_transaction();
         Ok(Response::new(BroadcastResponse { tx_ids }))
     }
 
