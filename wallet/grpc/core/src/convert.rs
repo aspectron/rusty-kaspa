@@ -8,17 +8,41 @@ use std::num::TryFromIntError;
 use crate::protoserialization::{PartiallySignedTransaction, SubnetworkId, TransactionMessage, TransactionOutput};
 use tonic::Status;
 
+/// Deserializes a vector of transaction byte arrays into RpcTransaction.
+///
+/// # Arguments
+/// * `txs` - Vector of transaction byte arrays to deserialize
+/// * `is_domain` - Boolean flag indicating whether the transactions are domain transactions
+///
+/// # Returns
+/// * `Result<Vec<RpcTransaction>, Status>` - Vector of deserialized transactions or error status
 pub fn deserialize_txs(txs: Vec<Vec<u8>>, is_domain: bool) -> Result<Vec<RpcTransaction>, Status> {
-    txs.into_iter().map(|tx| if is_domain { deserialize_domain_tx(tx) } else { extract_tx(tx) }).collect::<Result<Vec<_>, Status>>()
+    txs.into_iter()
+        .map(|tx| if is_domain { deserialize_domain_tx(tx.as_slice()) } else { extract_tx(tx.as_slice()) })
+        .collect::<Result<Vec<_>, Status>>()
 }
 
-fn deserialize_domain_tx(tx: Vec<u8>) -> Result<RpcTransaction, Status> {
-    let tx = TransactionMessage::decode(tx.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
+/// Deserializes a domain transaction from bytes into an RpcTransaction.
+///
+/// # Arguments
+/// * `tx` - Byte slice containing the domain transaction data
+///
+/// # Returns
+/// * `Result<RpcTransaction, Status>` - Deserialized transaction or error status
+fn deserialize_domain_tx(tx: &[u8]) -> Result<RpcTransaction, Status> {
+    let tx = TransactionMessage::decode(tx).map_err(|err| Status::invalid_argument(err.to_string()))?;
     RpcTransaction::try_from(tx)
 }
 
-fn extract_tx(tx: Vec<u8>) -> Result<RpcTransaction, Status> {
-    let tx = PartiallySignedTransaction::decode(tx.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
+/// Extracts and deserializes a partially signed transaction from bytes into an RpcTransaction.
+///
+/// # Arguments
+/// * `tx` - Byte slice containing the partially signed transaction data
+///
+/// # Returns
+/// * `Result<RpcTransaction, Status>` - Deserialized transaction or error status
+fn extract_tx(tx: &[u8]) -> Result<RpcTransaction, Status> {
+    let tx = PartiallySignedTransaction::decode(tx).map_err(|err| Status::invalid_argument(err.to_string()))?;
     RpcTransaction::try_from(tx)
 }
 
