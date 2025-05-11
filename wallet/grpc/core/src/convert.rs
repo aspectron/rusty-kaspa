@@ -137,8 +137,10 @@ impl TryFrom<TransactionOutput> for RpcTransactionOutput {
 impl TryFrom<protoserialization::ScriptPublicKey> for RpcScriptPublicKey {
     type Error = Status;
 
-    fn try_from(_value: protoserialization::ScriptPublicKey) -> Result<Self, Self::Error> {
-        todo!()
+    fn try_from(value: protoserialization::ScriptPublicKey) -> Result<Self, Self::Error> {
+        let version: u16 = value.version.try_into().map_err(|e: TryFromIntError| Status::invalid_argument(e.to_string()))?;
+        // TODO: convert ScriptVec
+        Ok(RpcScriptPublicKey::new(version, Default::default()))
     }
 }
 
