@@ -11,6 +11,7 @@ include.workspace = true
 [dependencies]
 kaspa-rpc-core.workspace = true
 kaspa-wallet-core.workspace = true
+kaspa-txscript.workspace = true
 
 tonic.workspace = true
 prost.workspace = true

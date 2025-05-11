@@ -7,7 +7,10 @@ use kaspa_wallet_core::api::{ScriptPublicKeyWrapper, TransactionOutpointWrapper,
 use prost::Message;
 use std::num::TryFromIntError;
 // use std::num::TryFromIntError;
-use crate::protoserialization::{PartiallySignedTransaction, SubnetworkId, TransactionMessage, TransactionOutput};
+use crate::protoserialization::{
+    PartiallySignedInput, PartiallySignedTransaction, SubnetworkId, TransactionMessage, TransactionOutput,
+};
+use kaspa_txscript::script_builder::ScriptBuilder;
 use tonic::Status;
 
 /// Deserializes a vector of transaction byte arrays into RpcTransaction.
@@ -45,7 +48,41 @@ fn deserialize_domain_tx(tx: &[u8]) -> Result<RpcTransaction, Status> {
 /// * `Result<RpcTransaction, Status>` - Deserialized transaction or error status
 fn extract_tx(tx: &[u8]) -> Result<RpcTransaction, Status> {
     let tx = PartiallySignedTransaction::decode(tx).map_err(|err| Status::invalid_argument(err.to_string()))?;
-    RpcTransaction::try_from(tx)
+    // TODO: ecdsa param
+    let tx_message = extract_tx_deserialized(tx, false)?;
+    RpcTransaction::try_from(tx_message)
+}
+
+fn extract_tx_deserialized(mut partially_signed_tx: PartiallySignedTransaction, ecdsa: bool) -> Result<TransactionMessage, Status> {
+    for (i, input) in partially_signed_tx.partially_signed_inputs.iter().enumerate() {
+        let is_multi_sig = input.pub_key_signature_pairs.len() > 1;
+        if is_multi_sig {
+            let mut script_builder = &mut ScriptBuilder::new();
+            let mut signature_counter = 0;
+            for pair in input.pub_key_signature_pairs.iter() {
+                script_builder = script_builder.add_data(pair.signature.as_slice()).unwrap();
+                signature_counter += 1;
+            }
+
+            if signature_counter < input.minimum_signatures {
+                return Err(Status::invalid_argument(format!("missing {} signatures", input.minimum_signatures - signature_counter)));
+            }
+
+            let redeem_script = partially_signed_input_multisig_redeem_script(input, ecdsa);
+            script_builder = script_builder.add_data(redeem_script.as_slice()).unwrap();
+            let sig_script = script_builder.script();
+            partially_signed_tx.tx.as_mut().unwrap().inputs[i].signature_script = Vec::from(sig_script);
+        } else {
+            let mut script_builder = ScriptBuilder::new();
+            let sig_script = script_builder.add_data(input.pub_key_signature_pairs[0].signature.as_slice()).unwrap().script();
+            partially_signed_tx.tx.as_mut().unwrap().inputs[i].signature_script = Vec::from(sig_script);
+        }
+    }
+    Ok(partially_signed_tx.tx.unwrap())
+}
+
+fn partially_signed_input_multisig_redeem_script(_input: &PartiallySignedInput, _ecdsa: bool) -> Vec<u8> {
+    todo!()
 }
 
 impl From<TransactionOutpointWrapper> for Outpoint {
