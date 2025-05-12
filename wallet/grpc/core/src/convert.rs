@@ -1,16 +1,19 @@
 use crate::kaspawalletd::{Outpoint, ScriptPublicKey, UtxoEntry, UtxosByAddressesEntry};
 use crate::protoserialization;
-use kaspa_rpc_core::{
-    RpcScriptPublicKey, RpcSubnetworkId, RpcTransaction, RpcTransactionInput, RpcTransactionOutpoint, RpcTransactionOutput,
-};
-use kaspa_wallet_core::api::{ScriptPublicKeyWrapper, TransactionOutpointWrapper, UtxoEntryWrapper};
-use prost::Message;
-use std::num::TryFromIntError;
 // use std::num::TryFromIntError;
 use crate::protoserialization::{
     PartiallySignedInput, PartiallySignedTransaction, PubKeySignaturePair, SubnetworkId, TransactionMessage, TransactionOutput,
 };
+use kaspa_bip32::{secp256k1, DerivationPath};
+use kaspa_rpc_core::{
+    RpcScriptPublicKey, RpcSubnetworkId, RpcTransaction, RpcTransactionInput, RpcTransactionOutpoint, RpcTransactionOutput,
+};
 use kaspa_txscript::script_builder::ScriptBuilder;
+use kaspa_wallet_core::api::{ScriptPublicKeyWrapper, TransactionOutpointWrapper, UtxoEntryWrapper};
+use kaspa_wallet_core::derivation::ExtendedPublicKeySecp256k1;
+use prost::Message;
+use std::num::TryFromIntError;
+use std::str::FromStr;
 use tonic::Status;
 
 /// Deserializes a vector of transaction byte arrays into RpcTransaction.
@@ -73,6 +76,10 @@ fn extract_tx_deserialized(mut partially_signed_tx: PartiallySignedTransaction, 
             let sig_script = script_builder.script();
             partially_signed_tx.tx.as_mut().unwrap().inputs[i].signature_script = Vec::from(sig_script);
         } else {
+            // TODO: check signature on nil
+            if input.pub_key_signature_pairs.first().is_none() {
+                return Err(Status::invalid_argument("missing signature"));
+            }
             let mut script_builder = ScriptBuilder::new();
             let sig_script = script_builder.add_data(input.pub_key_signature_pairs[0].signature.as_slice()).unwrap().script();
             partially_signed_tx.tx.as_mut().unwrap().inputs[i].signature_script = Vec::from(sig_script);
@@ -89,8 +96,34 @@ fn partially_signed_input_multisig_redeem_script(input: &PartiallySignedInput, e
     multi_sig_redeem_script(extended_pub_keys, input.minimum_signatures, "m", ecdsa)
 }
 
-fn multi_sig_redeem_script(_pub_keys: Vec<&PubKeySignaturePair>, _minimum_sig: u32, _path: &str, _ecdsa: bool) -> Vec<u8> {
-    todo!()
+fn multi_sig_redeem_script(pub_keys: Vec<&PubKeySignaturePair>, minimum_sig: u32, path: &str, ecdsa: bool) -> Vec<u8> {
+    let mut script_builder = &mut ScriptBuilder::new();
+    script_builder.add_i64(minimum_sig as i64).unwrap();
+    for key in pub_keys.iter() {
+        // let extended_key:ExtendedPublicKey<>  = key.extended_pub_key.as_str().parse::<ExtendedKey>().unwrap();
+        // let extended_key: ExtendedPublicKey<ExtendedPublicKeySecp256k1> = ExtendedPublicKey::from_str(key.extended_pub_key.as_str()).unwrap();
+        let extended_key: ExtendedPublicKeySecp256k1 = ExtendedPublicKeySecp256k1::from_str(key.extended_pub_key.as_str()).unwrap();
+        let derived_key = extended_key.derive_path(&path.parse::<DerivationPath>().unwrap()).unwrap();
+        let public_key = derived_key.public_key;
+        let serialized_pub_key = if ecdsa {
+            public_key.serialize()
+        } else {
+            let schorr_pub_key = secp256k1::Keypair::from_str(public_key.to_string().as_str()).unwrap().public_key();
+            schorr_pub_key.serialize()
+        };
+
+        script_builder = script_builder.add_data(serialized_pub_key.as_slice()).unwrap();
+    }
+    script_builder = script_builder.add_i64(pub_keys.len() as i64).unwrap();
+
+    if ecdsa {
+        // TODO: create constants for op code
+        script_builder = script_builder.add_op(0xa9).unwrap();
+    } else {
+        script_builder = script_builder.add_op(0xae).unwrap();
+    }
+
+    Vec::from(script_builder.script())
 }
 
 impl From<TransactionOutpointWrapper> for Outpoint {
