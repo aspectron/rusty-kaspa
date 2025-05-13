@@ -76,8 +76,7 @@ fn extract_tx_deserialized(mut partially_signed_tx: PartiallySignedTransaction, 
             let sig_script = script_builder.script();
             partially_signed_tx.tx.as_mut().unwrap().inputs[i].signature_script = Vec::from(sig_script);
         } else {
-            // TODO: check signature on nil
-            if input.pub_key_signature_pairs.first().is_none() {
+            if input.pub_key_signature_pairs.is_empty() {
                 return Err(Status::invalid_argument("missing signature"));
             }
             let mut script_builder = ScriptBuilder::new();
