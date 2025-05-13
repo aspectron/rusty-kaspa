@@ -12,7 +12,6 @@ include.workspace = true
 kaspa-rpc-core.workspace = true
 kaspa-wallet-core.workspace = true
 kaspa-txscript.workspace = true
-kaspa-bip32.workspace = true
 
 tonic.workspace = true
 prost.workspace = true
