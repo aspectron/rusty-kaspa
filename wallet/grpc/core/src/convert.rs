@@ -5,7 +5,8 @@ use crate::protoserialization::{
     PartiallySignedInput, PartiallySignedTransaction, SubnetworkId, TransactionMessage, TransactionOutput,
 };
 use kaspa_rpc_core::{
-    RpcScriptPublicKey, RpcSubnetworkId, RpcTransaction, RpcTransactionInput, RpcTransactionOutpoint, RpcTransactionOutput,
+    RpcScriptPublicKey, RpcScriptVec, RpcSubnetworkId, RpcTransaction, RpcTransactionInput, RpcTransactionOutpoint,
+    RpcTransactionOutput,
 };
 use kaspa_txscript::script_builder::ScriptBuilder;
 use kaspa_txscript::{multisig_redeem_script, multisig_redeem_script_ecdsa};
@@ -49,11 +50,12 @@ fn deserialize_domain_tx(tx: &[u8]) -> Result<RpcTransaction, Status> {
 /// * `Result<RpcTransaction, Status>` - Deserialized transaction or error status
 fn extract_tx(tx: &[u8], ecdsa: bool) -> Result<RpcTransaction, Status> {
     let tx = PartiallySignedTransaction::decode(tx).map_err(|err| Status::invalid_argument(err.to_string()))?;
-    // TODO: ecdsa param
     let tx_message = extract_tx_deserialized(tx, ecdsa)?;
     RpcTransaction::try_from(tx_message)
 }
 
+/// Extracts and processes a partially signed transaction into a regular transaction message.
+/// Handles both single-signature and multi-signature inputs, constructing appropriate signature scripts.
 fn extract_tx_deserialized(mut partially_signed_tx: PartiallySignedTransaction, ecdsa: bool) -> Result<TransactionMessage, Status> {
     for (i, input) in partially_signed_tx.partially_signed_inputs.iter().enumerate() {
         let is_multi_sig = input.pub_key_signature_pairs.len() > 1;
@@ -86,6 +88,8 @@ fn extract_tx_deserialized(mut partially_signed_tx: PartiallySignedTransaction, 
     Ok(partially_signed_tx.tx.unwrap())
 }
 
+/// Generates a multi-signature redeem script for a partially signed input.
+/// Supports both ECDSA and Schnorr signature schemes based on the ecdsa parameter.
 fn partially_signed_input_multisig_redeem_script(input: &PartiallySignedInput, ecdsa: bool) -> Result<Vec<u8>, Status> {
     let pub_keys: Vec<_> = input.pub_key_signature_pairs.iter().map(|key| key.extended_pub_key.as_bytes()).collect();
 
@@ -127,12 +131,12 @@ impl From<UtxoEntryWrapper> for UtxosByAddressesEntry {
     }
 }
 
-impl TryFrom<protoserialization::TransactionMessage> for RpcTransaction {
+impl TryFrom<TransactionMessage> for RpcTransaction {
     type Error = Status;
 
     fn try_from(
         // protoserialization::TransactionMessage { version, inputs, outputs, lock_time, subnetwork_id, gas, payload }: protoserialization::TransactionMessage,
-        value: protoserialization::TransactionMessage,
+        value: TransactionMessage,
     ) -> Result<Self, Self::Error> {
         let version: u16 = value.version.try_into().map_err(|e: TryFromIntError| Status::invalid_argument(e.to_string()))?;
         let inputs: Result<Vec<RpcTransactionInput>, Status> = value
@@ -191,15 +195,20 @@ impl TryFrom<protoserialization::ScriptPublicKey> for RpcScriptPublicKey {
 
     fn try_from(value: protoserialization::ScriptPublicKey) -> Result<Self, Self::Error> {
         let version: u16 = value.version.try_into().map_err(|e: TryFromIntError| Status::invalid_argument(e.to_string()))?;
-        // TODO: convert ScriptVec
-        Ok(RpcScriptPublicKey::new(version, Default::default()))
+        Ok(RpcScriptPublicKey::new(version, RpcScriptVec::from(value.script)))
     }
 }
 
 impl TryFrom<SubnetworkId> for RpcSubnetworkId {
     type Error = Status;
-    fn try_from(_value: SubnetworkId) -> Result<Self, Self::Error> {
-        todo!()
+    fn try_from(value: SubnetworkId) -> Result<Self, Self::Error> {
+        let bytes = value.bytes;
+        if bytes.len() != 20 {
+            return Err(Status::invalid_argument("SubnetworkId must be 20 bytes long"));
+        }
+        let mut fixed_bytes = [0u8; 20];
+        fixed_bytes.copy_from_slice(&bytes);
+        Ok(RpcSubnetworkId::from_bytes(fixed_bytes))
     }
 }
 
@@ -211,13 +220,5 @@ impl TryFrom<protoserialization::Outpoint> for RpcTransactionOutpoint {
     ) -> Result<Self, Self::Error> {
         todo!()
         // Ok(RpcTransactionOutpoint { transaction_id: Default::default(), index: 0 })
-    }
-}
-
-impl TryFrom<protoserialization::PartiallySignedTransaction> for RpcTransaction {
-    type Error = Status;
-
-    fn try_from(_value: PartiallySignedTransaction) -> Result<Self, Self::Error> {
-        todo!()
     }
 }
