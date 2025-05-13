@@ -1,4 +1,5 @@
 mod args;
+mod keys;
 
 use crate::args::Args;
 use kaspa_consensus_core::network::NetworkId;
