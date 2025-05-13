@@ -73,7 +73,7 @@ impl Kaspawalletd for Service {
     // - Client behavior should be considered as they may expect sequential processing until the first error when sending batches
     async fn broadcast(&self, request: Request<BroadcastRequest>) -> Result<Response<BroadcastResponse>, Status> {
         let request = request.into_inner();
-        let txs = deserialize_txs(request.transactions, request.is_domain)?;
+        let txs = deserialize_txs(request.transactions, request.is_domain, self.is_ecdsa())?;
         let mut tx_ids: Vec<String> = Vec::with_capacity(txs.len());
         for tx in txs {
             let tx_id =

@@ -24,9 +24,9 @@ use tonic::Status;
 ///
 /// # Returns
 /// * `Result<Vec<RpcTransaction>, Status>` - Vector of deserialized transactions or error status
-pub fn deserialize_txs(txs: Vec<Vec<u8>>, is_domain: bool) -> Result<Vec<RpcTransaction>, Status> {
+pub fn deserialize_txs(txs: Vec<Vec<u8>>, is_domain: bool, ecdsa: bool) -> Result<Vec<RpcTransaction>, Status> {
     txs.into_iter()
-        .map(|tx| if is_domain { deserialize_domain_tx(tx.as_slice()) } else { extract_tx(tx.as_slice()) })
+        .map(|tx| if is_domain { deserialize_domain_tx(tx.as_slice()) } else { extract_tx(tx.as_slice(), ecdsa) })
         .collect::<Result<Vec<_>, Status>>()
 }
 
@@ -49,10 +49,10 @@ fn deserialize_domain_tx(tx: &[u8]) -> Result<RpcTransaction, Status> {
 ///
 /// # Returns
 /// * `Result<RpcTransaction, Status>` - Deserialized transaction or error status
-fn extract_tx(tx: &[u8]) -> Result<RpcTransaction, Status> {
+fn extract_tx(tx: &[u8], ecdsa: bool) -> Result<RpcTransaction, Status> {
     let tx = PartiallySignedTransaction::decode(tx).map_err(|err| Status::invalid_argument(err.to_string()))?;
     // TODO: ecdsa param
-    let tx_message = extract_tx_deserialized(tx, false)?;
+    let tx_message = extract_tx_deserialized(tx, ecdsa)?;
     RpcTransaction::try_from(tx_message)
 }
 

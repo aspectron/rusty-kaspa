@@ -1,8 +1,6 @@
-use crate::keys::default_keys_file_path;
 use clap::{Arg, Command};
 use kaspa_core::kaspad_env::version;
 use std::net::SocketAddr;
-use std::path::PathBuf;
 
 pub struct Args {
     pub password: String,
@@ -10,7 +8,7 @@ pub struct Args {
     pub rpc_server: Option<String>,
     pub network_id: Option<String>,
     pub listen_address: SocketAddr,
-    pub keys_file: PathBuf,
+    pub ecdsa: bool,
 }
 
 impl Args {
@@ -26,7 +24,7 @@ impl Args {
                 .get_one::<SocketAddr>("listen-address")
                 .cloned()
                 .unwrap_or_else(|| "127.0.0.1:8082".parse().unwrap()),
-            keys_file: matches.get_one::<PathBuf>("keys-file").cloned().expect("Keys file argument is missing."),
+            ecdsa: matches.get_one::<bool>("ecdsa").cloned().unwrap_or(false),
         }
     }
 }
@@ -68,12 +66,10 @@ pub fn cli() -> Command {
                 .help("gRPC listening address with port."),
         )
         .arg(
-            Arg::new("keys-file")
-                .long("keys-file")
-                .short('f')
-                .value_name("keys-file")
-                .value_parser(clap::value_parser!(PathBuf))
-                .default_value(default_keys_file_path())
-                .help("Keys file location (default: ~/.kaspawallet/keys.json (*nix), %USERPROFILE%\\AppData\\Local\\Kaspawallet\\key.json (Windows))")
+            Arg::new("ecdsa")
+                .long("ecdsa")
+                .value_name("ecdsa")
+                .value_parser(clap::value_parser!(bool))
+                .help("Use ecdsa for transactions broadcast")
         )
 }
