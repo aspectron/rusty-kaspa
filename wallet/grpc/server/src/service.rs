@@ -70,7 +70,7 @@ impl Service {
             let _ = shutdown_sender.send(());
         }
     }
-    
+
     pub fn is_ecdsa(&self) -> bool {
         self.ecdsa
     }

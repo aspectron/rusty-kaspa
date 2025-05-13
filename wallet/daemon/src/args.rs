@@ -70,6 +70,6 @@ pub fn cli() -> Command {
                 .long("ecdsa")
                 .value_name("ecdsa")
                 .value_parser(clap::value_parser!(bool))
-                .help("Use ecdsa for transactions broadcast")
+                .help("Use ecdsa for transactions broadcast"),
         )
 }
