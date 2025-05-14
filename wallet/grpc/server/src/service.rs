@@ -71,7 +71,12 @@ impl Service {
         }
     }
 
-    pub fn is_ecdsa(&self) -> bool {
+    /// Returns whether the service should use ECDSA signatures instead of Schnorr signatures.
+    /// This flag is used when processing transactions to determine the appropriate signature scheme.
+    /// Currently set via command-line arguments, but this is temporary - the signature scheme
+    /// should be determined per transaction by extending the partially serialized transaction
+    /// or transaction structure with this field.
+    pub fn use_ecdsa(&self) -> bool {
         self.ecdsa
     }
 }
