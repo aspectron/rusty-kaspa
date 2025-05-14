@@ -8,12 +8,27 @@ use kaspa_rpc_core::{
     RpcScriptPublicKey, RpcScriptVec, RpcSubnetworkId, RpcTransaction, RpcTransactionInput, RpcTransactionOutpoint,
     RpcTransactionOutput,
 };
-use kaspa_txscript::script_builder::ScriptBuilder;
-use kaspa_txscript::{multisig_redeem_script, multisig_redeem_script_ecdsa};
+use kaspa_txscript::script_builder::{ScriptBuilder, ScriptBuilderError};
+use kaspa_txscript::{multisig_redeem_script, multisig_redeem_script_ecdsa, MultisigCreateError};
 use kaspa_wallet_core::api::{ScriptPublicKeyWrapper, TransactionOutpointWrapper, UtxoEntryWrapper};
 use prost::Message;
 use std::num::TryFromIntError;
+use thiserror::Error;
 use tonic::Status;
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error(transparent)]
+    ScriptBuilderError(#[from] ScriptBuilderError),
+    #[error(transparent)]
+    MultiSigRedeemScript(#[from] MultisigCreateError),
+    #[error("missing {0} signatures")]
+    MissingSignatures(u32),
+    #[error("missing signature")]
+    MissingSignature,
+    #[error("missing transaction")]
+    MissingTransaction,
+}
 
 /// Deserializes a vector of transaction byte arrays into RpcTransaction.
 ///
@@ -50,46 +65,50 @@ fn deserialize_domain_tx(tx: &[u8]) -> Result<RpcTransaction, Status> {
 /// * `Result<RpcTransaction, Status>` - Deserialized transaction or error status
 fn extract_tx(tx: &[u8], ecdsa: bool) -> Result<RpcTransaction, Status> {
     let tx = PartiallySignedTransaction::decode(tx).map_err(|err| Status::invalid_argument(err.to_string()))?;
-    let tx_message = extract_tx_deserialized(tx, ecdsa)?;
+    let tx_message = extract_tx_deserialized(tx, ecdsa).map_err(|err| Status::invalid_argument(err.to_string()))?;
     RpcTransaction::try_from(tx_message)
 }
 
 /// Extracts and processes a partially signed transaction into a regular transaction message.
 /// Handles both single-signature and multi-signature inputs, constructing appropriate signature scripts.
-fn extract_tx_deserialized(mut partially_signed_tx: PartiallySignedTransaction, ecdsa: bool) -> Result<TransactionMessage, Status> {
-    for (i, input) in partially_signed_tx.partially_signed_inputs.iter().enumerate() {
-        let is_multi_sig = input.pub_key_signature_pairs.len() > 1;
-        if is_multi_sig {
-            let mut script_builder = &mut ScriptBuilder::new();
-            let mut signature_counter = 0;
-            for pair in input.pub_key_signature_pairs.iter() {
-                script_builder = script_builder.add_data(pair.signature.as_slice()).unwrap();
-                signature_counter += 1;
-            }
+fn extract_tx_deserialized(mut partially_signed_tx: PartiallySignedTransaction, ecdsa: bool) -> Result<TransactionMessage, Error> {
+    if let Some(tx) = partially_signed_tx.tx.as_mut() {
+        for (i, input) in partially_signed_tx.partially_signed_inputs.iter().enumerate() {
+            let is_multi_sig = input.pub_key_signature_pairs.len() > 1;
+            if is_multi_sig {
+                let mut script_builder = &mut ScriptBuilder::new();
+                let mut signature_counter = 0;
+                for pair in input.pub_key_signature_pairs.iter() {
+                    script_builder = script_builder.add_data(pair.signature.as_slice())?;
+                    signature_counter += 1;
+                }
 
-            if signature_counter < input.minimum_signatures {
-                return Err(Status::invalid_argument(format!("missing {} signatures", input.minimum_signatures - signature_counter)));
-            }
+                if signature_counter < input.minimum_signatures {
+                    return Err(Error::MissingSignatures(input.minimum_signatures - signature_counter));
+                }
 
-            let redeem_script = partially_signed_input_multisig_redeem_script(input, ecdsa)?;
-            script_builder = script_builder.add_data(redeem_script.as_slice()).unwrap();
-            let sig_script = script_builder.script();
-            partially_signed_tx.tx.as_mut().unwrap().inputs[i].signature_script = Vec::from(sig_script);
-        } else {
-            if input.pub_key_signature_pairs.is_empty() {
-                return Err(Status::invalid_argument("missing signature"));
+                let redeem_script = partially_signed_input_multisig_redeem_script(input, ecdsa)?;
+                script_builder = script_builder.add_data(redeem_script.as_slice())?;
+                let sig_script = script_builder.script();
+                tx.inputs[i].signature_script = Vec::from(sig_script);
+            } else {
+                if input.pub_key_signature_pairs.is_empty() {
+                    return Err(Error::MissingSignature);
+                }
+                let mut script_builder = ScriptBuilder::new();
+                let sig_script = script_builder.add_data(input.pub_key_signature_pairs[0].signature.as_slice())?.script();
+                tx.inputs[i].signature_script = Vec::from(sig_script);
             }
-            let mut script_builder = ScriptBuilder::new();
-            let sig_script = script_builder.add_data(input.pub_key_signature_pairs[0].signature.as_slice()).unwrap().script();
-            partially_signed_tx.tx.as_mut().unwrap().inputs[i].signature_script = Vec::from(sig_script);
         }
-    }
-    Ok(partially_signed_tx.tx.unwrap())
+        return Ok(tx.clone());
+    };
+
+    Err(Error::MissingTransaction)
 }
 
 /// Generates a multi-signature redeem script for a partially signed input.
 /// Supports both ECDSA and Schnorr signature schemes based on the ecdsa parameter.
-fn partially_signed_input_multisig_redeem_script(input: &PartiallySignedInput, ecdsa: bool) -> Result<Vec<u8>, Status> {
+fn partially_signed_input_multisig_redeem_script(input: &PartiallySignedInput, ecdsa: bool) -> Result<Vec<u8>, Error> {
     let pub_keys: Vec<_> = input.pub_key_signature_pairs.iter().map(|key| key.extended_pub_key.as_bytes()).collect();
 
     let redeem_script = if ecdsa {
@@ -100,7 +119,7 @@ fn partially_signed_input_multisig_redeem_script(input: &PartiallySignedInput, e
         multisig_redeem_script(extended_pub_keys.iter(), input.minimum_signatures as usize)
     };
 
-    redeem_script.map_err(|err| Status::invalid_argument(err.to_string()))
+    Ok(redeem_script?)
 }
 
 impl From<TransactionOutpointWrapper> for Outpoint {

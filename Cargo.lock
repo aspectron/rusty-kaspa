@@ -3410,6 +3410,7 @@ dependencies = [
  "kaspa-txscript",
  "kaspa-wallet-core",
  "prost",
+ "thiserror",
  "tonic",
  "tonic-build",
 ]
