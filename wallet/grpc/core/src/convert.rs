@@ -20,6 +20,7 @@ use std::str::FromStr;
 use thiserror::Error;
 use tonic::Status;
 
+/// Error type
 #[derive(Error, Debug)]
 pub enum Error {
     #[error(transparent)]
@@ -137,6 +138,8 @@ fn partially_signed_input_multisig_redeem_script(input: &PartiallySignedInput, e
     }
 }
 
+/// Creates a Schnorr-based multisig redeem script from a list of public keys.
+/// The script requires at least `minimum_signatures` valid signatures to spend.
 fn multisig_redeem_script(extended_pub_keys: Vec<ExtendedPublicKey<PublicKey>>, minimum_signatures: usize) -> Result<Vec<u8>, Error> {
     let serialized_keys: Vec<[u8; 32]> = extended_pub_keys
         .iter()
@@ -149,6 +152,8 @@ fn multisig_redeem_script(extended_pub_keys: Vec<ExtendedPublicKey<PublicKey>>, 
     Ok(redeem_script)
 }
 
+/// Creates an ECDSA-based multisig redeem script from a list of public keys.
+/// The script requires at least `minimum_signatures` valid signatures to spend.
 fn multisig_redeem_script_ecdsa(
     extended_pub_keys: Vec<ExtendedPublicKey<PublicKey>>,
     minimum_signatures: usize,
