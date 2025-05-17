@@ -4,21 +4,21 @@ use crate::protoserialization;
 use crate::protoserialization::{
     PartiallySignedInput, PartiallySignedTransaction, SubnetworkId, TransactionMessage, TransactionOutput,
 };
+use kaspa_bip32::secp256k1::{PublicKey, XOnlyPublicKey};
+use kaspa_bip32::{DerivationPath, ExtendedKey, ExtendedPublicKey};
 use kaspa_rpc_core::{
     RpcScriptPublicKey, RpcScriptVec, RpcSubnetworkId, RpcTransaction, RpcTransactionInput, RpcTransactionOutpoint,
     RpcTransactionOutput,
 };
 use kaspa_txscript::script_builder::{ScriptBuilder, ScriptBuilderError};
-use kaspa_txscript::{multisig_redeem_script, multisig_redeem_script_ecdsa, MultisigCreateError};
+use kaspa_txscript::MultisigCreateError;
 use kaspa_wallet_core::api::{ScriptPublicKeyWrapper, TransactionOutpointWrapper, UtxoEntryWrapper};
+use kaspa_wallet_core::derivation::ExtendedPublicKeySecp256k1;
 use prost::Message;
 use std::num::TryFromIntError;
-// use std::str::FromStr;
+use std::str::FromStr;
 use thiserror::Error;
 use tonic::Status;
-// use kaspa_bip32::{secp256k1, DerivationPath, ExtendedKey, ExtendedPrivateKey, ExtendedPublicKey};
-// use kaspa_bip32::secp256k1::serde::Serialize;
-// use kaspa_wallet_core::derivation::ExtendedPublicKeySecp256k1;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -117,61 +117,43 @@ fn extract_tx_deserialized(partially_signed_tx: PartiallySignedTransaction, ecds
 
 /// Generates a multi-signature redeem script for a partially signed input.
 /// Supports both ECDSA and Schnorr signature schemes based on the ecdsa parameter.
-fn partially_signed_input_multisig_redeem_script(input: &PartiallySignedInput, ecdsa: bool, _path: &str) -> Result<Vec<u8>, Error> {
-    // let extended_pub_keys: Vec<_> = input.pub_key_signature_pairs.iter()
-    //     .map(|key_pair| key_pair.extended_pub_key.as_str())
-    //     .map(|pub_key| {
-    //         let extended_key = ExtendedKey::from_str(pub_key)?;
-    //         let extended_private_key = ExtendedPrivateKey::try_from(extended_key)?;
-    //         let derived_key = extended_private_key.derive_path(&path.parse::<DerivationPath>()?)?;
-    //         let public_key = derived_key.public_key();
-    //         if ecdsa {
-    //             todo!()
-    //         } else {
-    //             todo!()
-    //         }
-    //     })
-    // .collect::<Vec<_>>();
-    let extended_pub_keys: Vec<_> = input.pub_key_signature_pairs.iter().map(|key| key.extended_pub_key.as_bytes()).collect();
-    let redeem_script = if ecdsa {
-        let extended_pub_keys: Vec<[u8; 33]> =
-            extended_pub_keys.into_iter().map(|bytes| <[u8; 33]>::try_from(bytes).unwrap()).collect();
-        multisig_redeem_script_ecdsa(extended_pub_keys.iter(), input.minimum_signatures as usize)
+fn partially_signed_input_multisig_redeem_script(input: &PartiallySignedInput, ecdsa: bool, path: &str) -> Result<Vec<u8>, Error> {
+    let extended_pub_keys: Vec<ExtendedPublicKey<PublicKey>> = input
+        .pub_key_signature_pairs
+        .iter()
+        .map(|pair| {
+            let extended_key = ExtendedKey::from_str(pair.extended_pub_key.as_str()).unwrap();
+            let derived_key: ExtendedPublicKeySecp256k1 = extended_key.try_into().unwrap();
+            derived_key.derive_path(&path.parse::<DerivationPath>().unwrap()).unwrap()
+        })
+        .collect();
+    if ecdsa {
+        multisig_redeem_script_ecdsa(extended_pub_keys, input.minimum_signatures as usize)
     } else {
-        let extended_pub_keys: Vec<[u8; 32]> =
-            extended_pub_keys.into_iter().map(|bytes| <[u8; 32]>::try_from(bytes).unwrap()).collect();
-        multisig_redeem_script(extended_pub_keys.iter(), input.minimum_signatures as usize)
-    };
-
-    Ok(redeem_script?)
+        multisig_redeem_script(extended_pub_keys, input.minimum_signatures as usize)
+    }
 }
 
-// fn multi_sig_redeem_script(pub_keys: Vec<&PubKeySignaturePair>, minimum_sig: u32, path: &str, ecdsa: bool) -> Result<Vec<u8>, Error> {
-//     let derived_keys = pub_keys.iter().map(|key_pair| {
-//         let extended_key: ExtendedPublicKeySecp256k1 = ExtendedPublicKeySecp256k1::from_str(key_pair.extended_pub_key.as_str()).unwrap();
-//         let derived_key = extended_key.derive_path(&path.parse::<DerivationPath>().unwrap()).unwrap();
-//         let public_key = derived_key.public_key;
-//         if ecdsa {
-//             return derived_key.public_key.serialize()
-//         } else {
-//             let schorr_pub_key = secp256k1::Keypair::from_str(derived_key.public_key.to_string().as_str()).unwrap().public_key();
-//             return schorr_pub_key.serialize()
-//         };
-//     }).collect::<Vec<_>>();
-//     for key in pub_keys.iter() {
-//         let extended_key: ExtendedPublicKeySecp256k1 = ExtendedPublicKeySecp256k1::from_str(key.extended_pub_key.as_str()).unwrap();
-//         let derived_key = extended_key.derive_path(&path.parse::<DerivationPath>().unwrap()).unwrap();
-//         let public_key = derived_key.public_key;
-//
-//         let serialized_pub_key = if ecdsa {
-//             public_key.serialize()
-//         } else {
-//             let schorr_pub_key = secp256k1::Keypair::from_str(public_key.to_string().as_str()).unwrap().public_key();
-//             schorr_pub_key.serialize()
-//         };
-//
-//     }
-// }
+fn multisig_redeem_script(extended_pub_keys: Vec<ExtendedPublicKey<PublicKey>>, minimum_signatures: usize) -> Result<Vec<u8>, Error> {
+    let serialized_keys: Vec<[u8; 32]> = extended_pub_keys
+        .iter()
+        .map(|key| {
+            let schnorr_public_key = XOnlyPublicKey::from(key.public_key);
+            schnorr_public_key.serialize()
+        })
+        .collect();
+    let redeem_script = kaspa_txscript::multisig_redeem_script(serialized_keys.iter(), minimum_signatures)?;
+    Ok(redeem_script)
+}
+
+fn multisig_redeem_script_ecdsa(
+    extended_pub_keys: Vec<ExtendedPublicKey<PublicKey>>,
+    minimum_signatures: usize,
+) -> Result<Vec<u8>, Error> {
+    let serialized_ecdsa_keys: Vec<[u8; 33]> = extended_pub_keys.iter().map(|key| key.public_key.serialize()).collect();
+    let redeem_script = kaspa_txscript::multisig_redeem_script_ecdsa(serialized_ecdsa_keys.iter(), minimum_signatures)?;
+    Ok(redeem_script)
+}
 
 impl From<TransactionOutpointWrapper> for Outpoint {
     fn from(wrapper: kaspa_wallet_core::api::TransactionOutpointWrapper) -> Self {
