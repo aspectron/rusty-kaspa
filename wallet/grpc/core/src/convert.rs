@@ -126,14 +126,8 @@ fn partially_signed_input_multisig_redeem_script(input: &PartiallySignedInput, e
 /// Creates a Schnorr-based multisig redeem script from a list of public keys.
 /// The script requires at least `minimum_signatures` valid signatures to spend.
 fn multisig_redeem_script(extended_pub_keys: Vec<ExtendedPublicKey<PublicKey>>, minimum_signatures: usize) -> Result<Vec<u8>, Status> {
-    let serialized_keys: Vec<[u8; 32]> = extended_pub_keys
-        .iter()
-        .map(|key| {
-            let schnorr_public_key = XOnlyPublicKey::from(key.public_key);
-            schnorr_public_key.serialize()
-        })
-        .collect();
-    let redeem_script = kaspa_txscript::multisig_redeem_script(serialized_keys.iter(), minimum_signatures)
+    let serialized_keys = extended_pub_keys.iter().map(|key| key.public_key.x_only_public_key().0.serialize());
+    let redeem_script = kaspa_txscript::multisig_redeem_script(serialized_keys, minimum_signatures)
         .map_err(|err| Status::invalid_argument(err.to_string()))?;
     Ok(redeem_script)
 }
