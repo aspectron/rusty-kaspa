@@ -3,43 +3,18 @@ use crate::protoserialization;
 // use std::num::TryFromIntError;
 use crate::protoserialization::{PartiallySignedInput, PartiallySignedTransaction, TransactionMessage, TransactionOutput};
 use kaspa_bip32::secp256k1::{PublicKey, XOnlyPublicKey};
-use kaspa_bip32::{DerivationPath, ExtendedKey, ExtendedPublicKey};
+use kaspa_bip32::{DerivationPath, Error, ExtendedKey, ExtendedPublicKey};
 use kaspa_rpc_core::{
     RpcScriptPublicKey, RpcScriptVec, RpcSubnetworkId, RpcTransaction, RpcTransactionInput, RpcTransactionOutpoint,
     RpcTransactionOutput,
 };
-use kaspa_txscript::script_builder::{ScriptBuilder, ScriptBuilderError};
-use kaspa_txscript::MultisigCreateError;
+use kaspa_txscript::script_builder::ScriptBuilder;
 use kaspa_wallet_core::api::{ScriptPublicKeyWrapper, TransactionOutpointWrapper, UtxoEntryWrapper};
 use kaspa_wallet_core::derivation::ExtendedPublicKeySecp256k1;
 use prost::Message;
 use std::num::TryFromIntError;
 use std::str::FromStr;
-use thiserror::Error;
 use tonic::Status;
-
-/// Error type
-#[derive(Error, Debug)]
-pub enum Error {
-    #[error(transparent)]
-    ScriptBuilderError(#[from] ScriptBuilderError),
-    #[error(transparent)]
-    MultiSigRedeemScript(#[from] MultisigCreateError),
-    #[error("missing {0} signatures")]
-    MissingSignatures(u32),
-    #[error("missing signature")]
-    MissingSignature,
-    #[error("missing transaction")]
-    MissingTransaction,
-    #[error("missing previous outpoint")]
-    MissingPreviousOutpoint,
-    #[error("missing script public key")]
-    MissingScriptPublicKey,
-    #[error("missing subnetwork id")]
-    MissingSubnetworkId,
-    #[error(transparent)]
-    Bip32Error(#[from] kaspa_bip32::Error),
-}
 
 /// Deserializes a vector of transaction byte arrays into RpcTransaction.
 ///
@@ -82,7 +57,7 @@ fn extract_tx(tx: &[u8], ecdsa: bool) -> Result<RpcTransaction, Status> {
 
 /// Extracts and processes a partially signed transaction into a regular transaction message.
 /// Handles both single-signature and multi-signature inputs, constructing appropriate signature scripts.
-fn extract_tx_deserialized(partially_signed_tx: PartiallySignedTransaction, ecdsa: bool) -> Result<TransactionMessage, Error> {
+fn extract_tx_deserialized(partially_signed_tx: PartiallySignedTransaction, ecdsa: bool) -> Result<TransactionMessage, Status> {
     if let Some(mut tx) = partially_signed_tx.tx {
         for (i, input) in partially_signed_tx.partially_signed_inputs.iter().enumerate() {
             let is_multi_sig = input.pub_key_signature_pairs.len() > 1;
@@ -90,44 +65,56 @@ fn extract_tx_deserialized(partially_signed_tx: PartiallySignedTransaction, ecds
                 let mut script_builder = &mut ScriptBuilder::new();
                 let mut signature_counter = 0;
                 for pair in input.pub_key_signature_pairs.iter() {
-                    script_builder = script_builder.add_data(pair.signature.as_slice())?;
+                    script_builder =
+                        script_builder.add_data(pair.signature.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
                     signature_counter += 1;
                 }
 
                 if signature_counter < input.minimum_signatures {
-                    return Err(Error::MissingSignatures(input.minimum_signatures - signature_counter));
+                    return Err(Status::invalid_argument(format!(
+                        "missing {} signatures",
+                        input.minimum_signatures - signature_counter
+                    )));
                 }
 
                 let redeem_script = partially_signed_input_multisig_redeem_script(input, ecdsa, "m")?;
-                script_builder = script_builder.add_data(redeem_script.as_slice())?;
+                script_builder =
+                    script_builder.add_data(redeem_script.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
                 tx.inputs[i].signature_script = script_builder.drain();
             } else {
                 if input.pub_key_signature_pairs.is_empty() {
-                    return Err(Error::MissingSignature);
+                    return Err(Status::invalid_argument("missing signature"));
                 }
                 let mut script_builder = ScriptBuilder::new();
-                let sig_script = script_builder.add_data(input.pub_key_signature_pairs[0].signature.as_slice())?.script();
+                let sig_script = script_builder
+                    .add_data(input.pub_key_signature_pairs[0].signature.as_slice())
+                    .map_err(|err| Status::invalid_argument(err.to_string()))?
+                    .script();
                 tx.inputs[i].signature_script = Vec::from(sig_script);
             }
         }
         return Ok(tx);
     };
 
-    Err(Error::MissingTransaction)
+    Err(Status::invalid_argument("missing transaction"))
 }
 
 /// Generates a multi-signature redeem script for a partially signed input.
 /// Supports both ECDSA and Schnorr signature schemes based on the ecdsa parameter.
-fn partially_signed_input_multisig_redeem_script(input: &PartiallySignedInput, ecdsa: bool, path: &str) -> Result<Vec<u8>, Error> {
+fn partially_signed_input_multisig_redeem_script(input: &PartiallySignedInput, ecdsa: bool, path: &str) -> Result<Vec<u8>, Status> {
     let extended_pub_keys: Vec<ExtendedPublicKey<PublicKey>> = input
         .pub_key_signature_pairs
         .iter()
         .map(|pair| {
-            let extended_key = ExtendedKey::from_str(pair.extended_pub_key.as_str())?;
-            let derived_key: ExtendedPublicKeySecp256k1 = extended_key.try_into()?;
-            derived_key.derive_path(&path.parse::<DerivationPath>()?).map_err(Error::Bip32Error)
+            let extended_key =
+                ExtendedKey::from_str(pair.extended_pub_key.as_str()).map_err(|err| Status::invalid_argument(err.to_string()))?;
+            let derived_key: ExtendedPublicKeySecp256k1 =
+                extended_key.try_into().map_err(|err: Error| Status::invalid_argument(err.to_string()))?;
+            derived_key
+                .derive_path(&path.parse::<DerivationPath>().map_err(|err| Status::invalid_argument(err.to_string()))?)
+                .map_err(|err| Status::invalid_argument(err.to_string()))
         })
-        .collect::<Result<Vec<_>, Error>>()?;
+        .collect::<Result<Vec<_>, Status>>()?;
 
     if ecdsa {
         multisig_redeem_script_ecdsa(extended_pub_keys, input.minimum_signatures as usize)
@@ -138,7 +125,7 @@ fn partially_signed_input_multisig_redeem_script(input: &PartiallySignedInput, e
 
 /// Creates a Schnorr-based multisig redeem script from a list of public keys.
 /// The script requires at least `minimum_signatures` valid signatures to spend.
-fn multisig_redeem_script(extended_pub_keys: Vec<ExtendedPublicKey<PublicKey>>, minimum_signatures: usize) -> Result<Vec<u8>, Error> {
+fn multisig_redeem_script(extended_pub_keys: Vec<ExtendedPublicKey<PublicKey>>, minimum_signatures: usize) -> Result<Vec<u8>, Status> {
     let serialized_keys: Vec<[u8; 32]> = extended_pub_keys
         .iter()
         .map(|key| {
@@ -146,7 +133,8 @@ fn multisig_redeem_script(extended_pub_keys: Vec<ExtendedPublicKey<PublicKey>>, 
             schnorr_public_key.serialize()
         })
         .collect();
-    let redeem_script = kaspa_txscript::multisig_redeem_script(serialized_keys.iter(), minimum_signatures)?;
+    let redeem_script = kaspa_txscript::multisig_redeem_script(serialized_keys.iter(), minimum_signatures)
+        .map_err(|err| Status::invalid_argument(err.to_string()))?;
     Ok(redeem_script)
 }
 
@@ -155,9 +143,10 @@ fn multisig_redeem_script(extended_pub_keys: Vec<ExtendedPublicKey<PublicKey>>, 
 fn multisig_redeem_script_ecdsa(
     extended_pub_keys: Vec<ExtendedPublicKey<PublicKey>>,
     minimum_signatures: usize,
-) -> Result<Vec<u8>, Error> {
+) -> Result<Vec<u8>, Status> {
     let serialized_ecdsa_keys: Vec<[u8; 33]> = extended_pub_keys.iter().map(|key| key.public_key.serialize()).collect();
-    let redeem_script = kaspa_txscript::multisig_redeem_script_ecdsa(serialized_ecdsa_keys.iter(), minimum_signatures)?;
+    let redeem_script = kaspa_txscript::multisig_redeem_script_ecdsa(serialized_ecdsa_keys.iter(), minimum_signatures)
+        .map_err(|err| Status::invalid_argument(err.to_string()))?;
     Ok(redeem_script)
 }
 
@@ -207,15 +196,9 @@ impl TryFrom<TransactionMessage> for RpcTransaction {
             .map(|i| RpcTransactionOutput::try_from(i).map_err(|e| Status::invalid_argument(e.to_string())))
             .collect();
 
-        let subnetwork_id = RpcSubnetworkId::try_from(
-            value
-                .subnetwork_id
-                .ok_or(Error::MissingSubnetworkId)
-                .map_err(|err| Status::invalid_argument(err.to_string()))?
-                .bytes
-                .as_slice(),
-        )
-        .map_err(|e| Status::invalid_argument(e.to_string()))?;
+        let subnetwork_id =
+            RpcSubnetworkId::try_from(value.subnetwork_id.ok_or(Status::invalid_argument("missing subnetwork_id"))?.bytes.as_slice())
+                .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
         Ok(RpcTransaction {
             version,
@@ -234,11 +217,7 @@ impl TryFrom<TransactionMessage> for RpcTransaction {
 impl TryFrom<protoserialization::TransactionInput> for RpcTransactionInput {
     type Error = Status;
     fn try_from(value: protoserialization::TransactionInput) -> Result<Self, Self::Error> {
-        let previous_outpoint = value
-            .previous_outpoint
-            .ok_or(Error::MissingPreviousOutpoint)
-            .map_err(|err| Status::invalid_argument(err.to_string()))?
-            .try_into()?;
+        let previous_outpoint = value.previous_outpoint.ok_or(Status::invalid_argument("missing previous outpoint"))?.try_into()?;
         let sig_op_count: u8 = value.sig_op_count.try_into().map_err(|e: TryFromIntError| Status::invalid_argument(e.to_string()))?;
         Ok(RpcTransactionInput {
             previous_outpoint,
@@ -256,11 +235,7 @@ impl TryFrom<TransactionOutput> for RpcTransactionOutput {
     fn try_from(value: TransactionOutput) -> Result<Self, Self::Error> {
         Ok(RpcTransactionOutput {
             value: value.value,
-            script_public_key: value
-                .script_public_key
-                .ok_or(Error::MissingScriptPublicKey)
-                .map_err(|err| Status::invalid_argument(err.to_string()))?
-                .try_into()?,
+            script_public_key: value.script_public_key.ok_or(Status::invalid_argument("missing script public key"))?.try_into()?,
             verbose_data: None,
         })
     }
