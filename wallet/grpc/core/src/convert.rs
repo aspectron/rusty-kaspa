@@ -1,8 +1,7 @@
 use crate::kaspawalletd::{Outpoint, ScriptPublicKey, UtxoEntry, UtxosByAddressesEntry};
 use crate::protoserialization;
-// use std::num::TryFromIntError;
 use crate::protoserialization::{PartiallySignedInput, PartiallySignedTransaction, TransactionMessage, TransactionOutput};
-use kaspa_bip32::secp256k1::{PublicKey, XOnlyPublicKey};
+use kaspa_bip32::secp256k1::PublicKey;
 use kaspa_bip32::{DerivationPath, Error, ExtendedKey, ExtendedPublicKey};
 use kaspa_rpc_core::{
     RpcScriptPublicKey, RpcScriptVec, RpcSubnetworkId, RpcTransaction, RpcTransactionInput, RpcTransactionOutpoint,
@@ -62,7 +61,7 @@ fn extract_tx_deserialized(partially_signed_tx: PartiallySignedTransaction, ecds
     if partially_signed_tx.partially_signed_inputs.len() > tx.inputs.len() {
         return Err(Status::invalid_argument("unbalanced inputs"));
     }
-    for (idx, (signed_input, tx_input))in partially_signed_tx.partially_signed_inputs.iter().zip(&mut tx.inputs).enumerate() {
+    for (idx, (signed_input, tx_input)) in partially_signed_tx.partially_signed_inputs.iter().zip(&mut tx.inputs).enumerate() {
         let mut script_builder = ScriptBuilder::new();
         match signed_input.pub_key_signature_pairs.len() {
             0 => return Err(Status::invalid_argument("missing signature")),
@@ -75,13 +74,11 @@ fn extract_tx_deserialized(partially_signed_tx: PartiallySignedTransaction, ecds
             }
             pairs_len /*multisig*/ => {
                 for pair in signed_input.pub_key_signature_pairs.iter() {
-                        script_builder.add_data(pair.signature.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
+                    script_builder.add_data(pair.signature.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
                 }
-                
                 if pairs_len < signed_input.minimum_signatures as usize {
                     return Err(Status::invalid_argument(format!("missing {} signatures on input: {idx}", signed_input.minimum_signatures as usize - pairs_len)));
                 }
-
                 let redeem_script = partially_signed_input_multisig_redeem_script(signed_input, ecdsa, "m")?;
                     script_builder.add_data(redeem_script.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
                 tx_input.signature_script = script_builder.drain();
@@ -94,7 +91,7 @@ fn extract_tx_deserialized(partially_signed_tx: PartiallySignedTransaction, ecds
 /// Generates a multi-signature redeem script for a partially signed input.
 /// Supports both ECDSA and Schnorr signature schemes based on the ecdsa parameter.
 fn partially_signed_input_multisig_redeem_script(input: &PartiallySignedInput, ecdsa: bool, path: &str) -> Result<Vec<u8>, Status> {
-    let extended_pub_keys: Vec<ExtendedPublicKey<PublicKey>> = input
+    let extended_pub_keys: &[ExtendedPublicKey<PublicKey>] = &input
         .pub_key_signature_pairs
         .iter()
         .map(|pair| {
@@ -117,7 +114,7 @@ fn partially_signed_input_multisig_redeem_script(input: &PartiallySignedInput, e
 
 /// Creates a Schnorr-based multisig redeem script from a list of public keys.
 /// The script requires at least `minimum_signatures` valid signatures to spend.
-fn multisig_redeem_script(extended_pub_keys: Vec<ExtendedPublicKey<PublicKey>>, minimum_signatures: usize) -> Result<Vec<u8>, Status> {
+fn multisig_redeem_script(extended_pub_keys: &[ExtendedPublicKey<PublicKey>], minimum_signatures: usize) -> Result<Vec<u8>, Status> {
     let serialized_keys = extended_pub_keys.iter().map(|key| key.public_key.x_only_public_key().0.serialize());
     let redeem_script = kaspa_txscript::multisig_redeem_script(serialized_keys, minimum_signatures)
         .map_err(|err| Status::invalid_argument(err.to_string()))?;
@@ -127,7 +124,7 @@ fn multisig_redeem_script(extended_pub_keys: Vec<ExtendedPublicKey<PublicKey>>, 
 /// Creates an ECDSA-based multisig redeem script from a list of public keys.
 /// The script requires at least `minimum_signatures` valid signatures to spend.
 fn multisig_redeem_script_ecdsa(
-    extended_pub_keys: Vec<ExtendedPublicKey<PublicKey>>,
+    extended_pub_keys: &[ExtendedPublicKey<PublicKey>],
     minimum_signatures: usize,
 ) -> Result<Vec<u8>, Status> {
     let serialized_ecdsa_keys = extended_pub_keys.iter().map(|key| key.public_key.serialize());
