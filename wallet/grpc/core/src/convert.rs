@@ -58,45 +58,37 @@ fn extract_tx(tx: &[u8], ecdsa: bool) -> Result<RpcTransaction, Status> {
 /// Extracts and processes a partially signed transaction into a regular transaction message.
 /// Handles both single-signature and multi-signature inputs, constructing appropriate signature scripts.
 fn extract_tx_deserialized(partially_signed_tx: PartiallySignedTransaction, ecdsa: bool) -> Result<TransactionMessage, Status> {
-    if let Some(mut tx) = partially_signed_tx.tx {
-        for (i, input) in partially_signed_tx.partially_signed_inputs.iter().enumerate() {
-            let is_multi_sig = input.pub_key_signature_pairs.len() > 1;
-            if is_multi_sig {
-                let mut script_builder = &mut ScriptBuilder::new();
-                let mut signature_counter = 0;
-                for pair in input.pub_key_signature_pairs.iter() {
-                    script_builder =
-                        script_builder.add_data(pair.signature.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
-                    signature_counter += 1;
-                }
-
-                if signature_counter < input.minimum_signatures {
-                    return Err(Status::invalid_argument(format!(
-                        "missing {} signatures",
-                        input.minimum_signatures - signature_counter
-                    )));
-                }
-
-                let redeem_script = partially_signed_input_multisig_redeem_script(input, ecdsa, "m")?;
-                script_builder =
-                    script_builder.add_data(redeem_script.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
-                tx.inputs[i].signature_script = script_builder.drain();
-            } else {
-                if input.pub_key_signature_pairs.is_empty() {
-                    return Err(Status::invalid_argument("missing signature"));
-                }
-                let mut script_builder = ScriptBuilder::new();
+    let Some(mut tx) = partially_signed_tx.tx else { return Err(Status::invalid_argument("missing transaction")) };
+    if partially_signed_tx.partially_signed_inputs.len() > tx.inputs.len() {
+        return Err(Status::invalid_argument("unbalanced inputs"));
+    }
+    for (idx, (signed_input, tx_input))in partially_signed_tx.partially_signed_inputs.iter().zip(&mut tx.inputs).enumerate() {
+        let mut script_builder = ScriptBuilder::new();
+        match signed_input.pub_key_signature_pairs.len() {
+            0 => return Err(Status::invalid_argument("missing signature")),
+            1 => {
                 let sig_script = script_builder
-                    .add_data(input.pub_key_signature_pairs[0].signature.as_slice())
+                    .add_data(signed_input.pub_key_signature_pairs[0].signature.as_slice())
                     .map_err(|err| Status::invalid_argument(err.to_string()))?
-                    .script();
-                tx.inputs[i].signature_script = Vec::from(sig_script);
+                    .drain();
+                tx_input.signature_script = sig_script;
+            }
+            pairs_len /*multisig*/ => {
+                for pair in signed_input.pub_key_signature_pairs.iter() {
+                        script_builder.add_data(pair.signature.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
+                }
+                
+                if pairs_len < signed_input.minimum_signatures as usize {
+                    return Err(Status::invalid_argument(format!("missing {} signatures on input: {idx}", signed_input.minimum_signatures as usize - pairs_len)));
+                }
+
+                let redeem_script = partially_signed_input_multisig_redeem_script(signed_input, ecdsa, "m")?;
+                    script_builder.add_data(redeem_script.as_slice()).map_err(|err| Status::invalid_argument(err.to_string()))?;
+                tx_input.signature_script = script_builder.drain();
             }
         }
-        return Ok(tx);
-    };
-
-    Err(Status::invalid_argument("missing transaction"))
+    }
+    Ok(tx)
 }
 
 /// Generates a multi-signature redeem script for a partially signed input.
