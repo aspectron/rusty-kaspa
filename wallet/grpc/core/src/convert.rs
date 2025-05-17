@@ -38,6 +38,8 @@ pub enum Error {
     MissingScriptPublicKey,
     #[error("missing subnetwork id")]
     MissingSubnetworkId,
+    #[error(transparent)]
+    Bip32Error(#[from] kaspa_bip32::Error),
 }
 
 /// Deserializes a vector of transaction byte arrays into RpcTransaction.
@@ -122,11 +124,12 @@ fn partially_signed_input_multisig_redeem_script(input: &PartiallySignedInput, e
         .pub_key_signature_pairs
         .iter()
         .map(|pair| {
-            let extended_key = ExtendedKey::from_str(pair.extended_pub_key.as_str()).unwrap();
-            let derived_key: ExtendedPublicKeySecp256k1 = extended_key.try_into().unwrap();
-            derived_key.derive_path(&path.parse::<DerivationPath>().unwrap()).unwrap()
+            let extended_key = ExtendedKey::from_str(pair.extended_pub_key.as_str())?;
+            let derived_key: ExtendedPublicKeySecp256k1 = extended_key.try_into()?;
+            derived_key.derive_path(&path.parse::<DerivationPath>()?).map_err(Error::Bip32Error)
         })
-        .collect();
+        .collect::<Result<Vec<_>, Error>>()?;
+
     if ecdsa {
         multisig_redeem_script_ecdsa(extended_pub_keys, input.minimum_signatures as usize)
     } else {
