@@ -138,8 +138,8 @@ fn multisig_redeem_script_ecdsa(
     extended_pub_keys: Vec<ExtendedPublicKey<PublicKey>>,
     minimum_signatures: usize,
 ) -> Result<Vec<u8>, Status> {
-    let serialized_ecdsa_keys: Vec<[u8; 33]> = extended_pub_keys.iter().map(|key| key.public_key.serialize()).collect();
-    let redeem_script = kaspa_txscript::multisig_redeem_script_ecdsa(serialized_ecdsa_keys.iter(), minimum_signatures)
+    let serialized_ecdsa_keys = extended_pub_keys.iter().map(|key| key.public_key.serialize());
+    let redeem_script = kaspa_txscript::multisig_redeem_script_ecdsa(serialized_ecdsa_keys, minimum_signatures)
         .map_err(|err| Status::invalid_argument(err.to_string()))?;
     Ok(redeem_script)
 }
