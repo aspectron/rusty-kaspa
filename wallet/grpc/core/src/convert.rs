@@ -1,9 +1,7 @@
 use crate::kaspawalletd::{Outpoint, ScriptPublicKey, UtxoEntry, UtxosByAddressesEntry};
 use crate::protoserialization;
 // use std::num::TryFromIntError;
-use crate::protoserialization::{
-    PartiallySignedInput, PartiallySignedTransaction, SubnetworkId, TransactionMessage, TransactionOutput,
-};
+use crate::protoserialization::{PartiallySignedInput, PartiallySignedTransaction, TransactionMessage, TransactionOutput};
 use kaspa_bip32::secp256k1::{PublicKey, XOnlyPublicKey};
 use kaspa_bip32::{DerivationPath, ExtendedKey, ExtendedPublicKey};
 use kaspa_rpc_core::{
@@ -274,19 +272,6 @@ impl TryFrom<protoserialization::ScriptPublicKey> for RpcScriptPublicKey {
     fn try_from(value: protoserialization::ScriptPublicKey) -> Result<Self, Self::Error> {
         let version: u16 = value.version.try_into().map_err(|e: TryFromIntError| Status::invalid_argument(e.to_string()))?;
         Ok(RpcScriptPublicKey::new(version, RpcScriptVec::from(value.script)))
-    }
-}
-
-impl TryFrom<SubnetworkId> for RpcSubnetworkId {
-    type Error = Status;
-    fn try_from(value: SubnetworkId) -> Result<Self, Self::Error> {
-        let bytes = value.bytes;
-        if bytes.len() != 20 {
-            return Err(Status::invalid_argument("SubnetworkId must be 20 bytes long"));
-        }
-        let mut fixed_bytes = [0u8; 20];
-        fixed_bytes.copy_from_slice(&bytes);
-        Ok(RpcSubnetworkId::from_bytes(fixed_bytes))
     }
 }
 
