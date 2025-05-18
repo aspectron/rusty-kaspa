@@ -226,7 +226,7 @@ impl ConsensusConverter {
                     let input_sum: u64 = tx
                         .inputs
                         .iter()
-                        .map(|input| outpoint_to_value.get(&input.previous_outpoint).cloned().unwrap_or_default())
+                        .map(|input| outpoint_to_value.get(&input.previous_outpoint).copied().unwrap_or_default())
                         .sum();
                     let output_sum: u64 = tx.outputs.iter().map(|o| o.value).sum();
                     rtx.fee = input_sum.saturating_sub(output_sum);

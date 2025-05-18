@@ -364,14 +364,12 @@ impl VirtualStateProcessor {
             .expect("expecting an open unbounded channel");
         if self.notification_root.has_subscription(EventType::VirtualChainChanged) {
             // check for subscriptions before the heavy lifting
-            let added_chain_blocks_acceptance_data: Vec<(Hash, Arc<AcceptanceData>)> = chain_path
+            let added_chain_blocks_acceptance_data = chain_path
                 .added
                 .iter()
                 .copied()
-                .map(|added| self.acceptance_data_store.get(added).map(|acceptance_data| (added, acceptance_data)).unwrap())
-                .collect_vec();
+                .map(|added| self.acceptance_data_store.get(added).map(|acceptance_data| (added, acceptance_data)).unwrap());
             let added_chain_blocks_acceptance_data = added_chain_blocks_acceptance_data
-                .into_iter()
                 .map(|(accepting_block_hash, mergeset_data)| {
                     // Create maps to track values for fee calculation
                     let mut outpoint_to_value = BTreeMap::new();
@@ -385,7 +383,6 @@ impl VirtualStateProcessor {
 
                             let accepted_transactions = block_transactions
                                 .iter()
-                                .cloned()
                                 .enumerate()
                                 .filter(|(index, _)| {
                                     mined_block
@@ -394,20 +391,52 @@ impl VirtualStateProcessor {
                                         .any(|accepted| accepted.index_within_block as usize == *index)
                                 })
                                 .map(|(_, tx)| {
+                                    let id = tx.id();
                                     // Collect input outpoints for later value lookup
                                     tx.inputs.iter().enumerate().for_each(|(index, input)| {
-                                        tx_id_input_to_outpoint.insert((tx.id(), index as u32), (input.previous_outpoint, None));
+                                        tx_id_input_to_outpoint.insert((id, index as u32), (input.previous_outpoint, None));
                                     });
 
                                     // Store output values
                                     tx.outputs.iter().enumerate().for_each(|(index, out)| {
                                         outpoint_to_value
-                                            .insert(TransactionOutpoint { transaction_id: tx.id(), index: index as u32 }, out.value);
+                                            .insert(TransactionOutpoint { transaction_id: id, index: index as u32 }, out.value);
                                     });
 
-                                    tx
-                                })
-                                .collect_vec();
+                                    // Calculate fee
+                                    let mut outpoints_requested_from_utxo = Vec::new();
+                                    let input_outpoints = || tx.inputs.iter().map(|input| &input.previous_outpoint);
+
+                                    // Collect outpoints that need values from UTXO diff
+                                    let missing_outpoints: Vec<_> = input_outpoints()
+                                        .filter(|outpoint| !outpoint_to_value.contains_key(outpoint))
+                                        .copied()
+                                        .collect();
+
+                                    if !missing_outpoints.is_empty() {
+                                        outpoints_requested_from_utxo.extend(&missing_outpoints);
+                                        let values = self
+                                            .get_utxo_amounts(accepting_block_hash, Arc::new(missing_outpoints))
+                                            .unwrap_or_else(|e| {
+                                                log::error!("Failed to get UTXO values: {}", e);
+                                                vec![0; outpoints_requested_from_utxo.len()]
+                                            });
+
+                                        // Store retrieved values
+                                        outpoints_requested_from_utxo.iter().zip(values).for_each(|(outpoint, value)| {
+                                            outpoint_to_value.insert(*outpoint, value);
+                                        });
+                                    }
+
+                                    // Calculate fee as input_sum - output_sum
+                                    let input_sum: u64 = input_outpoints()
+                                        .map(|outpoint| outpoint_to_value.get(outpoint).copied().unwrap_or_default())
+                                        .sum();
+                                    let output_sum: u64 = tx.outputs.iter().map(|o| o.value).sum();
+                                    let fee = input_sum.saturating_sub(output_sum);
+
+                                    TransactionWithFee { tx: tx.clone(), fee }
+                                });
 
                             let block_timestamp =
                                 self.headers_store.get_compact_header_data(mined_block.block_hash).unwrap().timestamp;
@@ -415,46 +444,7 @@ impl VirtualStateProcessor {
                             MergesetBlockAcceptanceDataWithTx {
                                 block_hash: mined_block.block_hash,
                                 block_timestamp,
-                                accepted_transactions: accepted_transactions
-                                    .into_iter()
-                                    .map(|tx| {
-                                        // Calculate fee
-                                        let mut outpoints_requested_from_utxo = Vec::new();
-                                        let input_outpoints: Vec<_> = tx.inputs.iter().map(|input| input.previous_outpoint).collect();
-
-                                        // Collect outpoints that need values from UTXO diff
-                                        let missing_outpoints: Vec<_> = input_outpoints
-                                            .iter()
-                                            .filter(|outpoint| !outpoint_to_value.contains_key(outpoint))
-                                            .cloned()
-                                            .collect();
-
-                                        if !missing_outpoints.is_empty() {
-                                            outpoints_requested_from_utxo.extend(missing_outpoints.clone());
-                                            let values = self
-                                                .get_utxo_amounts(accepting_block_hash, Arc::new(missing_outpoints))
-                                                .unwrap_or_else(|e| {
-                                                    log::error!("Failed to get UTXO values: {}", e);
-                                                    vec![0; outpoints_requested_from_utxo.len()]
-                                                });
-
-                                            // Store retrieved values
-                                            outpoints_requested_from_utxo.iter().zip(values).for_each(|(outpoint, value)| {
-                                                outpoint_to_value.insert(*outpoint, value);
-                                            });
-                                        }
-
-                                        // Calculate fee as input_sum - output_sum
-                                        let input_sum: u64 = input_outpoints
-                                            .iter()
-                                            .map(|outpoint| outpoint_to_value.get(outpoint).cloned().unwrap_or_default())
-                                            .sum();
-                                        let output_sum: u64 = tx.outputs.iter().map(|o| o.value).sum();
-                                        let fee = input_sum.saturating_sub(output_sum);
-
-                                        TransactionWithFee { tx, fee }
-                                    })
-                                    .collect(),
+                                accepted_transactions: accepted_transactions.collect(),
                             }
                         })
                         .collect_vec();
