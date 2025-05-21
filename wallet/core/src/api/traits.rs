@@ -428,6 +428,14 @@ pub trait WalletApi: Send + Sync + AnySync {
         self.accounts_pskb_broadcast_call(request).await
     }
 
+    /// Wrapper around [`pskb_broadcast_call()`](Self::pskb_broadcast_call)
+    async fn pskb_broadcast(self: Arc<Self>, request: PskbBroadcastRequest) -> Result<PskbBroadcastResponse> {
+        self.pskb_broadcast_call(request).await
+    }
+
+    /// Broadcast a PSKB.
+    async fn pskb_broadcast_call(self: Arc<Self>, request: PskbBroadcastRequest) -> Result<PskbBroadcastResponse>;
+
     /// Broadcast a PSKB.
     async fn accounts_pskb_broadcast_call(
         self: Arc<Self>,

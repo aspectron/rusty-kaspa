@@ -2,6 +2,7 @@
 //! [`WalletApi`] trait implementation for the [`Wallet`] struct.
 //!
 
+use crate::account::pskb::bundle_to_finalizer_stream;
 use crate::api::{message::*, traits::WalletApi};
 use crate::events::Events;
 use crate::imports::*;
@@ -11,6 +12,7 @@ use crate::storage::Binding;
 use crate::tx::Fees;
 use kaspa_rpc_core::RpcFeeEstimate;
 use kaspa_wallet_pskt::bundle::Bundle;
+
 use workflow_core::channel::Receiver;
 #[async_trait]
 impl WalletApi for super::Wallet {
@@ -430,6 +432,36 @@ impl WalletApi for super::Wallet {
         let account = self.get_account_by_id(&account_id, &guard).await?.ok_or(Error::AccountNotFound(account_id))?;
         let transaction_ids = account.pskb_broadcast(&pskb).await?;
         Ok(AccountsPskbBroadcastResponse { transaction_ids })
+    }
+
+    async fn pskb_broadcast_call(self: Arc<Self>, request: PskbBroadcastRequest) -> Result<PskbBroadcastResponse> {
+        let PskbBroadcastRequest { pskb, network_id } = request;
+        let pskb = Bundle::deserialize(&pskb)?;
+
+        let mut transaction_ids = Vec::new();
+        let mut stream = bundle_to_finalizer_stream(&pskb);
+        let rpc = self.rpc_api();
+        while let Some(result) = stream.next().await {
+            match result {
+                Ok(finalized_pskt) => {
+                    let signed_tx = match finalized_pskt.extractor() {
+                        Ok(extractor) => match extractor.extract_tx(&network_id.into()) {
+                            Ok(tx) => tx.tx,
+                            Err(e) => return Err(Error::PendingTransactionFromPSKTError(e.to_string())),
+                        },
+                        Err(e) => return Err(Error::PendingTransactionFromPSKTError(e.to_string())),
+                    };
+                    log_info!("Submitting to rpc");
+                    transaction_ids.push(rpc.submit_transaction((&signed_tx).into(), false).await?);
+                    log_info!("Submitted to rpc");
+                }
+                Err(e) => {
+                    log_info!("Error processing a PSKT from bundle: {:?}", e);
+                }
+            }
+        }
+
+        Ok(PskbBroadcastResponse { transaction_ids })
     }
 
     async fn accounts_get_utxos_call(self: Arc<Self>, request: AccountsGetUtxosRequest) -> Result<AccountsGetUtxosResponse> {
