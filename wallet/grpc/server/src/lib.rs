@@ -43,9 +43,13 @@ impl Kaspawalletd for Service {
 
     async fn create_unsigned_transactions(
         &self,
-        _request: Request<CreateUnsignedTransactionsRequest>,
+        request: Request<CreateUnsignedTransactionsRequest>,
     ) -> Result<Response<CreateUnsignedTransactionsResponse>, Status> {
-        todo!();
+        let request = request.into_inner();
+        // TODO: check is wallet daemon synced
+        let (_fee_rate, _max_fee) = self.calculate_fee_limits(request.fee_policy).await.unwrap();
+        let unsigned_transactions: Vec<Vec<u8>> = vec![];
+        Ok(Response::new(CreateUnsignedTransactionsResponse { unsigned_transactions }))
     }
 
     async fn show_addresses(&self, _request: Request<ShowAddressesRequest>) -> Result<Response<ShowAddressesResponse>, Status> {

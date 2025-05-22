@@ -1,12 +1,17 @@
+use fee_policy::FeePolicy;
 use futures_util::{select, FutureExt};
+use kaspa_consensus_core::constants::SOMPI_PER_KASPA;
 use kaspa_wallet_core::{
     api::WalletApi,
     events::Events,
     prelude::{AccountDescriptor, Address},
     wallet::Wallet,
 };
+use kaspa_wallet_grpc_core::kaspawalletd;
+use kaspa_wallet_grpc_core::kaspawalletd::fee_policy;
 use std::sync::{Arc, Mutex};
 use tokio::sync::oneshot;
+use tonic::Status;
 
 pub struct Service {
     wallet: Arc<Wallet>,
@@ -48,6 +53,52 @@ impl Service {
         });
 
         Service { wallet, shutdown_sender: Arc::new(Mutex::new(Some(shutdown_sender))), ecdsa }
+    }
+
+    // TODO: maybe create custom error type
+    pub async fn calculate_fee_limits(&self, fee_policy: Option<kaspawalletd::FeePolicy>) -> Result<(f64, u64), Status> {
+        let fee_policy = match fee_policy {
+            Some(fee_policy) => fee_policy.fee_policy,
+            None => None,
+        };
+        self._calculate_fee_limits(fee_policy).await
+    }
+
+    // TODO: rename
+    pub async fn _calculate_fee_limits(&self, fee_policy: Option<FeePolicy>) -> Result<(f64, u64), Status> {
+        const MIN_FEE_RATE: f64 = 1.0;
+        let fees: (f64, u64) = if let Some(policy) = fee_policy {
+            match policy {
+                FeePolicy::MaxFeeRate(max_fee_rate) => {
+                    if max_fee_rate < MIN_FEE_RATE {
+                        return Err(Status::invalid_argument(format!(
+                            "requested max fee rate {} is too low, minimum fee rate is {}",
+                            max_fee_rate, MIN_FEE_RATE
+                        )));
+                    };
+                    let estimate = self.wallet.rpc_api().get_fee_estimate().await.unwrap();
+                    let fee_rate = max_fee_rate.min(estimate.normal_buckets[0].feerate);
+                    (fee_rate, u64::MAX)
+                }
+                FeePolicy::ExactFeeRate(exact_fee_rate) => {
+                    if exact_fee_rate < MIN_FEE_RATE {
+                        return Err(Status::invalid_argument(format!(
+                            "requested fee rate {} is too low, minimum fee rate is {}",
+                            exact_fee_rate, MIN_FEE_RATE
+                        )));
+                    }
+                    (exact_fee_rate, u64::MAX)
+                }
+                FeePolicy::MaxFee(max_fee) => {
+                    let estimate = self.wallet.rpc_api().get_fee_estimate().await.unwrap();
+                    (estimate.normal_buckets[0].feerate, max_fee)
+                }
+            }
+        } else {
+            let estimate = self.wallet.rpc_api().get_fee_estimate().await.unwrap();
+            (estimate.normal_buckets[0].feerate, SOMPI_PER_KASPA)
+        };
+        Ok(fees)
     }
 
     pub fn receive_addresses(&self) -> Vec<Address> {

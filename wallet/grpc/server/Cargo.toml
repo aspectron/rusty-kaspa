@@ -17,6 +17,7 @@ prost.workspace = true
 tokio.workspace = true
 tonic.workspace = true
 workflow-core.workspace = true
+kaspa-consensus-core.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "test-util"] }
