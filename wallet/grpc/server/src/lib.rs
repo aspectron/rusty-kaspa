@@ -83,8 +83,16 @@ impl Kaspawalletd for Service {
         Ok(Response::new(BroadcastResponse { tx_ids }))
     }
 
-    async fn broadcast_replacement(&self, _request: Request<BroadcastRequest>) -> Result<Response<BroadcastResponse>, Status> {
-        todo!();
+    async fn broadcast_replacement(&self, request: Request<BroadcastRequest>) -> Result<Response<BroadcastResponse>, Status> {
+        let request = request.into_inner();
+        let txs = deserialize_txs(request.transactions, request.is_domain, self.use_ecdsa())?;
+        let mut tx_ids: Vec<String> = Vec::with_capacity(txs.len());
+        for tx in txs {
+            let submit_transaction_replacement_response =
+                self.wallet().rpc_api().submit_transaction_replacement(tx).await.map_err(|e| Status::new(Code::Internal, e.to_string()))?;
+            tx_ids.push(submit_transaction_replacement_response.transaction_id.to_string());
+        }
+        Ok(Response::new(BroadcastResponse { tx_ids }))
     }
 
     async fn send(&self, _request: Request<SendRequest>) -> Result<Response<SendResponse>, Status> {
