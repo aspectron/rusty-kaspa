@@ -1,17 +1,15 @@
 pub mod service;
 
-use kaspa_addresses::Version;
 use kaspa_consensus_core::tx::{SignableTransaction, Transaction, UtxoEntry};
 use kaspa_wallet_core::api::WalletApi;
 use kaspa_wallet_core::tx::{Signer, SignerT};
 use kaspa_wallet_core::{
-    api::{AccountsGetUtxosRequest, AccountsSendRequest, NewAddressKind},
+    api::{AccountsGetUtxosRequest, NewAddressKind},
     prelude::Address,
-    tx::{Fees, PaymentDestination, PaymentOutputs},
 };
 use kaspa_wallet_grpc_core::convert::{deserialize_txs, extract_tx};
 use kaspa_wallet_grpc_core::kaspawalletd::{
-    fee_policy::FeePolicy, kaspawalletd_server::Kaspawalletd, BroadcastRequest, BroadcastResponse, BumpFeeRequest, BumpFeeResponse,
+    kaspawalletd_server::Kaspawalletd, BroadcastRequest, BroadcastResponse, BumpFeeRequest, BumpFeeResponse,
     CreateUnsignedTransactionsRequest, CreateUnsignedTransactionsResponse, GetBalanceRequest, GetBalanceResponse,
     GetExternalSpendableUtxOsRequest, GetExternalSpendableUtxOsResponse, GetVersionRequest, GetVersionResponse, NewAddressRequest,
     NewAddressResponse, SendRequest, SendResponse, ShowAddressesRequest, ShowAddressesResponse, ShutdownRequest, ShutdownResponse,
@@ -128,45 +126,19 @@ impl Kaspawalletd for Service {
         Ok(Response::new(BroadcastResponse { tx_ids }))
     }
 
-    async fn send(&self, _request: Request<SendRequest>) -> Result<Response<SendResponse>, Status> {
-        let acc = self.wallet().account().map_err(|err| Status::internal(err.to_string()))?;
-        if acc.minimum_signatures() != 1 {
-            return Err(Status::unimplemented("Only single signature wallets are supported"));
-        }
-        if acc.receive_address().map_err(|err| Status::internal(err.to_string()))?.version == Version::PubKeyECDSA {
-            return Err(Status::unimplemented("Ecdsa wallets are not supported yet"));
-        }
-
-        // todo call unsigned tx and sign it to be consistent
-
-        let data = _request.get_ref();
-        let fee_rate_estimate = self.wallet().fee_rate_estimate().await.unwrap();
-        let fee_rate = data.fee_policy.and_then(|policy| match policy.fee_policy.unwrap() {
-            FeePolicy::MaxFeeRate(rate) => Some(fee_rate_estimate.normal.feerate.min(rate)),
-            FeePolicy::ExactFeeRate(rate) => Some(rate),
-            _ => None, // TODO: we dont support maximum_amount policy so think if we should supply default fee_rate_estimate or just 1 on this case...
-        });
-        let request = AccountsSendRequest {
-            account_id: self.descriptor().account_id,
-            wallet_secret: data.password.clone().into(),
-            payment_secret: None,
-            destination: PaymentDestination::PaymentOutputs(PaymentOutputs::from((
-                Address::try_from(data.to_address.clone()).unwrap(),
-                data.amount,
-            ))),
-            fee_rate,
-            priority_fee_sompi: Fees::SenderPays(0),
-            payload: None,
-        };
-        let result = self
-            .wallet()
-            .accounts_send(request)
-            .await
-            .map_err(|err| Status::new(tonic::Code::Internal, format!("Generator: {}", err)))?;
-        let final_transaction = result.final_transaction_id.unwrap().to_string();
-        // todo return all transactions
-        let response = SendResponse { tx_ids: vec![final_transaction], signed_transactions: vec![] };
-        Ok(Response::new(response))
+    async fn send(&self, request: Request<SendRequest>) -> Result<Response<SendResponse>, Status> {
+        let request = request.into_inner();
+        let create_unsigned_req: Request<CreateUnsignedTransactionsRequest> = Request::new((&request).into());
+        let unsigned_txs = self.create_unsigned_transactions(create_unsigned_req).await?.into_inner();
+        let signed_txs = self
+            .sign(Request::new(SignRequest { unsigned_transactions: unsigned_txs.unsigned_transactions, password: request.password }))
+            .await?
+            .into_inner();
+        let tx_ids = self
+            .broadcast(Request::new(BroadcastRequest { is_domain: false, transactions: signed_txs.signed_transactions.clone() }))
+            .await?
+            .into_inner();
+        Ok(Response::new(SendResponse { tx_ids: tx_ids.tx_ids, signed_transactions: signed_txs.signed_transactions }))
     }
 
     async fn sign(&self, request: Request<SignRequest>) -> Result<Response<SignResponse>, Status> {
