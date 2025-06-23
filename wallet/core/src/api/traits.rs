@@ -450,6 +450,25 @@ pub trait WalletApi: Send + Sync + AnySync {
     /// Get UTXOs for an account.
     async fn accounts_get_utxos_call(self: Arc<Self>, request: AccountsGetUtxosRequest) -> Result<AccountsGetUtxosResponse>;
 
+    /// Wrapper around [`accounts_sign_message_call()`](Self::accounts_sign_message_call)
+    async fn accounts_sign_message(self: Arc<Self>, request: AccountsSignMessageRequest) -> Result<AccountsSignMessageResponse> {
+        self.accounts_sign_message_call(request).await
+    }
+
+    /// Sign a message.
+    async fn accounts_sign_message_call(self: Arc<Self>, request: AccountsSignMessageRequest) -> Result<AccountsSignMessageResponse>;
+
+    /// Wrapper around [`accounts_verify_message_call()`](Self::accounts_verify_message_call)
+    async fn accounts_verify_message(self: Arc<Self>, request: AccountsVerifyMessageRequest) -> Result<AccountsVerifyMessageResponse> {
+        self.accounts_verify_message_call(request).await
+    }
+
+    /// Verify a message.
+    async fn accounts_verify_message_call(
+        self: Arc<Self>,
+        request: AccountsVerifyMessageRequest,
+    ) -> Result<AccountsVerifyMessageResponse>;
+
     /// Transfer funds to another account. Returns an [`AccountsTransferResponse`]
     /// struct that contains a [`GeneratorSummary`] as well `transaction_ids`
     /// containing a list of submitted transaction ids. Unlike funds sent to an
