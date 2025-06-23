@@ -1578,6 +1578,47 @@ try_from! ( args: AccountsPskbBroadcastResponse, IAccountsPskbBroadcastResponse,
     Ok(to_value(&args)?.into())
 });
 
+// ---
+
+declare! {
+    IPskbBroadcastRequest,
+    r#"
+    /**
+     * 
+     *  
+     * @category Wallet API
+     */
+    export interface IPskbBroadcastRequest {
+        pskb : string;
+        networkId : NetworkId | string;
+    }
+    "#,
+}
+
+try_from! ( args: IPskbBroadcastRequest, PskbBroadcastRequest, {
+    let pskb = args.get_string("pskb")?;
+    let network_id = args.get_network_id("networkId")?;
+    Ok(PskbBroadcastRequest { pskb, network_id })
+});
+
+declare! {
+    IPskbBroadcastResponse,
+    r#"
+    /**
+     * 
+     *  
+     * @category Wallet API
+     */
+    export interface IPskbBroadcastResponse {
+        transactionIds : HexString[];
+    }
+    "#,
+}
+
+try_from! ( args: PskbBroadcastResponse, IPskbBroadcastResponse, {
+    Ok(to_value(&args)?.into())
+});
+
 declare! {
     IAccountsPskbSendRequest,
     r#"
