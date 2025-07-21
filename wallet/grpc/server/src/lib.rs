@@ -1,11 +1,12 @@
 pub mod service;
 
+use kaspa_consensus_core::tx::Transaction;
 use kaspa_wallet_core::api::WalletApi;
 use kaspa_wallet_core::{
     api::{AccountsGetUtxosRequest, NewAddressKind},
     prelude::Address,
 };
-use kaspa_wallet_grpc_core::convert::deserialize_txs;
+use kaspa_wallet_grpc_core::convert::{deserialize_txs, extract_tx};
 use kaspa_wallet_grpc_core::kaspawalletd::{
     kaspawalletd_server::Kaspawalletd, BroadcastRequest, BroadcastResponse, BumpFeeRequest, BumpFeeResponse,
     CreateUnsignedTransactionsRequest, CreateUnsignedTransactionsResponse, GetBalanceRequest, GetBalanceResponse,
@@ -118,7 +119,15 @@ impl Kaspawalletd for Service {
 
     async fn sign(&self, request: Request<SignRequest>) -> Result<Response<SignResponse>, Status> {
         let SignRequest { unsigned_transactions, password } = request.into_inner();
-        let signed_transactions = self.sign(unsigned_transactions, password).await?;
+        let deserialized = unsigned_transactions
+            .iter()
+            .map(|tx| extract_tx(tx.as_slice(), self.use_ecdsa()))
+            // todo convert directly to consensus::transaction
+            .map(|r| r
+                .and_then(|rtx| Transaction::try_from(rtx)
+                    .map_err(|err| Status::internal(err.to_string()))))
+            .collect::<Result<Vec<_>, _>>()?;
+        let signed_transactions = self.sign(deserialized, password).await?;
         Ok(Response::new(SignResponse { signed_transactions }))
     }
 

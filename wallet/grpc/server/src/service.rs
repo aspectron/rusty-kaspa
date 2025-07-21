@@ -14,7 +14,7 @@ use kaspa_wallet_core::{
     prelude::{AccountDescriptor, Address},
     wallet::Wallet,
 };
-use kaspa_wallet_grpc_core::convert::{deserialize_txs, extract_tx};
+use kaspa_wallet_grpc_core::convert::deserialize_txs;
 use kaspa_wallet_grpc_core::kaspawalletd;
 use kaspa_wallet_grpc_core::kaspawalletd::fee_policy;
 use kaspa_wallet_grpc_core::protoserialization::PartiallySignedTransaction;
@@ -64,21 +64,13 @@ impl Service {
         Service { wallet, shutdown_sender: Arc::new(Mutex::new(Some(shutdown_sender))), ecdsa }
     }
 
-    pub async fn sign(&self, unsigned_transactions: Vec<Vec<u8>>, password: String) -> Result<Vec<Vec<u8>>, Status> {
+    pub async fn sign(&self, unsigned_transactions: Vec<Transaction>, password: String) -> Result<Vec<Vec<u8>>, Status> {
         if self.use_ecdsa() {
             return Err(Status::unimplemented("Ecdsa signing is not supported yet"));
         }
         let account = self.wallet().account().map_err(|err| Status::internal(err.to_string()))?;
-        let txs = unsigned_transactions
-            .iter()
-            .map(|tx| extract_tx(tx.as_slice(), self.use_ecdsa()))
-            // todo convert directly to consensus::transaction
-            .map(|r| r
-                .and_then(|rtx| Transaction::try_from(rtx)
-                    .map_err(|err| Status::internal(err.to_string()))))
-            .collect::<Result<Vec<_>, _>>()?;
         let utxos = account.clone().get_utxos(None, None).await.map_err(|err| Status::internal(err.to_string()))?;
-        let signable_txs: Vec<SignableTransaction> = txs
+        let signable_txs: Vec<SignableTransaction> = unsigned_transactions
             .into_iter()
             .map(|tx| {
                 let utxos = tx
@@ -144,17 +136,18 @@ impl Service {
         &self,
         to_address: String,
         amount: u64,
-        password: String,
+        _password: String,
         from: Vec<String>,
         use_existing_change_address: bool,
         is_send_all: bool,
         fee_policy: Option<kaspawalletd::FeePolicy>,
     ) -> Result<(Vec<Vec<u8>>, Vec<String>), Status> {
-        let unsigned_transactions =
+        let _unsigned_transactions =
             self.create_unsigned_transactions(to_address, amount, from, use_existing_change_address, is_send_all, fee_policy).await?;
-        let signed_transactions = self.sign(unsigned_transactions, password).await?;
-        let tx_ids = self.broadcast(signed_transactions.clone(), false).await?;
-        Ok((signed_transactions, tx_ids))
+        // let signed_transactions = self.sign(unsigned_transactions, password).await?;
+        // let tx_ids = self.broadcast(signed_transactions.clone(), false).await?;
+        // Ok((signed_transactions, tx_ids))
+        todo!()
     }
 
     pub async fn calculate_fee_limits(&self, fee_policy: Option<kaspawalletd::FeePolicy>) -> Result<(f64, u64), Status> {
