@@ -1,13 +1,11 @@
 pub mod service;
 
-use kaspa_consensus_core::tx::{SignableTransaction, Transaction, UtxoEntry};
 use kaspa_wallet_core::api::WalletApi;
-use kaspa_wallet_core::tx::{Signer, SignerT};
 use kaspa_wallet_core::{
     api::{AccountsGetUtxosRequest, NewAddressKind},
     prelude::Address,
 };
-use kaspa_wallet_grpc_core::convert::{deserialize_txs, extract_tx};
+use kaspa_wallet_grpc_core::convert::deserialize_txs;
 use kaspa_wallet_grpc_core::kaspawalletd::{
     kaspawalletd_server::Kaspawalletd, BroadcastRequest, BroadcastResponse, BumpFeeRequest, BumpFeeResponse,
     CreateUnsignedTransactionsRequest, CreateUnsignedTransactionsResponse, GetBalanceRequest, GetBalanceResponse,
@@ -15,7 +13,6 @@ use kaspa_wallet_grpc_core::kaspawalletd::{
     NewAddressResponse, SendRequest, SendResponse, ShowAddressesRequest, ShowAddressesResponse, ShutdownRequest, ShutdownResponse,
     SignRequest, SignResponse,
 };
-use kaspa_wallet_grpc_core::protoserialization::PartiallySignedTransaction;
 use service::Service;
 use tonic::{Code, Request, Response, Status};
 
@@ -49,17 +46,8 @@ impl Kaspawalletd for Service {
     ) -> Result<Response<CreateUnsignedTransactionsResponse>, Status> {
         let CreateUnsignedTransactionsRequest { address, amount, from, use_existing_change_address, is_send_all, fee_policy } =
             request.into_inner();
-        let to_address = Address::try_from(address).map_err(|err| Status::invalid_argument(err.to_string()))?;
-        let (fee_rate, max_fee) = self.calculate_fee_limits(fee_policy).await?;
-        let from_addresses = from
-            .iter()
-            .map(|a| Address::try_from(a.as_str()))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|err| Status::invalid_argument(err.to_string()))?;
-        let transactions =
-            self.unsigned_txs(to_address, amount, use_existing_change_address, is_send_all, fee_rate, max_fee, from_addresses).await?;
         let unsigned_transactions =
-            transactions.into_iter().map(|tx| PartiallySignedTransaction::from_unsigned(tx).encode_to_vec()).collect();
+            self.create_unsigned_transactions(address, amount, from, use_existing_change_address, is_send_all, fee_policy).await?;
         Ok(Response::new(CreateUnsignedTransactionsResponse { unsigned_transactions }))
     }
 
@@ -91,14 +79,8 @@ impl Kaspawalletd for Service {
     // - New parameters like allow_parallel should be introduced
     // - Client behavior should be considered as they may expect sequential processing until the first error when sending batches
     async fn broadcast(&self, request: Request<BroadcastRequest>) -> Result<Response<BroadcastResponse>, Status> {
-        let request = request.into_inner();
-        let txs = deserialize_txs(request.transactions, request.is_domain, self.use_ecdsa())?;
-        let mut tx_ids: Vec<String> = Vec::with_capacity(txs.len());
-        for tx in txs {
-            let tx_id =
-                self.wallet().rpc_api().submit_transaction(tx, false).await.map_err(|e| Status::new(Code::Internal, e.to_string()))?;
-            tx_ids.push(tx_id.to_string());
-        }
+        let BroadcastRequest { transactions, is_domain } = request.into_inner();
+        let tx_ids = self.broadcast(transactions, is_domain).await?;
         Ok(Response::new(BroadcastResponse { tx_ids }))
     }
 
@@ -127,61 +109,17 @@ impl Kaspawalletd for Service {
     }
 
     async fn send(&self, request: Request<SendRequest>) -> Result<Response<SendResponse>, Status> {
-        let request = request.into_inner();
-        let create_unsigned_req: Request<CreateUnsignedTransactionsRequest> = Request::new((&request).into());
-        let unsigned_txs = self.create_unsigned_transactions(create_unsigned_req).await?.into_inner();
-        let signed_txs = self
-            .sign(Request::new(SignRequest { unsigned_transactions: unsigned_txs.unsigned_transactions, password: request.password }))
-            .await?
-            .into_inner();
-        let tx_ids = self
-            .broadcast(Request::new(BroadcastRequest { is_domain: false, transactions: signed_txs.signed_transactions.clone() }))
-            .await?
-            .into_inner();
-        Ok(Response::new(SendResponse { tx_ids: tx_ids.tx_ids, signed_transactions: signed_txs.signed_transactions }))
+        let SendRequest { to_address, amount, password, from, use_existing_change_address, is_send_all, fee_policy } =
+            request.into_inner();
+        let (signed_transactions, tx_ids) =
+            self.send(to_address, amount, password, from, use_existing_change_address, is_send_all, fee_policy).await?;
+        Ok(Response::new(SendResponse { tx_ids, signed_transactions }))
     }
 
     async fn sign(&self, request: Request<SignRequest>) -> Result<Response<SignResponse>, Status> {
-        if self.use_ecdsa() {
-            return Err(Status::unimplemented("Ecdsa signing is not supported yet"));
-        }
         let SignRequest { unsigned_transactions, password } = request.into_inner();
-        let account = self.wallet().account().map_err(|err| Status::internal(err.to_string()))?;
-        let txs = unsigned_transactions
-            .iter()
-            .map(|tx| extract_tx(tx.as_slice(), self.use_ecdsa()))
-            // todo convert directly to consensus::transaction
-            .map(|r| r
-                .and_then(|rtx| Transaction::try_from(rtx)
-                .map_err(|err| Status::internal(err.to_string()))))
-            .collect::<Result<Vec<_>, _>>()?;
-        let utxos = account.clone().get_utxos(None, None).await.map_err(|err| Status::internal(err.to_string()))?;
-        let signable_txs: Vec<SignableTransaction> = txs
-            .into_iter()
-            .map(|tx| {
-                let utxos = tx
-                    .inputs
-                    .iter()
-                    .map(|input| {
-                        utxos
-                            .iter()
-                            .find(|utxo| utxo.outpoint != input.previous_outpoint)
-                            .map(UtxoEntry::from)
-                            .ok_or(Status::invalid_argument(format!("Wallet does not have mature utxo for input {input:?}")))
-                    })
-                    .collect::<Result<_, Status>>()?;
-                Ok(SignableTransaction::with_entries(tx, utxos))
-            })
-            .collect::<Result<_, Status>>()?;
-        let addresses: Vec<_> = account.utxo_context().addresses().iter().map(|addr| addr.as_ref().clone()).collect();
-        let signer = Signer::new(
-            account.clone(),
-            account.prv_key_data(password.into()).await.map_err(|err| Status::internal(err.to_string()))?,
-            None,
-        );
-        let _signed_txs = signable_txs.into_iter().map(|tx| signer.try_sign(tx, addresses.as_slice()));
-        // todo fill all required fields, serialize and return
-        todo!()
+        let signed_transactions = self.sign(unsigned_transactions, password).await?;
+        Ok(Response::new(SignResponse { signed_transactions }))
     }
 
     async fn get_version(&self, _request: Request<GetVersionRequest>) -> Result<Response<GetVersionResponse>, Status> {
