@@ -1,5 +1,5 @@
 use crate::kaspawalletd::{
-    CreateUnsignedTransactionsRequest, Outpoint, ScriptPublicKey, SendRequest, UtxoEntry, UtxosByAddressesEntry,
+    Outpoint, ScriptPublicKey, UtxoEntry, UtxosByAddressesEntry,
 };
 use crate::protoserialization;
 use kaspa_bip32::secp256k1::PublicKey;
@@ -318,18 +318,5 @@ impl From<RpcSubnetworkId> for protoserialization::SubnetworkId {
     fn from(value: RpcSubnetworkId) -> Self {
         let bts: &[u8] = value.as_ref();
         Self { bytes: bts.to_vec() }
-    }
-}
-
-impl From<&SendRequest> for CreateUnsignedTransactionsRequest {
-    fn from(value: &SendRequest) -> Self {
-        Self {
-            address: value.to_address.clone(),
-            amount: value.amount,
-            from: value.from.clone(),
-            use_existing_change_address: value.use_existing_change_address,
-            is_send_all: value.is_send_all,
-            fee_policy: value.fee_policy,
-        }
     }
 }
