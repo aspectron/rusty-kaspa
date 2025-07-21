@@ -1,6 +1,4 @@
-use crate::kaspawalletd::{
-    Outpoint, ScriptPublicKey, UtxoEntry, UtxosByAddressesEntry,
-};
+use crate::kaspawalletd::{Outpoint, ScriptPublicKey, UtxoEntry, UtxosByAddressesEntry};
 use crate::protoserialization;
 use kaspa_bip32::secp256k1::PublicKey;
 use kaspa_bip32::{DerivationPath, Error, ExtendedKey, ExtendedPublicKey};
