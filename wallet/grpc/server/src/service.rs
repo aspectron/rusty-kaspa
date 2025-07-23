@@ -14,7 +14,6 @@ use kaspa_wallet_core::{
     prelude::{AccountDescriptor, Address},
     wallet::Wallet,
 };
-use kaspa_wallet_grpc_core::convert::deserialize_txs;
 use kaspa_wallet_grpc_core::kaspawalletd;
 use kaspa_wallet_grpc_core::kaspawalletd::fee_policy;
 use std::sync::{Arc, Mutex};
@@ -118,10 +117,9 @@ impl Service {
         Ok(transactions)
     }
 
-    pub async fn broadcast(&self, transactions: Vec<Vec<u8>>, is_domain: bool) -> Result<Vec<String>, Status> {
-        let txs = deserialize_txs(transactions, is_domain, self.use_ecdsa())?;
-        let mut tx_ids: Vec<String> = Vec::with_capacity(txs.len());
-        for tx in txs {
+    pub async fn broadcast(&self, transactions: Vec<RpcTransaction>) -> Result<Vec<String>, Status> {
+        let mut tx_ids: Vec<String> = Vec::with_capacity(transactions.len());
+        for tx in transactions {
             let tx_id =
                 self.wallet().rpc_api().submit_transaction(tx, false).await.map_err(|e| Status::new(Code::Internal, e.to_string()))?;
             tx_ids.push(tx_id.to_string());

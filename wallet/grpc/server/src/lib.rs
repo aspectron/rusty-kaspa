@@ -84,7 +84,8 @@ impl Kaspawalletd for Service {
     // - Client behavior should be considered as they may expect sequential processing until the first error when sending batches
     async fn broadcast(&self, request: Request<BroadcastRequest>) -> Result<Response<BroadcastResponse>, Status> {
         let BroadcastRequest { transactions, is_domain } = request.into_inner();
-        let tx_ids = self.broadcast(transactions, is_domain).await?;
+        let deserialized = deserialize_txs(transactions, is_domain, self.use_ecdsa())?;
+        let tx_ids = self.broadcast(deserialized).await?;
         Ok(Response::new(BroadcastResponse { tx_ids }))
     }
 
