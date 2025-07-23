@@ -14,6 +14,7 @@ use kaspa_wallet_grpc_core::kaspawalletd::{
     NewAddressResponse, SendRequest, SendResponse, ShowAddressesRequest, ShowAddressesResponse, ShutdownRequest, ShutdownResponse,
     SignRequest, SignResponse,
 };
+use kaspa_wallet_grpc_core::protoserialization::PartiallySignedTransaction;
 use service::Service;
 use tonic::{Code, Request, Response, Status};
 
@@ -49,6 +50,8 @@ impl Kaspawalletd for Service {
             request.into_inner();
         let unsigned_transactions =
             self.create_unsigned_transactions(address, amount, from, use_existing_change_address, is_send_all, fee_policy).await?;
+        let unsigned_transactions =
+            unsigned_transactions.into_iter().map(|tx| PartiallySignedTransaction::from_unsigned(tx).encode_to_vec()).collect();
         Ok(Response::new(CreateUnsignedTransactionsResponse { unsigned_transactions }))
     }
 

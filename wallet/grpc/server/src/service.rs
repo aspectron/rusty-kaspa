@@ -17,7 +17,6 @@ use kaspa_wallet_core::{
 use kaspa_wallet_grpc_core::convert::deserialize_txs;
 use kaspa_wallet_grpc_core::kaspawalletd;
 use kaspa_wallet_grpc_core::kaspawalletd::fee_policy;
-use kaspa_wallet_grpc_core::protoserialization::PartiallySignedTransaction;
 use std::sync::{Arc, Mutex};
 use tokio::sync::oneshot;
 use tonic::{Code, Status};
@@ -106,7 +105,7 @@ impl Service {
         use_existing_change_address: bool,
         is_send_all: bool,
         fee_policy: Option<kaspawalletd::FeePolicy>,
-    ) -> Result<Vec<Vec<u8>>, Status> {
+    ) -> Result<Vec<RpcTransaction>, Status> {
         let to_address = Address::try_from(address).map_err(|err| Status::invalid_argument(err.to_string()))?;
         let (fee_rate, max_fee) = self.calculate_fee_limits(fee_policy).await?;
         let from_addresses = from
@@ -116,9 +115,7 @@ impl Service {
             .map_err(|err| Status::invalid_argument(err.to_string()))?;
         let transactions =
             self.unsigned_txs(to_address, amount, use_existing_change_address, is_send_all, fee_rate, max_fee, from_addresses).await?;
-        let unsigned_transactions: Vec<Vec<u8>> =
-            transactions.into_iter().map(|tx| PartiallySignedTransaction::from_unsigned(tx).encode_to_vec()).collect();
-        Ok(unsigned_transactions)
+        Ok(transactions)
     }
 
     pub async fn broadcast(&self, transactions: Vec<Vec<u8>>, is_domain: bool) -> Result<Vec<String>, Status> {
