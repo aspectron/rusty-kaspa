@@ -131,15 +131,19 @@ impl Service {
         &self,
         to_address: String,
         amount: u64,
-        _password: String,
+        password: String,
         from: Vec<String>,
         use_existing_change_address: bool,
         is_send_all: bool,
         fee_policy: Option<kaspawalletd::FeePolicy>,
     ) -> Result<(Vec<Vec<u8>>, Vec<String>), Status> {
-        let _unsigned_transactions =
+        let unsigned_transactions =
             self.create_unsigned_transactions(to_address, amount, from, use_existing_change_address, is_send_all, fee_policy).await?;
-        // let signed_transactions = self.sign(unsigned_transactions, password).await?;
+        let unsigned_transactions = unsigned_transactions
+            .into_iter()
+            .map(|tx| tx.try_into().map_err(|_e| Status::invalid_argument("Invalid unsigned transaction")))
+            .collect::<Result<Vec<_>, _>>();
+        let _signed_transactions = self.sign(unsigned_transactions?, password).await?;
         // let tx_ids = self.broadcast(signed_transactions.clone(), false).await?;
         // Ok((signed_transactions, tx_ids))
         todo!()
