@@ -62,7 +62,7 @@ impl Service {
         Service { wallet, shutdown_sender: Arc::new(Mutex::new(Some(shutdown_sender))), ecdsa }
     }
 
-    pub async fn sign(&self, unsigned_transactions: Vec<Transaction>, password: String) -> Result<Vec<Vec<u8>>, Status> {
+    pub async fn sign(&self, unsigned_transactions: Vec<Transaction>, password: String) -> Result<Vec<RpcTransaction>, Status> {
         if self.use_ecdsa() {
             return Err(Status::unimplemented("Ecdsa signing is not supported yet"));
         }
