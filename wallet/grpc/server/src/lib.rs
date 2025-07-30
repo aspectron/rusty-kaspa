@@ -193,7 +193,7 @@ impl Kaspawalletd for Service {
                     .map(|input| {
                         utxos
                             .iter()
-                            .find(|utxo| utxo.outpoint != input.previous_outpoint)
+                            .find(|utxo| utxo.outpoint == input.previous_outpoint)
                             .map(UtxoEntry::from)
                             .ok_or(Status::invalid_argument(format!("Wallet does not have mature utxo for input {input:?}")))
                     })
