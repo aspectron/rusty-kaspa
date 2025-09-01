@@ -16,7 +16,8 @@ use kaspa_wallet_core::{
 };
 use kaspa_wallet_grpc_core::kaspawalletd;
 use kaspa_wallet_grpc_core::kaspawalletd::fee_policy;
-use log::{info, warn};
+use log::info;
+use std::cmp::Reverse;
 use std::sync::{Arc, Mutex};
 use tokio::sync::oneshot;
 use tonic::Status;
@@ -27,10 +28,6 @@ pub struct Service {
     // TODO: Extend the partially serialized transaction or transaction structure with a boolean field 'ecdsa'
     ecdsa: bool,
 }
-
-const MAX_UTXOS_FOR_SINGLE_TX: usize = 8;
-
-const MAX_COMMISSION_GAP: u64 = 10000;
 
 impl Service {
     pub fn with_notification_pipe_task(wallet: Arc<Wallet>, shutdown_sender: oneshot::Sender<()>, ecdsa: bool) -> Self {
@@ -169,56 +166,15 @@ impl Service {
             None // Search UTXO from all addresses in wallet
         } else {
             info!("Searching UTXOs in specified addresses: {:?}", from_addresses);
-            Some(from_addresses.clone())
+            Some(from_addresses)
         };
 
         let utxos = account.clone().get_utxos(search_addresses, None).await.map_err(|err| Status::internal(err.to_string()))?;
 
-        info!("Found {} UTXOs with total value {} sompi", utxos.len(), utxos.iter().map(|utxo| utxo.amount).sum::<u64>());
-
-
         // Sort UTXOs by amount descending to optimize transaction weight
         // Use large UTXOs in priority to minimize the number of inputs
         let mut sorted_utxos = utxos;
-        sorted_utxos.sort_by(|a, b| b.amount.cmp(&a.amount));
-
-        if !is_send_all {
-            // Calculating minimum set of UTXO's
-            let mut selected_utxos = Vec::new();
-            let mut accumulated_amount = 0u64;
-            let target_amount = amount + MAX_COMMISSION_GAP;
-
-            for utxo in sorted_utxos.iter() {
-                selected_utxos.push(utxo.clone());
-                accumulated_amount += utxo.amount;
-
-                // Stop
-                if accumulated_amount >= target_amount {
-                    break;
-                }
-                if selected_utxos.len() >= MAX_UTXOS_FOR_SINGLE_TX {
-                    log::warn!("Reached maximum UTXO limit ({}) to avoid mass overflow", MAX_UTXOS_FOR_SINGLE_TX);
-                    break;
-                }
-            }
-
-            info!(
-                "Selected {} UTXOs out of {} total, covering {} sompi",
-                selected_utxos.len(),
-                sorted_utxos.len(),
-                accumulated_amount
-            );
-            sorted_utxos = selected_utxos;
-        } else {
-            if sorted_utxos.len() > MAX_UTXOS_FOR_SINGLE_TX {
-                log::info!(
-                    "Too many UTXOs ({}), selecting {} largest UTXOs to avoid mass limit",
-                    sorted_utxos.len(),
-                    MAX_UTXOS_FOR_SINGLE_TX
-                );
-                sorted_utxos.truncate(MAX_UTXOS_FOR_SINGLE_TX);
-            }
-        }
+        sorted_utxos.sort_unstable_by_key(|a| Reverse(a.amount));
 
         let change_address = if !use_existing_change_address {
             self.wallet()
@@ -230,9 +186,10 @@ impl Service {
             self.descriptor().change_address.ok_or(Status::internal("change address doesn't exist"))?.clone()
         };
 
-
         let total_balance: u64 = sorted_utxos.iter().map(|utxo| utxo.amount).sum();
         let output_amount = if is_send_all { total_balance } else { amount };
+
+        info!("Found {} UTXOs with total value {} sompi", sorted_utxos.len(), total_balance);
 
         let settings = GeneratorSettings::try_new_with_iterator(
             current_network,
