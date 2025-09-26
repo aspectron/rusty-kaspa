@@ -230,6 +230,13 @@ impl Address {
         }
         Self { prefix, payload: PayloadVec::from_slice(payload), version }
     }
+    
+    pub fn try_new(prefix: Prefix, version: Version, payload: &[u8]) -> Result<Self, AddressError> {
+        if payload.len() != version.public_key_len() {
+            return Err(AddressError::InvalidAddress);
+        }
+        Ok(Self { prefix, payload: PayloadVec::from_slice(payload), version })
+    }
 }
 
 #[wasm_bindgen]
