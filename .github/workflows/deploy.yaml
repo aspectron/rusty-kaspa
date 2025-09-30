@@ -255,6 +255,7 @@ jobs:
         with:
           working-directory: python
           args: --release --sdist --strip --out target/dist --features py-sdk
+          sccache: 'true'
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
