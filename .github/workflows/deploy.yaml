@@ -277,7 +277,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sdist
-          path: python/target/dist/
+          path: python/target/dist/sdist/kaspa-*.tar.gz
 
   collect-python-sdk-artifacts:
     name: Collect Python SDK Artifacts
