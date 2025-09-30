@@ -199,8 +199,8 @@ jobs:
           asset_name: "${{ env.asset_name }}"
           asset_content_type: application/zip
   
-  build-python-sdk:
-    name: Building Python SDK
+  build-python-sdk-wheels:
+    name: Building Python SDK Wheels
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       matrix:
@@ -249,23 +249,41 @@ jobs:
           sccache: 'true'
           manylinux: ${{ matrix.platform.manylinux || '' }}
 
-      - name: Build sdist
-        if: runner.os == 'Linux' && matrix.platform.target == 'x86_64'
-        uses: PyO3/maturin-action@v1
-        with:
-          working-directory: python
-          args: --release --sdist --strip --out target/dist --features py-sdk
-          sccache: 'true'
-
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ runner.os }}-${{ matrix.platform.target }}
           path: python/target/dist/
 
+  build-python-sdk-sdist:
+    name: Build Python SDK sdist
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '>=3.11 <=3.13'
+
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: python
+          args: --release --sdist --strip --out target/dist --features py-sdk
+          sccache: 'true'
+        
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: python/target/dist/
+
   collect-python-sdk-artifacts:
     name: Collect Python SDK Artifacts
-    needs: build-python-sdk
+    needs:
+      - build-python-sdk-wheels
+      - build-python-sdk-sdist
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
