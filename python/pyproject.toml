@@ -29,4 +29,7 @@ name = "kaspa"
 bindings = "pyo3"
 features = ["pyo3/extension-module"]
 strip = true
-include = ["CHANGELOG.md"]
+include = [
+    "LICENSE",
+    "CHANGELOG.md"
+]
