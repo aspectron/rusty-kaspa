@@ -271,7 +271,7 @@ jobs:
         with:
           working-directory: python
           command: sdist
-          args: --release --strip --out target/dist
+          args: --out target/dist
           sccache: 'true'
         
       - name: Upload artifacts
