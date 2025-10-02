@@ -270,7 +270,8 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           working-directory: python
-          args: --release --sdist --strip --out target/dist --features py-sdk
+          command: sdist
+          args: --release --strip --out target/dist --features py-sdk
           sccache: 'true'
         
       - name: Upload artifacts
