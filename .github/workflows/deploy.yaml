@@ -245,7 +245,7 @@ jobs:
         with:
           working-directory: python
           target: ${{ matrix.platform.target }}
-          args: --release --strip --out target/dist --features py-sdk --interpreter python3.11 python3.12 python3.13
+          args: --release --strip --out target/dist --interpreter python3.11 python3.12 python3.13
           sccache: 'true'
           manylinux: ${{ matrix.platform.manylinux || '' }}
 
@@ -271,7 +271,7 @@ jobs:
         with:
           working-directory: python
           command: sdist
-          args: --release --strip --out target/dist --features py-sdk
+          args: --release --strip --out target/dist
           sccache: 'true'
         
       - name: Upload artifacts

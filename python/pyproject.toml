@@ -27,7 +27,10 @@ description = "Kaspa Python SDK"
 [tool.maturin]
 name = "kaspa"
 bindings = "pyo3"
-features = ["pyo3/extension-module"]
+features = [
+    "pyo3/extension-module",
+    "py-sdk",
+]
 strip = true
 include = [
     "LICENSE",
