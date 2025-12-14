@@ -128,7 +128,7 @@ impl TryFrom<&str> for Prefix {
 }
 
 ///
-///  Kaspa `Address` version (`PubKey`, `PubKey ECDSA`, `ScriptHash`)
+///  Kaspa `Address` version (`PubKey`, `PubKey ECDSA`, `ScriptHash`, `PubKeyHash`)
 ///
 /// @category Address
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, Hash, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
@@ -142,6 +142,8 @@ pub enum Version {
     PubKeyECDSA = 1,
     /// ScriptHash addresses always have the version byte set to 8
     ScriptHash = 8,
+    /// PubKeyHash addresses always have the version byte set to 2 (hashed public key for enhanced privacy)
+    PubKeyHash = 2,
 }
 
 impl TryFrom<&str> for Version {
@@ -152,6 +154,7 @@ impl TryFrom<&str> for Version {
             "PubKey" => Ok(Version::PubKey),
             "PubKeyECDSA" => Ok(Version::PubKeyECDSA),
             "ScriptHash" => Ok(Version::ScriptHash),
+            "PubKeyHash" => Ok(Version::PubKeyHash),
             _ => Err(AddressError::InvalidVersionString(value.to_owned())),
         }
     }
@@ -163,6 +166,7 @@ impl Version {
             Version::PubKey => 32,
             Version::PubKeyECDSA => 33,
             Version::ScriptHash => 32,
+            Version::PubKeyHash => 32,
         }
     }
 }
@@ -174,6 +178,7 @@ impl TryFrom<u8> for Version {
         match value {
             0 => Ok(Version::PubKey),
             1 => Ok(Version::PubKeyECDSA),
+            2 => Ok(Version::PubKeyHash),
             8 => Ok(Version::ScriptHash),
             _ => Err(AddressError::InvalidVersion(value)),
         }
@@ -186,6 +191,7 @@ impl Display for Version {
             Version::PubKey => write!(f, "PubKey"),
             Version::PubKeyECDSA => write!(f, "PubKeyECDSA"),
             Version::ScriptHash => write!(f, "ScriptHash"),
+            Version::PubKeyHash => write!(f, "PubKeyHash"),
         }
     }
 }

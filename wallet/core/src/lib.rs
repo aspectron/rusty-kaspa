@@ -83,6 +83,7 @@ pub mod error;
 pub mod events;
 pub mod factory;
 mod imports;
+pub mod key_hashing;
 pub mod message;
 pub mod metrics;
 pub mod prelude;
