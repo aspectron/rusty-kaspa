@@ -3,7 +3,8 @@
 //!
 
 use kaspa_hashes::{Hash, PersonalMessageSigningHash};
-use secp256k1::{Error, XOnlyPublicKey};
+use rand::RngCore;
+use secp256k1::{Error, PublicKey, XOnlyPublicKey};
 
 /// A personal message (text) that can be signed.
 #[derive(Clone)]
@@ -15,6 +16,12 @@ impl AsRef<[u8]> for PersonalMessage<'_> {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum SignatureType {
+    Schnorr,
+    ECDSA,
+}
+
 #[derive(Clone)]
 pub struct SignMessageOptions {
     /// The auxiliary randomness exists only to mitigate specific kinds of power analysis
@@ -23,25 +30,41 @@ pub struct SignMessageOptions {
     /// mitigations against such attacks. To read more about the relevant discussions that
     /// arose in adding this randomness please see: <https://github.com/sipa/bips/issues/195>
     pub no_aux_rand: bool,
+    /// Signature type to use for signing
+    pub signature_type: SignatureType,
 }
 
 /// Sign a message with the given private key
 pub fn sign_message(msg: &PersonalMessage, privkey: &[u8; 32], options: &SignMessageOptions) -> Result<Vec<u8>, Error> {
     let hash = calc_personal_message_hash(msg);
-
     let msg = secp256k1::Message::from_digest_slice(hash.as_bytes().as_slice())?;
-    let schnorr_key = secp256k1::Keypair::from_seckey_slice(secp256k1::SECP256K1, privkey)?;
 
-    let sig: [u8; 64] = if options.no_aux_rand {
-        *secp256k1::SECP256K1.sign_schnorr_no_aux_rand(&msg, &schnorr_key).as_ref()
-    } else {
-        *schnorr_key.sign_schnorr(msg).as_ref()
-    };
-
-    Ok(sig.to_vec())
+    match options.signature_type {
+        SignatureType::Schnorr => {
+            let schnorr_key = secp256k1::Keypair::from_seckey_slice(secp256k1::SECP256K1, privkey)?;
+            let sig: [u8; 64] = if options.no_aux_rand {
+                *secp256k1::SECP256K1.sign_schnorr_no_aux_rand(&msg, &schnorr_key).as_ref()
+            } else {
+                *schnorr_key.sign_schnorr(msg).as_ref()
+            };
+            Ok(sig.to_vec())
+        }
+        SignatureType::ECDSA => {
+            let secret_key = secp256k1::SecretKey::from_slice(privkey)?;
+            let sig = if options.no_aux_rand {
+                secp256k1::SECP256K1.sign_ecdsa(&msg, &secret_key)
+            } else {
+                // TODO: Use sign_ecdsa_with_noncedata with random noncedata to add auxiliary randomness
+                let mut nonce_data = [0u8; 32];
+                rand::thread_rng().fill_bytes(&mut nonce_data);
+                secp256k1::SECP256K1.sign_ecdsa_with_noncedata(&msg, &secret_key, &nonce_data)
+            };
+            Ok(sig.serialize_compact().to_vec())
+        }
+    }
 }
 
-/// Verifies signed message.
+/// Verifies Schnorr signed message.
 ///
 /// Produces `Ok(())` if the signature matches the given message and [`secp256k1::Error`]
 /// if any of the inputs are incorrect, or the signature is invalid.
@@ -50,6 +73,18 @@ pub fn verify_message(msg: &PersonalMessage, signature: &Vec<u8>, pubkey: &XOnly
     let hash = calc_personal_message_hash(msg);
     let msg = secp256k1::Message::from_digest_slice(hash.as_bytes().as_slice())?;
     let sig = secp256k1::schnorr::Signature::from_slice(signature.as_slice())?;
+    sig.verify(&msg, pubkey)
+}
+
+/// Verifies ECDSA signed message.
+///
+/// Produces `Ok(())` if the signature matches the given message and [`secp256k1::Error`]
+/// if any of the inputs are incorrect, or the signature is invalid.
+///
+pub fn verify_message_ecdsa(msg: &PersonalMessage, signature: &Vec<u8>, pubkey: &PublicKey) -> Result<(), Error> {
+    let hash = calc_personal_message_hash(msg);
+    let msg = secp256k1::Message::from_digest_slice(hash.as_bytes().as_slice())?;
+    let sig = secp256k1::ecdsa::Signature::from_compact(signature.as_slice())?;
     sig.verify(&msg, pubkey)
 }
 
@@ -89,8 +124,8 @@ mod tests {
         ])
         .unwrap();
 
-        let sign_with_aux_rand = SignMessageOptions { no_aux_rand: false };
-        let sign_with_no_aux_rand = SignMessageOptions { no_aux_rand: true };
+        let sign_with_aux_rand = SignMessageOptions { no_aux_rand: false, signature_type: SignatureType::Schnorr };
+        let sign_with_no_aux_rand = SignMessageOptions { no_aux_rand: true, signature_type: SignatureType::Schnorr };
         verify_message(&pm, &sign_message(&pm, &privkey, &sign_with_aux_rand).expect("sign_message failed"), &pubkey)
             .expect("verify_message failed");
         verify_message(&pm, &sign_message(&pm, &privkey, &sign_with_no_aux_rand).expect("sign_message failed"), &pubkey)
@@ -105,7 +140,7 @@ mod tests {
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03,
         ];
 
-        let sign_with_no_aux_rand = SignMessageOptions { no_aux_rand: true };
+        let sign_with_no_aux_rand = SignMessageOptions { no_aux_rand: true, signature_type: SignatureType::Schnorr };
         let signature = sign_message(&pm, &privkey, &sign_with_no_aux_rand).expect("sign_message failed");
         let signature_twice = sign_message(&pm, &privkey, &sign_with_no_aux_rand).expect("sign_message failed");
         assert_eq!(signature, signature_twice);
@@ -124,8 +159,8 @@ mod tests {
         ])
         .unwrap();
 
-        let sign_with_aux_rand = SignMessageOptions { no_aux_rand: false };
-        let sign_with_no_aux_rand = SignMessageOptions { no_aux_rand: true };
+        let sign_with_aux_rand = SignMessageOptions { no_aux_rand: false, signature_type: SignatureType::Schnorr };
+        let sign_with_no_aux_rand = SignMessageOptions { no_aux_rand: true, signature_type: SignatureType::Schnorr };
         verify_message(&pm, &sign_message(&pm, &privkey, &sign_with_aux_rand).expect("sign_message failed"), &pubkey)
             .expect("verify_message failed");
         verify_message(&pm, &sign_message(&pm, &privkey, &sign_with_no_aux_rand).expect("sign_message failed"), &pubkey)
@@ -149,8 +184,8 @@ Ut omnis magnam et accusamus earum rem impedit provident eum commodi repellat qu
         ])
         .unwrap();
 
-        let sign_with_aux_rand = SignMessageOptions { no_aux_rand: false };
-        let sign_with_no_aux_rand = SignMessageOptions { no_aux_rand: true };
+        let sign_with_aux_rand = SignMessageOptions { no_aux_rand: false, signature_type: SignatureType::Schnorr };
+        let sign_with_no_aux_rand = SignMessageOptions { no_aux_rand: true, signature_type: SignatureType::Schnorr };
         verify_message(&pm, &sign_message(&pm, &privkey, &sign_with_aux_rand).expect("sign_message failed"), &pubkey)
             .expect("verify_message failed");
         verify_message(&pm, &sign_message(&pm, &privkey, &sign_with_no_aux_rand).expect("sign_message failed"), &pubkey)

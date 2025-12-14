@@ -3436,7 +3436,7 @@ version = "1.0.1"
 dependencies = [
  "async-std",
  "async-trait",
- "clap 4.5.19",
+ "clap 4.5.51",
  "futures-util",
  "kaspa-consensus-core",
  "kaspa-core",
