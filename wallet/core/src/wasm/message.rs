@@ -15,6 +15,7 @@ export interface ISignMessage {
     message: string;
     privateKey: PrivateKey | string;
     noAuxRand?: boolean;
+    signatureType?: 'schnorr' | 'ecdsa';
 }
 "#;
 
@@ -32,10 +33,15 @@ pub fn js_sign_message(value: ISignMessage) -> Result<HexString, Error> {
         let private_key = object.cast_into::<PrivateKey>("privateKey")?;
         let raw_msg = object.get_string("message")?;
         let no_aux_rand = object.get_bool("noAuxRand").unwrap_or(false);
+        let signature_type_str = object.get_string("signatureType").unwrap_or_else(|_| "schnorr".to_string());
+        let signature_type = match signature_type_str.as_str() {
+            "ecdsa" => SignatureType::ECDSA,
+            _ => SignatureType::Schnorr,
+        };
         let mut privkey_bytes = [0u8; 32];
         privkey_bytes.copy_from_slice(&private_key.secret_bytes());
         let pm = PersonalMessage(&raw_msg);
-        let sign_options = SignMessageOptions { no_aux_rand };
+        let sign_options = SignMessageOptions { no_aux_rand, signature_type };
         let sig_vec = sign_message(&pm, &privkey_bytes, &sign_options)?;
         privkey_bytes.zeroize();
         Ok(faster_hex::hex_string(sig_vec.as_slice()).into())
@@ -55,6 +61,7 @@ export interface IVerifyMessage {
     message: string;
     signature: HexString;
     publicKey: PublicKey | string;
+    signatureType?: 'schnorr' | 'ecdsa';
 }
 "#;
 
@@ -72,12 +79,32 @@ pub fn js_verify_message(value: IVerifyMessage) -> Result<bool, Error> {
         let public_key = object.cast_into::<PublicKey>("publicKey")?;
         let raw_msg = object.get_string("message")?;
         let signature = object.get_string("signature")?;
+        let signature_type_str = object.get_string("signatureType").unwrap_or_else(|_| "schnorr".to_string());
 
         let pm = PersonalMessage(&raw_msg);
-        let mut signature_bytes = [0u8; 64];
+        let mut signature_bytes = vec![0u8; signature.len() / 2];
         faster_hex::hex_decode(signature.as_bytes(), &mut signature_bytes)?;
 
-        Ok(verify_message(&pm, &signature_bytes.to_vec(), &public_key.xonly_public_key).is_ok())
+        let result = match signature_type_str.as_str() {
+            "ecdsa" => {
+                if let Some(secp_pubkey) = public_key.public_key {
+                    verify_message_ecdsa(&pm, &signature_bytes, &secp_pubkey).is_ok()
+                } else {
+                    false
+                }
+            }
+            _ => {
+                let mut schnorr_sig_bytes = [0u8; 64];
+                if signature_bytes.len() == 64 {
+                    schnorr_sig_bytes.copy_from_slice(&signature_bytes);
+                    verify_message(&pm, &schnorr_sig_bytes.to_vec(), &public_key.xonly_public_key).is_ok()
+                } else {
+                    false
+                }
+            }
+        };
+
+        Ok(result)
     } else {
         Err(Error::custom("Failed to parse input"))
     }

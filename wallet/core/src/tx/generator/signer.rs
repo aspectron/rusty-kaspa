@@ -4,10 +4,20 @@
 
 use crate::imports::*;
 use kaspa_bip32::PrivateKey;
-use kaspa_consensus_core::{sign::sign_with_multiple_v2, tx::SignableTransaction};
+use kaspa_consensus_core::{
+    sign::{sign_with_multiple_ecdsa, sign_with_multiple_v2},
+    tx::SignableTransaction,
+};
 
 pub trait SignerT: Send + Sync + 'static {
     fn try_sign(&self, transaction: SignableTransaction, addresses: &[Address]) -> Result<SignableTransaction>;
+    fn signature_type(&self) -> SignatureType;
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum SignatureType {
+    Schnorr,
+    ECDSA,
 }
 
 struct Inner {
@@ -15,6 +25,7 @@ struct Inner {
     account: Arc<dyn Account>,
     payment_secret: Option<Secret>,
     keys: Mutex<AHashMap<Address, [u8; 32]>>,
+    signature_type: SignatureType,
 }
 
 pub struct Signer {
@@ -23,7 +34,24 @@ pub struct Signer {
 
 impl Signer {
     pub fn new(account: Arc<dyn Account>, keydata: PrvKeyData, payment_secret: Option<Secret>) -> Self {
-        Self { inner: Arc::new(Inner { keydata, account, payment_secret, keys: Mutex::new(AHashMap::new()) }) }
+        Self {
+            inner: Arc::new(Inner {
+                keydata,
+                account,
+                payment_secret,
+                keys: Mutex::new(AHashMap::new()),
+                signature_type: SignatureType::Schnorr, // Default to Schnorr
+            }),
+        }
+    }
+
+    pub fn new_with_signature_type(
+        account: Arc<dyn Account>,
+        keydata: PrvKeyData,
+        payment_secret: Option<Secret>,
+        signature_type: SignatureType,
+    ) -> Self {
+        Self { inner: Arc::new(Inner { keydata, account, payment_secret, keys: Mutex::new(AHashMap::new()), signature_type }) }
     }
 
     fn ingest(&self, addresses: &[Address]) -> Result<()> {
@@ -55,9 +83,16 @@ impl SignerT for Signer {
         let keys = self.inner.keys.lock().unwrap();
         let mut keys_for_signing = addresses.iter().map(|address| *keys.get(address).unwrap()).collect::<Vec<_>>();
         // TODO - refactor for multisig
-        let signable_tx = sign_with_multiple_v2(mutable_tx, &keys_for_signing).fully_signed()?;
+        let signable_tx = match self.inner.signature_type {
+            SignatureType::Schnorr => sign_with_multiple_v2(mutable_tx, &keys_for_signing).fully_signed()?,
+            SignatureType::ECDSA => sign_with_multiple_ecdsa(mutable_tx, &keys_for_signing).fully_signed()?,
+        };
         keys_for_signing.zeroize();
         Ok(signable_tx)
+    }
+
+    fn signature_type(&self) -> SignatureType {
+        self.inner.signature_type.clone()
     }
 }
 
@@ -65,6 +100,7 @@ impl SignerT for Signer {
 
 struct KeydataSignerInner {
     keys: HashMap<Address, [u8; 32]>,
+    signature_type: SignatureType,
 }
 
 pub struct KeydataSigner {
@@ -74,16 +110,32 @@ pub struct KeydataSigner {
 impl KeydataSigner {
     pub fn new(keydata: Vec<(Address, secp256k1::SecretKey)>) -> Self {
         let keys = keydata.into_iter().map(|(address, key)| (address, key.to_bytes())).collect();
-        Self { inner: Arc::new(KeydataSignerInner { keys }) }
+        Self {
+            inner: Arc::new(KeydataSignerInner {
+                keys,
+                signature_type: SignatureType::Schnorr, // Default to Schnorr
+            }),
+        }
+    }
+
+    pub fn new_with_signature_type(keydata: Vec<(Address, secp256k1::SecretKey)>, signature_type: SignatureType) -> Self {
+        let keys = keydata.into_iter().map(|(address, key)| (address, key.to_bytes())).collect();
+        Self { inner: Arc::new(KeydataSignerInner { keys, signature_type }) }
     }
 }
 
 impl SignerT for KeydataSigner {
     fn try_sign(&self, mutable_tx: SignableTransaction, addresses: &[Address]) -> Result<SignableTransaction> {
         let mut keys_for_signing = addresses.iter().map(|address| *self.inner.keys.get(address).unwrap()).collect::<Vec<_>>();
-        // TODO - refactor for multisig
-        let signable_tx = sign_with_multiple_v2(mutable_tx, &keys_for_signing).fully_signed()?;
+
+        let signable_tx = match self.inner.signature_type {
+            SignatureType::Schnorr => sign_with_multiple_v2(mutable_tx, &keys_for_signing).fully_signed()?,
+            SignatureType::ECDSA => sign_with_multiple_ecdsa(mutable_tx, &keys_for_signing).fully_signed()?,
+        };
         keys_for_signing.zeroize();
         Ok(signable_tx)
+    }
+    fn signature_type(&self) -> SignatureType {
+        self.inner.signature_type.clone()
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
     hashing::{
-        sighash::{calc_schnorr_signature_hash, SigHashReusedValuesUnsync},
+        sighash::{calc_ecdsa_signature_hash, calc_schnorr_signature_hash, SigHashReusedValuesUnsync},
         sighash_type::{SigHashType, SIG_HASH_ALL},
     },
     tx::{SignableTransaction, VerifiableTransaction},
@@ -181,6 +181,39 @@ pub fn verify(tx: &impl VerifiableTransaction) -> Result<(), Error> {
     }
 
     Ok(())
+}
+
+/// Sign a transaction using ECDSA
+#[allow(clippy::result_large_err)]
+pub fn sign_with_multiple_ecdsa(mut mutable_tx: SignableTransaction, privkeys: &[[u8; 32]]) -> Signed {
+    let mut map = BTreeMap::new();
+    for privkey in privkeys {
+        let secret_key = secp256k1::SecretKey::from_slice(privkey).unwrap();
+        let public_key = secret_key.public_key(secp256k1::SECP256K1);
+        let script_pub_key_script = once(0x21).chain(public_key.serialize().into_iter()).chain(once(0xac)).collect_vec();
+        map.insert(script_pub_key_script, secret_key);
+    }
+
+    let reused_values = SigHashReusedValuesUnsync::new();
+    let mut additional_signatures_required = false;
+    for i in 0..mutable_tx.tx.inputs.len() {
+        let script = mutable_tx.entries[i].as_ref().unwrap().script_public_key.script();
+        if let Some(secret_key) = map.get(script) {
+            let sig_hash = calc_ecdsa_signature_hash(&mutable_tx.as_verifiable(), i, SIG_HASH_ALL, &reused_values);
+            let msg = secp256k1::Message::from_digest_slice(sig_hash.as_bytes().as_slice()).unwrap();
+            let sig = secp256k1::SECP256K1.sign_ecdsa(&msg, secret_key);
+            let sig_bytes = sig.serialize_compact();
+            // This represents OP_DATA_65 <SIGNATURE+SIGHASH_TYPE> (since signature length is 64 bytes and SIGHASH_TYPE is one byte)
+            mutable_tx.tx.inputs[i].signature_script = std::iter::once(65u8).chain(sig_bytes).chain([SIG_HASH_ALL.to_u8()]).collect();
+        } else {
+            additional_signatures_required = true;
+        }
+    }
+    if additional_signatures_required {
+        Signed::Partially(mutable_tx)
+    } else {
+        Signed::Fully(mutable_tx)
+    }
 }
 
 #[cfg(test)]
