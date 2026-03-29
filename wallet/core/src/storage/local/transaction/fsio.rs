@@ -4,8 +4,8 @@
 
 use crate::encryption::*;
 use crate::imports::*;
-use crate::storage::interface::{StorageStream, TransactionRangeResult};
 use crate::storage::TransactionRecord;
+use crate::storage::interface::{StorageStream, TransactionRangeResult};
 use crate::storage::{Binding, TransactionKind, TransactionRecordStore};
 use kaspa_utils::hex::ToHex;
 use std::{
@@ -34,7 +34,7 @@ impl TransactionStore {
     }
 
     #[inline(always)]
-    fn inner(&self) -> MutexGuard<Inner> {
+    fn inner(&self) -> MutexGuard<'_, Inner> {
         self.inner.lock().unwrap()
     }
 

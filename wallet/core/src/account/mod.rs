@@ -11,21 +11,21 @@ use kaspa_hashes::Hash;
 use kaspa_wallet_pskt::bundle::Bundle;
 pub use kind::*;
 use pskb::{
-    bundle_from_pskt_generator, bundle_to_finalizer_stream, commit_reveal_batch_bundle, pskb_signer_for_address,
-    pskt_to_pending_transaction, PSKBSigner, PSKTGenerator,
+    PSKBSigner, PSKTGenerator, bundle_from_pskt_generator, bundle_to_finalizer_stream, commit_reveal_batch_bundle,
+    pskb_signer_for_address, pskt_to_pending_transaction,
 };
 pub use variants::*;
 
-use crate::derivation::build_derivate_paths;
 use crate::derivation::AddressDerivationManagerTrait;
+use crate::derivation::build_derivate_paths;
 use crate::imports::*;
-use crate::storage::account::AccountSettings;
 use crate::storage::AccountMetadata;
+use crate::storage::account::AccountSettings;
 use crate::storage::{PrvKeyData, PrvKeyDataId};
 use crate::tx::PaymentOutput;
 use crate::tx::{Fees, Generator, GeneratorSettings, GeneratorSummary, PaymentDestination, PendingTransaction, Signer};
-use crate::utxo::balance::{AtomicBalance, BalanceStrings};
 use crate::utxo::UtxoContextBinding;
+use crate::utxo::balance::{AtomicBalance, BalanceStrings};
 use kaspa_bip32::{ChildNumber, ExtendedPrivateKey, PrivateKey};
 use kaspa_consensus_client::UtxoEntry;
 use kaspa_consensus_client::UtxoEntryReference;
@@ -75,7 +75,7 @@ impl Inner {
         Self::new(wallet, storage.id, storage.storage_key, storage.settings.clone())
     }
 
-    pub fn context(&self) -> MutexGuard<Context> {
+    pub fn context(&self) -> MutexGuard<'_, Context> {
         self.context.lock().unwrap()
     }
 
@@ -90,7 +90,7 @@ impl Inner {
 pub trait Account: AnySync + Send + Sync + 'static {
     fn inner(&self) -> &Arc<Inner>;
 
-    fn context(&self) -> MutexGuard<Context> {
+    fn context(&self) -> MutexGuard<'_, Context> {
         self.inner().context.lock().unwrap()
     }
 
@@ -133,24 +133,12 @@ pub trait Account: AnySync + Send + Sync + 'static {
     }
 
     fn name_or_id(&self) -> String {
-        if let Some(name) = self.name() {
-            if name.is_empty() {
-                self.id().short()
-            } else {
-                name
-            }
-        } else {
-            self.id().short()
-        }
+        if let Some(name) = self.name() { if name.is_empty() { self.id().short() } else { name } } else { self.id().short() }
     }
 
     fn name_with_id(&self) -> String {
         if let Some(name) = self.name() {
-            if name.is_empty() {
-                self.id().short()
-            } else {
-                format!("{name} {}", self.id().short())
-            }
+            if name.is_empty() { self.id().short() } else { format!("{name} {}", self.id().short()) }
         } else {
             self.id().short()
         }
@@ -767,10 +755,10 @@ pub trait DerivationCapableAccount: Account {
             keys.zeroize();
         }
 
-        if index > last_notification {
-            if let Some(notifier) = notifier {
-                notifier(index, aggregate_utxo_count, aggregate_balance, None);
-            }
+        if index > last_notification
+            && let Some(notifier) = notifier
+        {
+            notifier(index, aggregate_utxo_count, aggregate_balance, None);
         }
 
         // update address manager with the last used index
@@ -794,7 +782,7 @@ pub trait DerivationCapableAccount: Account {
 
     async fn new_receive_address(self: Arc<Self>) -> Result<Address> {
         let address = self.derivation().receive_address_manager().new_address()?;
-        self.utxo_context().register_addresses(&[address.clone()]).await?;
+        self.utxo_context().register_addresses(std::slice::from_ref(&address)).await?;
 
         let metadata = self.metadata()?.expect("derivation accounts must provide metadata");
         let store = self.wallet().store().as_account_store()?;
@@ -807,7 +795,7 @@ pub trait DerivationCapableAccount: Account {
 
     async fn new_change_address(self: Arc<Self>) -> Result<Address> {
         let address = self.derivation().change_address_manager().new_address()?;
-        self.utxo_context().register_addresses(&[address.clone()]).await?;
+        self.utxo_context().register_addresses(std::slice::from_ref(&address)).await?;
 
         let metadata = self.metadata()?.expect("derivation accounts must provide metadata");
         let store = self.wallet().store().as_account_store()?;
@@ -890,14 +878,14 @@ pub(crate) fn create_private_keys<'l>(
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 mod tests {
-    use super::create_private_keys;
     use super::ExtendedPrivateKey;
+    use super::create_private_keys;
     use crate::imports::LEGACY_ACCOUNT_KIND;
     use kaspa_addresses::Address;
     use kaspa_addresses::Prefix;
-    use kaspa_bip32::secp256k1::SecretKey;
     use kaspa_bip32::PrivateKey;
     use kaspa_bip32::SecretKeyExt;
+    use kaspa_bip32::secp256k1::SecretKey;
     use kaspa_wallet_keys::derivation::gen0::PubkeyDerivationManagerV0;
     use std::str::FromStr;
 

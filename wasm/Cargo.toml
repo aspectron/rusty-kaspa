@@ -38,7 +38,7 @@ workflow-log.workspace = true
 workflow-core.workspace = true
 workflow-wasm.workspace = true
 
-[features] 
+[features]
 wasm32-sdk = [
     "kaspa-wallet-core/wasm32-sdk",
     "kaspa-pow/wasm32-sdk",
@@ -64,13 +64,16 @@ targets = ["wasm32-unknown-unknown"]
 [package.metadata.emanate.wasm]
 targets = [
     { target = "nodejs", out-dir = "nodejs/kaspa" },
-    { target = "web", out-dir = "web/kaspa" }
+    { target = "web", out-dir = "web/kaspa" },
 ]
 folder = "setup"
 
 # Workaround for Rust 1.87.0
 # https://github.com/rust-lang/rust/issues/141048
 [package.metadata.wasm-pack.profile.release]
+# This optimization configuration requires "-Ctarget-cpu=mvp" Rustflag (only enable W3C MVP feature set)
+# This flag is automatically used either via (release optimized) build script at root
+#   or via .cargo/config.toml when executing the build from /wasm
 wasm-opt = ["-O","--enable-bulk-memory"]
 
 [lints]

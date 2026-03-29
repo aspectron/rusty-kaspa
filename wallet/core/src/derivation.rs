@@ -9,8 +9,8 @@ pub use kaspa_wallet_keys::derivation::traits::*;
 use kaspa_wallet_keys::publickey::{PublicKey, PublicKeyArrayT, PublicKeyT};
 pub use kaspa_wallet_keys::types::*;
 
-use crate::account::create_private_keys;
 use crate::account::AccountKind;
+use crate::account::create_private_keys;
 use crate::error::Error;
 use crate::imports::*;
 use crate::result::Result;
@@ -80,7 +80,7 @@ impl AddressManager {
         Ok(Self { wallet, account_kind, pubkey_managers, ecdsa, minimum_signatures, inner: Arc::new(Mutex::new(inner)) })
     }
 
-    pub fn inner(&self) -> MutexGuard<Inner> {
+    pub fn inner(&self) -> MutexGuard<'_, Inner> {
         self.inner.lock().unwrap()
     }
 
@@ -96,7 +96,7 @@ impl AddressManager {
         let keys = list.into_iter().collect::<kaspa_wallet_keys::result::Result<Vec<_>>>()?;
         let address = self.create_address(keys)?;
 
-        self.update_address_to_index_map(self.index(), &[address.clone()])?;
+        self.update_address_to_index_map(self.index(), std::slice::from_ref(&address))?;
 
         Ok(address)
     }
