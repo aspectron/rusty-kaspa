@@ -21,6 +21,7 @@ kaspa-wallet-grpc-core.workspace = true
 kaspa-wallet-grpc-server.workspace = true
 kaspa-consensus-core.workspace = true
 log.workspace = true
+subtle.workspace = true
 tonic.workspace = true
 tokio.workspace = true
 workflow-core.workspace = true

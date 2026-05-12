@@ -1,6 +1,7 @@
-use clap::{Arg, Command};
+use clap::{Arg, ArgAction, Command};
 use kaspa_core::kaspad_env::version;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 
 pub struct Args {
     pub password: String,
@@ -9,6 +10,11 @@ pub struct Args {
     pub network_id: Option<String>,
     pub listen_address: SocketAddr,
     pub ecdsa: bool,
+    pub tls_cert: Option<PathBuf>,
+    pub tls_key: Option<PathBuf>,
+    pub client_ca: Option<PathBuf>,
+    pub auth_token: Option<PathBuf>,
+    pub insecure: bool,
 }
 
 impl Args {
@@ -25,6 +31,11 @@ impl Args {
                 .cloned()
                 .unwrap_or_else(|| "127.0.0.1:8082".parse().unwrap()),
             ecdsa: matches.get_one::<bool>("ecdsa").cloned().unwrap_or(false),
+            tls_cert: matches.get_one::<PathBuf>("tls-cert").cloned(),
+            tls_key: matches.get_one::<PathBuf>("tls-key").cloned(),
+            client_ca: matches.get_one::<PathBuf>("client-ca").cloned(),
+            auth_token: matches.get_one::<PathBuf>("auth-token").cloned(),
+            insecure: matches.get_flag("insecure"),
         }
     }
 }
@@ -72,4 +83,30 @@ pub fn cli() -> Command {
                 .value_parser(clap::value_parser!(bool))
                 .help("Use ecdsa for transactions broadcast"),
         )
+        .arg(
+            Arg::new("tls-cert")
+                .long("tls-cert")
+                .value_name("path")
+                .value_parser(clap::value_parser!(PathBuf))
+                .help("Path to a PEM-encoded TLS certificate. Required (together with --tls-key) to serve over TLS."),
+        )
+        .arg(
+            Arg::new("tls-key")
+                .long("tls-key")
+                .value_name("path")
+                .value_parser(clap::value_parser!(PathBuf))
+                .help("Path to a PEM-encoded TLS private key matching --tls-cert."),
+        )
+        .arg(Arg::new("client-ca").long("client-ca").value_name("path").value_parser(clap::value_parser!(PathBuf)).help(
+            "Path to a PEM-encoded CA certificate. When set, the server requires mutually authenticated TLS \
+                       and verifies client certificates against this CA.",
+        ))
+        .arg(Arg::new("auth-token").long("auth-token").value_name("path").value_parser(clap::value_parser!(PathBuf)).help(
+            "Path to a file containing a static API token. When set, the server rejects requests whose \
+                       `authorization` metadata does not match `Bearer <token>`.",
+        ))
+        .arg(Arg::new("insecure").long("insecure").action(ArgAction::SetTrue).help(
+            "Allow a non-loopback --listen-address without TLS. Off by default; required to expose the \
+                       daemon to a remote host over plain gRPC.",
+        ))
 }
