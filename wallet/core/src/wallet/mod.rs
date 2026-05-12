@@ -1363,10 +1363,6 @@ impl Wallet {
         wallet_secret: &Secret,
         file: SingleWalletFileV1<'_, T>,
     ) -> Result<Arc<dyn Account>> {
-        if file.ecdsa {
-            return Err(Error::Custom("ecdsa currently not suppoerted".to_owned()));
-            // todo import_with_mnemonic should accept both
-        }
         let mnemonic = decrypt_mnemonic(SingleWalletFileV1::<T>::NUM_THREADS, file.encrypted_mnemonic, import_secret.as_ref())?;
         let mnemonic = Mnemonic::new(mnemonic.trim(), Language::English)?;
         let prv_key_data = storage::PrvKeyData::try_new_from_mnemonic(mnemonic.clone(), None, self.store().encryption_kind()?)?;
@@ -1376,7 +1372,7 @@ impl Wallet {
         if prv_key_data.create_xpub(None, BIP32_ACCOUNT_KIND.into(), 0).await?.to_string(Some(prefix)) != file.xpublic_key {
             return Err(Custom("imported xpub does not equal derived one".to_owned()));
         }
-        self.import_with_mnemonic(wallet_secret, None, mnemonic, BIP32_ACCOUNT_KIND.into()).await
+        self.import_with_mnemonic(wallet_secret, None, mnemonic, BIP32_ACCOUNT_KIND.into(), file.ecdsa).await
     }
 
     pub async fn import_kaspawallet_golang_single_v0<T: AsRef<[u8]>>(
@@ -1385,10 +1381,6 @@ impl Wallet {
         wallet_secret: &Secret,
         file: SingleWalletFileV0<'_, T>,
     ) -> Result<Arc<dyn Account>> {
-        if file.ecdsa {
-            return Err(Error::Custom("ecdsa currently not suppoerted".to_owned()));
-            // todo import_with_mnemonic should accept both
-        }
         let mnemonic = decrypt_mnemonic(file.num_threads, file.encrypted_mnemonic, import_secret.as_ref())?;
         let mnemonic = Mnemonic::new(mnemonic.trim(), Language::English)?;
         let prv_key_data = storage::PrvKeyData::try_new_from_mnemonic(mnemonic.clone(), None, self.store().encryption_kind()?)?;
@@ -1397,7 +1389,7 @@ impl Wallet {
         if prv_key_data.create_xpub(None, BIP32_ACCOUNT_KIND.into(), 0).await.unwrap().to_string(Some(prefix)) != file.xpublic_key {
             return Err(Custom("imported xpub does not equal derived one".to_owned()));
         }
-        self.import_with_mnemonic(wallet_secret, None, mnemonic, BIP32_ACCOUNT_KIND.into()).await
+        self.import_with_mnemonic(wallet_secret, None, mnemonic, BIP32_ACCOUNT_KIND.into(), file.ecdsa).await
     }
 
     pub async fn import_kaspawallet_golang_multisig_v0<T: AsRef<[u8]>>(
@@ -1406,10 +1398,6 @@ impl Wallet {
         wallet_secret: &Secret,
         file: MultisigWalletFileV0<'_, T>,
     ) -> Result<Arc<dyn Account>> {
-        if file.ecdsa {
-            return Err(Error::Custom("ecdsa currently not suppoerted".to_owned()));
-            // todo import_with_mnemonic should accept both
-        }
         let Some(first_pub_key) = file.xpublic_keys.first() else {
             return Err(Error::Custom("no public keys".to_owned()));
         };
@@ -1438,7 +1426,14 @@ impl Wallet {
         pubkeys_from_mnemonics.sort_unstable();
         all_pub_keys.retain(|v| pubkeys_from_mnemonics.binary_search_by_key(v, |xpub| xpub.as_str()).is_err());
         let additional_pub_keys = all_pub_keys.into_iter().map(String::from).collect();
-        self.import_multisig_with_mnemonic(wallet_secret, mnemonics_and_secrets, file.required_signatures, additional_pub_keys).await
+        self.import_multisig_with_mnemonic(
+            wallet_secret,
+            mnemonics_and_secrets,
+            file.required_signatures,
+            additional_pub_keys,
+            file.ecdsa,
+        )
+        .await
     }
 
     pub async fn import_kaspawallet_golang_multisig_v1<T: AsRef<[u8]>>(
@@ -1447,10 +1442,6 @@ impl Wallet {
         wallet_secret: &Secret,
         file: MultisigWalletFileV1<'_, T>,
     ) -> Result<Arc<dyn Account>> {
-        if file.ecdsa {
-            return Err(Error::Custom("ecdsa currently not suppoerted".to_owned()));
-            // todo import_with_mnemonic should accept both
-        }
         let Some(first_pub_key) = file.xpublic_keys.first() else {
             return Err(Error::Custom("no public keys".to_owned()));
         };
@@ -1487,7 +1478,13 @@ impl Wallet {
         });
         let additional_pub_keys = all_pub_keys.into_iter().map(String::from).collect();
         let acc = self
-            .import_multisig_with_mnemonic(wallet_secret, mnemonics_and_secrets, file.required_signatures, additional_pub_keys)
+            .import_multisig_with_mnemonic(
+                wallet_secret,
+                mnemonics_and_secrets,
+                file.required_signatures,
+                additional_pub_keys,
+                file.ecdsa,
+            )
             .await?;
         Ok(acc)
     }
@@ -1552,6 +1549,7 @@ impl Wallet {
         payment_secret: Option<&Secret>,
         mnemonic: Mnemonic,
         account_kind: AccountKind,
+        ecdsa: bool,
     ) -> Result<Arc<dyn Account>> {
         let prv_key_data = storage::PrvKeyData::try_new_from_mnemonic(mnemonic, payment_secret, self.store().encryption_kind()?)?;
         let prv_key_data_store = self.store().as_prv_key_data_store()?;
@@ -1564,8 +1562,6 @@ impl Wallet {
                 let account_index = 0;
                 let xpub_key = prv_key_data.create_xpub(payment_secret, account_kind, account_index).await?;
                 let xpub_keys = Arc::new(vec![xpub_key]);
-                let ecdsa = false;
-                // ---
                 Arc::new(bip32::Bip32::try_new(self, None, prv_key_data.id, account_index, xpub_keys, ecdsa).await?)
             }
             LEGACY_ACCOUNT_KIND => Arc::new(legacy::Legacy::try_new(self, None, prv_key_data.id).await?),
@@ -1616,6 +1612,7 @@ impl Wallet {
         bip39_passphrase: Option<Secret>,
         address_scan_extent: u32,
         account_scan_extent: u32,
+        ecdsa: bool,
     ) -> Result<u32> {
         let bip39_mnemonic = std::str::from_utf8(bip39_mnemonic.as_ref()).map_err(|_| Error::InvalidMnemonicPhrase)?;
         let mnemonic = Mnemonic::new(bip39_mnemonic, Language::English)?;
@@ -1631,8 +1628,6 @@ impl Wallet {
             let xpub_key =
                 prv_key_data.create_xpub(bip39_passphrase.as_ref(), BIP32_ACCOUNT_KIND.into(), account_index as u64).await?;
             let xpub_keys = Arc::new(vec![xpub_key]);
-            let ecdsa = false;
-            // ---
 
             let addresses = bip32::Bip32::try_new(self, None, prv_key_data.id, account_index as u64, xpub_keys, ecdsa)
                 .await?
@@ -1652,6 +1647,7 @@ impl Wallet {
         mnemonics_secrets: Vec<(Mnemonic, Option<Secret>)>,
         minimum_signatures: u16,
         additional_xpub_keys: Vec<String>,
+        ecdsa: bool,
     ) -> Result<Arc<dyn Account>> {
         let mut additional_xpub_keys = additional_xpub_keys
             .into_iter()
@@ -1702,7 +1698,7 @@ impl Wallet {
                 Some(Arc::new(prv_key_data_ids)),
                 min_cosigner_index,
                 minimum_signatures,
-                false,
+                ecdsa,
             )
             .await?,
         );
@@ -1785,10 +1781,74 @@ impl Wallet {
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 mod test {
-    // use hex_literal::hex;
+    use super::*;
+    use kaspa_addresses::Version;
 
-    // use super::*;
-    // use kaspa_addresses::Address;
+    async fn fresh_wallet() -> Arc<Wallet> {
+        let resident_store = Wallet::resident_store().unwrap();
+        let wallet = Arc::new(Wallet::try_new(resident_store, None, Some(NetworkId::new(NetworkType::Mainnet))).unwrap());
+        let wallet_secret = Secret::new(vec![]);
+        wallet
+            .create_wallet(
+                &wallet_secret,
+                WalletCreateArgs {
+                    title: None,
+                    filename: None,
+                    encryption_kind: EncryptionKind::XChaCha20Poly1305,
+                    user_hint: None,
+                    overwrite_wallet_storage: false,
+                },
+            )
+            .await
+            .unwrap();
+        wallet
+    }
+
+    #[tokio::test]
+    async fn import_with_mnemonic_schnorr_address_version() {
+        let wallet = fresh_wallet().await;
+        let wallet_secret = Secret::new(vec![]);
+        let mnemonic = Mnemonic::random(WordCount::Words24, Language::English).unwrap();
+
+        let account = wallet.import_with_mnemonic(&wallet_secret, None, mnemonic, BIP32_ACCOUNT_KIND.into(), false).await.unwrap();
+        assert_eq!(account.receive_address().unwrap().version, Version::PubKey);
+    }
+
+    #[tokio::test]
+    async fn import_with_mnemonic_ecdsa_address_version() {
+        let wallet = fresh_wallet().await;
+        let wallet_secret = Secret::new(vec![]);
+        let mnemonic = Mnemonic::random(WordCount::Words24, Language::English).unwrap();
+
+        let account = wallet.import_with_mnemonic(&wallet_secret, None, mnemonic, BIP32_ACCOUNT_KIND.into(), true).await.unwrap();
+        assert_eq!(account.receive_address().unwrap().version, Version::PubKeyECDSA);
+    }
+
+    #[tokio::test]
+    async fn import_multisig_with_mnemonic_schnorr_address_version() {
+        let wallet = fresh_wallet().await;
+        let wallet_secret = Secret::new(vec![]);
+        let mnemonics = vec![
+            (Mnemonic::random(WordCount::Words24, Language::English).unwrap(), None),
+            (Mnemonic::random(WordCount::Words24, Language::English).unwrap(), None),
+        ];
+
+        let account = wallet.import_multisig_with_mnemonic(&wallet_secret, mnemonics, 2, vec![], false).await.unwrap();
+        assert_eq!(account.receive_address().unwrap().version, Version::ScriptHash);
+    }
+
+    #[tokio::test]
+    async fn import_multisig_with_mnemonic_ecdsa_address_version() {
+        let wallet = fresh_wallet().await;
+        let wallet_secret = Secret::new(vec![]);
+        let mnemonics = vec![
+            (Mnemonic::random(WordCount::Words24, Language::English).unwrap(), None),
+            (Mnemonic::random(WordCount::Words24, Language::English).unwrap(), None),
+        ];
+
+        let account = wallet.import_multisig_with_mnemonic(&wallet_secret, mnemonics, 2, vec![], true).await.unwrap();
+        assert_eq!(account.receive_address().unwrap().version, Version::ScriptHash);
+    }
 
     /*
     use workflow_rpc::client::ConnectOptions;

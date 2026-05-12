@@ -309,7 +309,7 @@ impl WalletApi for super::Wallet {
             request;
 
         let last_account_index_found =
-            self.scan_bip44_accounts(bip39_mnemonic, bip39_passphrase, address_scan_extent, account_scan_extent).await?;
+            self.scan_bip44_accounts(bip39_mnemonic, bip39_passphrase, address_scan_extent, account_scan_extent, false).await?;
 
         Ok(AccountsDiscoveryResponse { last_account_index_found })
     }

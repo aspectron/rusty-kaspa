@@ -4,6 +4,7 @@ use kaspa_addresses::Prefix;
 use kaspa_consensus_core::constants::SOMPI_PER_KASPA;
 use kaspa_consensus_core::tx::{SignableTransaction, Transaction, UtxoEntry};
 use kaspa_rpc_core::RpcTransaction;
+use kaspa_wallet_core::account::descriptor::{AccountDescriptorProperty, AccountDescriptorValue};
 use kaspa_wallet_core::api::NewAddressKind;
 use kaspa_wallet_core::prelude::{PaymentDestination, PaymentOutput, PaymentOutputs};
 use kaspa_wallet_core::tx::{Fees, Generator, GeneratorSettings, Signer, SignerT};
@@ -34,8 +35,6 @@ const RELOAD_BACKOFFS_SECS: [u64; 3] = [1, 3, 10];
 pub struct Service {
     wallet: Arc<Wallet>,
     shutdown_sender: Arc<Mutex<Option<oneshot::Sender<()>>>>,
-    // TODO: Extend the partially serialized transaction or transaction structure with a boolean field 'ecdsa'
-    ecdsa: bool,
 }
 
 /// Reload the wallet with bounded retries after a SyncState event.
@@ -68,7 +67,7 @@ async fn reload_with_retry(wallet: &Arc<Wallet>, shutdown_handle: &Arc<Mutex<Opt
 }
 
 impl Service {
-    pub fn with_notification_pipe_task(wallet: Arc<Wallet>, shutdown_sender: oneshot::Sender<()>, ecdsa: bool) -> Self {
+    pub fn with_notification_pipe_task(wallet: Arc<Wallet>, shutdown_sender: oneshot::Sender<()>) -> Self {
         let channel = wallet.multiplexer().channel();
         let shutdown_handle = Arc::new(Mutex::new(Some(shutdown_sender)));
 
@@ -97,7 +96,7 @@ impl Service {
             }
         });
 
-        Service { wallet, shutdown_sender: shutdown_handle, ecdsa }
+        Service { wallet, shutdown_sender: shutdown_handle }
     }
 
     pub async fn calculate_fee_limits(&self, fee_policy: Option<kaspawalletd::FeePolicy>) -> Result<(f64, u64), Status> {
@@ -172,13 +171,18 @@ impl Service {
         }
     }
 
-    /// Returns whether the service should use ECDSA signatures instead of Schnorr signatures.
-    /// This flag is used when processing transactions to determine the appropriate signature scheme.
-    /// Currently set via command-line arguments, but this is temporary - the signature scheme
-    /// should be determined per transaction by extending the partially serialized transaction
-    /// or transaction structure with this field.
-    pub fn use_ecdsa(&self) -> bool {
-        self.ecdsa
+    /// Returns whether the currently active account signs with ECDSA.
+    /// Resolved via the `Ecdsa` descriptor property so that single-key,
+    /// watch-only, and multisig accounts all answer correctly; an
+    /// account variant without the property (e.g. legacy) is treated
+    /// as Schnorr.
+    pub fn active_account_uses_ecdsa(&self) -> Result<bool, Status> {
+        let descriptor = self.descriptor()?;
+        match descriptor.properties.get(&AccountDescriptorProperty::Ecdsa) {
+            Some(AccountDescriptorValue::Bool(v)) => Ok(*v),
+            Some(other) => Err(Status::internal(format!("ecdsa descriptor value not a Bool: {other}"))),
+            None => Ok(false),
+        }
     }
 
     pub async fn unsigned_txs(
@@ -281,10 +285,6 @@ impl Service {
         unsigned_transactions: Vec<Transaction>,
         password: Secret,
     ) -> Result<Vec<RpcTransaction>, Status> {
-        if self.use_ecdsa() {
-            return Err(Status::unimplemented("Ecdsa signing is not supported yet"));
-        }
-
         let account = self.wallet().account().map_err(|e| Status::internal(format!("Account error: {}", e)))?;
 
         let utxos = account.clone().get_utxos(None, None).await.map_err(|err| Status::internal(err.to_string()))?;

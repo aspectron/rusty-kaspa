@@ -85,7 +85,7 @@ pub(crate) async fn import_with_mnemonic(ctx: &Arc<KaspaCli>, account_kind: Acco
     let mnemonic = Mnemonic::new(mnemonic.trim(), Language::English)?;
 
     let account = if account_kind != MULTISIG_ACCOUNT_KIND {
-        wallet.import_with_mnemonic(&wallet_secret, payment_secret.as_ref(), mnemonic, account_kind).await?
+        wallet.import_with_mnemonic(&wallet_secret, payment_secret.as_ref(), mnemonic, account_kind, false).await?
     } else {
         let mut mnemonics_secrets = vec![(mnemonic, payment_secret)];
         while matches!(
@@ -115,7 +115,7 @@ pub(crate) async fn import_with_mnemonic(ctx: &Arc<KaspaCli>, account_kind: Acco
         }
         let n_required: u16 = term.ask(false, "Enter the minimum number of signatures required: ").await?.parse()?;
 
-        wallet.import_multisig_with_mnemonic(&wallet_secret, mnemonics_secrets, n_required, additional_xpubs).await?
+        wallet.import_multisig_with_mnemonic(&wallet_secret, mnemonics_secrets, n_required, additional_xpubs, false).await?
     };
 
     tprintln!(ctx, "\naccount imported: {}\n", account.get_list_string()?);

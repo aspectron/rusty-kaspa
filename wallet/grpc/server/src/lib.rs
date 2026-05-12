@@ -1,6 +1,6 @@
 pub mod service;
 
-use kaspa_addresses::{Prefix, Version};
+use kaspa_addresses::Prefix;
 use kaspa_consensus_core::tx::Transaction;
 use kaspa_rpc_core::RpcTransactionId;
 use kaspa_txscript::extract_script_pub_key_address;
@@ -108,8 +108,9 @@ impl Kaspawalletd for Service {
     // - New parameters like allow_parallel should be introduced
     // - Client behavior should be considered as they may expect sequential processing until the first error when sending batches
     async fn broadcast(&self, request: Request<BroadcastRequest>) -> Result<Response<BroadcastResponse>, Status> {
+        let use_ecdsa = self.active_account_uses_ecdsa()?;
         let request = request.into_inner();
-        let txs = deserialize_txs(request.transactions, request.is_domain, self.use_ecdsa())?;
+        let txs = deserialize_txs(request.transactions, request.is_domain, use_ecdsa)?;
         let mut tx_ids: Vec<String> = Vec::with_capacity(txs.len());
         for tx in txs {
             let tx_id =
@@ -120,8 +121,9 @@ impl Kaspawalletd for Service {
     }
 
     async fn broadcast_replacement(&self, request: Request<BroadcastRequest>) -> Result<Response<BroadcastResponse>, Status> {
+        let use_ecdsa = self.active_account_uses_ecdsa()?;
         let request = request.into_inner();
-        let txs = deserialize_txs(request.transactions, request.is_domain, self.use_ecdsa())?;
+        let txs = deserialize_txs(request.transactions, request.is_domain, use_ecdsa)?;
         let mut tx_ids: Vec<String> = Vec::with_capacity(txs.len());
         for (i, tx) in txs.into_iter().enumerate() {
             // Once the first transaction is added to the mempool, the transactions that depend
@@ -144,14 +146,6 @@ impl Kaspawalletd for Service {
     }
 
     async fn send(&self, request: Request<SendRequest>) -> Result<Response<SendResponse>, Status> {
-        let acc = self.wallet().account().map_err(|err| Status::internal(err.to_string()))?;
-        if acc.minimum_signatures() != 1 {
-            return Err(Status::unimplemented("Only single signature wallets are supported"));
-        }
-        if acc.receive_address().map_err(|err| Status::internal(err.to_string()))?.version == Version::PubKeyECDSA {
-            return Err(Status::unimplemented("Ecdsa wallets are not supported yet"));
-        }
-
         let SendRequest { to_address, amount, password, from, use_existing_change_address, is_send_all, fee_policy } =
             request.into_inner();
         // Wrap the plaintext password into `Secret` immediately so the
@@ -195,11 +189,12 @@ impl Kaspawalletd for Service {
     async fn sign(&self, request: Request<SignRequest>) -> Result<Response<SignResponse>, Status> {
         let SignRequest { unsigned_transactions, password } = request.into_inner();
         let password: Secret = password.into();
+        let use_ecdsa = self.active_account_uses_ecdsa()?;
 
         // Deserialization
         let unsigned_transactions = unsigned_transactions
             .into_iter()
-            .map(|tx| extract_tx(tx.as_slice(), self.use_ecdsa()))
+            .map(|tx| extract_tx(tx.as_slice(), use_ecdsa))
             // todo convert directly to consensus::transaction
             .map(|r| r
                 .and_then(|rtx| Transaction::try_from(rtx)
@@ -227,14 +222,6 @@ impl Kaspawalletd for Service {
     }
 
     async fn bump_fee(&self, request: Request<BumpFeeRequest>) -> Result<Response<BumpFeeResponse>, Status> {
-        let acc = self.wallet().account().map_err(|err| Status::internal(err.to_string()))?;
-        if acc.minimum_signatures() != 1 {
-            return Err(Status::unimplemented("Only single signature wallets are supported"));
-        }
-        if acc.receive_address().map_err(|err| Status::internal(err.to_string()))?.version == Version::PubKeyECDSA {
-            return Err(Status::unimplemented("Ecdsa wallets are not supported yet"));
-        }
-
         let BumpFeeRequest { password, from, use_existing_change_address, fee_policy, tx_id } = request.into_inner();
 
         let tx_id_hash =

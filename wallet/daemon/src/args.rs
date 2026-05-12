@@ -9,7 +9,6 @@ pub struct Args {
     pub rpc_server: Option<String>,
     pub network_id: Option<String>,
     pub listen_address: SocketAddr,
-    pub ecdsa: bool,
     pub tls_cert: Option<PathBuf>,
     pub tls_key: Option<PathBuf>,
     pub client_ca: Option<PathBuf>,
@@ -30,7 +29,6 @@ impl Args {
                 .get_one::<SocketAddr>("listen-address")
                 .cloned()
                 .unwrap_or_else(|| "127.0.0.1:8082".parse().unwrap()),
-            ecdsa: matches.get_one::<bool>("ecdsa").cloned().unwrap_or(false),
             tls_cert: matches.get_one::<PathBuf>("tls-cert").cloned(),
             tls_key: matches.get_one::<PathBuf>("tls-key").cloned(),
             client_ca: matches.get_one::<PathBuf>("client-ca").cloned(),
@@ -75,13 +73,6 @@ pub fn cli() -> Command {
                 .value_name("listen-address")
                 .value_parser(clap::value_parser!(String))
                 .help("gRPC listening address with port."),
-        )
-        .arg(
-            Arg::new("ecdsa")
-                .long("ecdsa")
-                .value_name("ecdsa")
-                .value_parser(clap::value_parser!(bool))
-                .help("Use ecdsa for transactions broadcast"),
         )
         .arg(
             Arg::new("tls-cert")
