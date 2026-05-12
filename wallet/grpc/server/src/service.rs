@@ -11,16 +11,25 @@ use kaspa_wallet_core::utxo::UtxoEntryReference;
 use kaspa_wallet_core::{
     api::WalletApi,
     events::Events,
-    prelude::{AccountDescriptor, Address},
+    prelude::{AccountDescriptor, Address, Secret},
     wallet::Wallet,
 };
 use kaspa_wallet_grpc_core::kaspawalletd;
 use kaspa_wallet_grpc_core::kaspawalletd::fee_policy;
-use log::info;
+use log::{error, info, warn};
 use std::cmp::Reverse;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tokio::sync::oneshot;
 use tonic::Status;
+
+/// Maximum number of wallet-reload attempts after a SyncState event
+/// before the notification-pipe task gives up and initiates graceful
+/// shutdown. Three attempts cover a transient RPC blip without
+/// indefinitely retrying on a structurally broken backend.
+const MAX_RELOAD_ATTEMPTS: u32 = 3;
+/// Per-attempt backoff before the next wallet_reload retry.
+const RELOAD_BACKOFFS_SECS: [u64; 3] = [1, 3, 10];
 
 pub struct Service {
     wallet: Arc<Wallet>,
@@ -29,12 +38,43 @@ pub struct Service {
     ecdsa: bool,
 }
 
+/// Reload the wallet with bounded retries after a SyncState event.
+///
+/// On persistent failure (more than `MAX_RELOAD_ATTEMPTS`), signals
+/// graceful shutdown through the shared shutdown handle rather than
+/// panicking - a transient RPC blip from kaspad must not crash the
+/// daemon.
+async fn reload_with_retry(wallet: &Arc<Wallet>, shutdown_handle: &Arc<Mutex<Option<oneshot::Sender<()>>>>) {
+    let mut attempts: u32 = 0;
+    loop {
+        match wallet.clone().wallet_reload(false).await {
+            Ok(_) => return,
+            Err(err) => {
+                attempts += 1;
+                if attempts >= MAX_RELOAD_ATTEMPTS {
+                    error!("Wallet reload failed after {} attempts: {}; initiating graceful shutdown", MAX_RELOAD_ATTEMPTS, err);
+                    let mut sender = shutdown_handle.lock().unwrap();
+                    if let Some(s) = sender.take() {
+                        let _ = s.send(());
+                    }
+                    return;
+                }
+                let backoff = RELOAD_BACKOFFS_SECS[(attempts - 1) as usize];
+                warn!("Wallet reload failed (attempt {}/{}): {}; retrying in {}s", attempts, MAX_RELOAD_ATTEMPTS, err, backoff);
+                tokio::time::sleep(Duration::from_secs(backoff)).await;
+            }
+        }
+    }
+}
+
 impl Service {
     pub fn with_notification_pipe_task(wallet: Arc<Wallet>, shutdown_sender: oneshot::Sender<()>, ecdsa: bool) -> Self {
         let channel = wallet.multiplexer().channel();
+        let shutdown_handle = Arc::new(Mutex::new(Some(shutdown_sender)));
 
         tokio::spawn({
             let wallet = wallet.clone();
+            let shutdown_handle = shutdown_handle.clone();
 
             async move {
                 loop {
@@ -42,11 +82,8 @@ impl Service {
                         msg = channel.receiver.recv().fuse() => {
                             if let Ok(msg) = msg {
                                 match *msg {
-                                    Events::SyncState { sync_state } => {
-                                        if sync_state.is_synced()
-                                            && let Err(err) = wallet.clone().wallet_reload(false).await {
-                                                panic!("Wallet reloading failed: {}", err)
-                                            }
+                                    Events::SyncState { sync_state } if sync_state.is_synced() => {
+                                        reload_with_retry(&wallet, &shutdown_handle).await;
                                     },
                                     Events::Balance { balance: _new_balance, .. } => {
                                         // TBD: index balance per address for call
@@ -60,7 +97,7 @@ impl Service {
             }
         });
 
-        Service { wallet, shutdown_sender: Arc::new(Mutex::new(Some(shutdown_sender))), ecdsa }
+        Service { wallet, shutdown_sender: shutdown_handle, ecdsa }
     }
 
     pub async fn calculate_fee_limits(&self, fee_policy: Option<kaspawalletd::FeePolicy>) -> Result<(f64, u64), Status> {
@@ -75,7 +112,12 @@ impl Service {
                             max_fee_rate, MIN_FEE_RATE
                         )));
                     };
-                    let estimate = self.wallet.rpc_api().get_fee_estimate().await.unwrap();
+                    let estimate = self
+                        .wallet
+                        .rpc_api()
+                        .get_fee_estimate()
+                        .await
+                        .map_err(|err| Status::internal(format!("fee estimate: {err}")))?;
                     let fee_rate = max_fee_rate.min(estimate.normal_buckets[0].feerate);
                     (fee_rate, u64::MAX)
                 }
@@ -89,29 +131,38 @@ impl Service {
                     (exact_fee_rate, u64::MAX)
                 }
                 FeePolicy::MaxFee(max_fee) => {
-                    let estimate = self.wallet.rpc_api().get_fee_estimate().await.unwrap();
+                    let estimate = self
+                        .wallet
+                        .rpc_api()
+                        .get_fee_estimate()
+                        .await
+                        .map_err(|err| Status::internal(format!("fee estimate: {err}")))?;
                     (estimate.normal_buckets[0].feerate, max_fee)
                 }
             }
         } else {
-            let estimate = self.wallet.rpc_api().get_fee_estimate().await.unwrap();
+            let estimate =
+                self.wallet.rpc_api().get_fee_estimate().await.map_err(|err| Status::internal(format!("fee estimate: {err}")))?;
             (estimate.normal_buckets[0].feerate, SOMPI_PER_KASPA)
         };
         Ok(fees)
     }
 
-    pub fn receive_addresses(&self) -> Vec<Address> {
-        // TODO: move into WalletApi
-        let manager = self.wallet.account().unwrap().as_derivation_capable().unwrap().derivation().receive_address_manager();
-        manager.get_range_with_args(0..manager.index() + 1, false).unwrap()
+    pub fn receive_addresses(&self) -> Result<Vec<Address>, Status> {
+        let account = self.wallet.account().map_err(|err| Status::internal(format!("active account: {err}")))?;
+        let derivation_capable =
+            account.as_derivation_capable().map_err(|err| Status::internal(format!("account not derivation-capable: {err}")))?;
+        let manager = derivation_capable.derivation().receive_address_manager();
+        manager.get_range_with_args(0..manager.index() + 1, false).map_err(|err| Status::internal(format!("receive addresses: {err}")))
     }
 
     pub fn wallet(&self) -> Arc<Wallet> {
         self.wallet.clone()
     }
 
-    pub fn descriptor(&self) -> AccountDescriptor {
-        self.wallet.account().unwrap().descriptor().unwrap()
+    pub fn descriptor(&self) -> Result<AccountDescriptor, Status> {
+        let account = self.wallet.account().map_err(|err| Status::internal(format!("active account: {err}")))?;
+        account.descriptor().map_err(|err| Status::internal(format!("account descriptor: {err}")))
     }
 
     pub fn initiate_shutdown(&self) {
@@ -151,7 +202,7 @@ impl Service {
 
         let account = self.wallet().account().map_err(|err| Status::internal(err.to_string()))?;
 
-        info!("Processing request for account_id: {}", self.descriptor().account_id);
+        info!("Processing request for account_id: {}", self.descriptor()?.account_id);
 
         let addresses = account.account_addresses().map_err(|err| Status::internal(err.to_string()))?;
         if let Some(non_existent_address) = from_addresses.iter().find(|from| addresses.iter().all(|address| &address != from)) {
@@ -177,12 +228,12 @@ impl Service {
 
         let change_address = if !use_existing_change_address {
             self.wallet()
-                .accounts_create_new_address(self.descriptor().account_id, NewAddressKind::Change)
+                .accounts_create_new_address(self.descriptor()?.account_id, NewAddressKind::Change)
                 .await
                 .map_err(|err| Status::internal(err.to_string()))?
                 .address
         } else {
-            self.descriptor().change_address.ok_or(Status::internal("change address doesn't exist"))?.clone()
+            self.descriptor()?.change_address.ok_or(Status::internal("change address doesn't exist"))?.clone()
         };
 
         let total_balance: u64 = sorted_utxos.iter().map(|utxo| utxo.amount).sum();
@@ -199,7 +250,7 @@ impl Service {
             account.minimum_signatures(),
             PaymentDestination::PaymentOutputs(PaymentOutputs { outputs: vec![PaymentOutput { address: to, amount: output_amount }] }),
             Some(fee_rate),
-            Fees::SenderPays(0), // FIXME: @zelenevn
+            Fees::SenderPays(0),
             None,
             None,
         )
@@ -225,7 +276,7 @@ impl Service {
     pub async fn sign_transactions(
         &self,
         unsigned_transactions: Vec<Transaction>,
-        password: String,
+        password: Secret,
     ) -> Result<Vec<RpcTransaction>, Status> {
         if self.use_ecdsa() {
             return Err(Status::unimplemented("Ecdsa signing is not supported yet"));
@@ -256,7 +307,7 @@ impl Service {
             .collect::<Result<_, Status>>()?;
 
         // Get private key data for signing
-        let prv_key_data = account.prv_key_data(password.into()).await.map_err(|err| Status::internal(err.to_string()))?;
+        let prv_key_data = account.prv_key_data(password).await.map_err(|err| Status::internal(err.to_string()))?;
         let addresses: Vec<_> = utxo_context.addresses().iter().map(|addr| addr.as_ref().clone()).collect();
 
         let signer = Signer::new(account.clone(), prv_key_data, None);
