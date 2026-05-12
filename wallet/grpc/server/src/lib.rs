@@ -1,7 +1,9 @@
 pub mod service;
 
-use kaspa_addresses::Version;
+use kaspa_addresses::{Prefix, Version};
 use kaspa_consensus_core::tx::Transaction;
+use kaspa_rpc_core::RpcTransactionId;
+use kaspa_txscript::extract_script_pub_key_address;
 use kaspa_wallet_core::api::WalletApi;
 use kaspa_wallet_core::{
     api::{AccountsGetUtxosRequest, NewAddressKind},
@@ -9,7 +11,7 @@ use kaspa_wallet_core::{
 };
 use kaspa_wallet_grpc_core::convert::{deserialize_txs, extract_tx};
 use kaspa_wallet_grpc_core::kaspawalletd::{
-    BroadcastRequest, BroadcastResponse, BumpFeeRequest, BumpFeeResponse, CreateUnsignedTransactionsRequest,
+    AddressBalances, BroadcastRequest, BroadcastResponse, BumpFeeRequest, BumpFeeResponse, CreateUnsignedTransactionsRequest,
     CreateUnsignedTransactionsResponse, GetBalanceRequest, GetBalanceResponse, GetExternalSpendableUtxOsRequest,
     GetExternalSpendableUtxOsResponse, GetVersionRequest, GetVersionResponse, NewAddressRequest, NewAddressResponse, SendRequest,
     SendResponse, ShowAddressesRequest, ShowAddressesResponse, ShutdownRequest, ShutdownResponse, SignRequest, SignResponse,
@@ -17,13 +19,27 @@ use kaspa_wallet_grpc_core::kaspawalletd::{
 };
 use kaspa_wallet_grpc_core::protoserialization::{PartiallySignedTransaction, TransactionMessage};
 use service::Service;
+use std::str::FromStr;
 use tonic::{Code, Request, Response, Status};
+
+/// Maximum number of payment outputs the kaspawallet contract
+/// recognizes when bumping the fee on an existing transaction.
+/// The first output is the recipient; an optional second output
+/// is the change back to the wallet.
+const BUMP_FEE_MAX_OUTPUTS: usize = 2;
 
 #[tonic::async_trait]
 impl Kaspawalletd for Service {
     async fn get_balance(&self, _request: Request<GetBalanceRequest>) -> Result<Response<GetBalanceResponse>, Status> {
+        let account = self.wallet().account().map_err(|err| Status::internal(format!("active account: {err}")))?;
         let balances = self.descriptor()?.balance.unwrap_or_default();
-        let response = GetBalanceResponse { available: balances.mature, pending: balances.pending, address_balances: vec![] };
+        let address_balances = account
+            .utxo_context()
+            .address_balance_map()
+            .into_iter()
+            .map(|(address, (available, pending))| AddressBalances { address: address.to_string(), available, pending })
+            .collect();
+        let response = GetBalanceResponse { available: balances.mature, pending: balances.pending, address_balances };
         Ok(Response::new(response))
     }
 
@@ -210,8 +226,97 @@ impl Kaspawalletd for Service {
         Ok(Response::new(response))
     }
 
-    async fn bump_fee(&self, _request: Request<BumpFeeRequest>) -> Result<Response<BumpFeeResponse>, Status> {
-        // wallet api doesnt support RBF, requires manual implementation
-        Err(Status::unimplemented("Bump fee is not implemented yet"))
+    async fn bump_fee(&self, request: Request<BumpFeeRequest>) -> Result<Response<BumpFeeResponse>, Status> {
+        let acc = self.wallet().account().map_err(|err| Status::internal(err.to_string()))?;
+        if acc.minimum_signatures() != 1 {
+            return Err(Status::unimplemented("Only single signature wallets are supported"));
+        }
+        if acc.receive_address().map_err(|err| Status::internal(err.to_string()))?.version == Version::PubKeyECDSA {
+            return Err(Status::unimplemented("Ecdsa wallets are not supported yet"));
+        }
+
+        let BumpFeeRequest { password, from, use_existing_change_address, fee_policy, tx_id } = request.into_inner();
+
+        let tx_id_hash =
+            RpcTransactionId::from_str(&tx_id).map_err(|err| Status::invalid_argument(format!("invalid tx_id '{tx_id}': {err}")))?;
+        let entry = self
+            .wallet()
+            .rpc_api()
+            .get_mempool_entry(tx_id_hash, false, false)
+            .await
+            .map_err(|err| Status::internal(format!("get_mempool_entry: {err}")))?;
+        let original_tx: Transaction =
+            entry.transaction.try_into().map_err(|err| Status::internal(format!("RpcTransaction -> Transaction: {err}")))?;
+
+        if original_tx.outputs.is_empty() || original_tx.outputs.len() > BUMP_FEE_MAX_OUTPUTS {
+            return Err(Status::invalid_argument(format!(
+                "kaspawallet supports only transactions with 1 or 2 outputs in transaction {tx_id}, but this transaction has {}",
+                original_tx.outputs.len()
+            )));
+        }
+
+        let (new_fee_rate, max_fee) = self.calculate_fee_limits(fee_policy).await?;
+
+        let network_id = self.wallet().network_id().map_err(|err| Status::internal(err.to_string()))?;
+        let to_address = extract_script_pub_key_address(&original_tx.outputs[0].script_public_key, Prefix::from(network_id))
+            .map_err(|err| Status::internal(format!("recipient script extraction: {err}")))?;
+        let amount = original_tx.outputs[0].value;
+
+        let from_addresses = from
+            .into_iter()
+            .map(Address::try_from)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|err| Status::invalid_argument(format!("from: {err}")))?;
+
+        let unsigned_rpc_txs =
+            self.unsigned_txs(to_address, amount, use_existing_change_address, false, new_fee_rate, max_fee, from_addresses).await?;
+
+        // Unsigned-fee-bump pathway: operator passed an empty
+        // password to receive the partially-signed transactions
+        // for offline signing. kaspad enforces the RBF rules
+        // (new fee strictly higher than original) at submission
+        // time, so the unsigned bytes returned here are not yet
+        // verified against the mempool entry's fee.
+        if password.is_empty() {
+            let transactions =
+                unsigned_rpc_txs.into_iter().map(|tx| PartiallySignedTransaction::from_unsigned(tx).encode_to_vec()).collect();
+            return Ok(Response::new(BumpFeeResponse { transactions, tx_ids: vec![] }));
+        }
+
+        let password: Secret = password.into();
+        let unsigned_transactions: Vec<Transaction> = unsigned_rpc_txs
+            .into_iter()
+            .map(Transaction::try_from)
+            .collect::<Result<_, _>>()
+            .map_err(|err| Status::internal(format!("convert unsigned tx: {err}")))?;
+        let signed_rpc_txs = self.sign_transactions(unsigned_transactions, password).await?;
+
+        let mut tx_ids: Vec<String> = Vec::with_capacity(signed_rpc_txs.len());
+        let mut transactions: Vec<Vec<u8>> = Vec::with_capacity(signed_rpc_txs.len());
+        for (i, rpc_tx) in signed_rpc_txs.into_iter().enumerate() {
+            let bytes = TransactionMessage::from(rpc_tx.clone()).encode_to_vec();
+            // Mirror `broadcast_replacement`: only the first tx
+            // goes through the replacement path; any compounds
+            // that follow depend on the replacement and are
+            // submitted as ordinary transactions.
+            let submitted_id = if i == 0 {
+                self.wallet()
+                    .rpc_api()
+                    .submit_transaction_replacement(rpc_tx)
+                    .await
+                    .map_err(|err| Status::internal(format!("submit_transaction_replacement: {err}")))?
+                    .transaction_id
+            } else {
+                self.wallet()
+                    .rpc_api()
+                    .submit_transaction(rpc_tx, false)
+                    .await
+                    .map_err(|err| Status::internal(format!("submit_transaction: {err}")))?
+            };
+            tx_ids.push(submitted_id.to_string());
+            transactions.push(bytes);
+        }
+
+        Ok(Response::new(BumpFeeResponse { transactions, tx_ids }))
     }
 }

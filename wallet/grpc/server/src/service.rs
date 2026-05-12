@@ -224,7 +224,10 @@ impl Service {
         // Sort UTXOs by amount descending to optimize transaction weight
         // Use large UTXOs in priority to minimize the number of inputs
         let mut sorted_utxos = utxos;
-        sorted_utxos.sort_unstable_by_key(|a| Reverse(a.amount));
+        // Deterministic ordering on tied amounts: secondary sort by
+        // outpoint identity (transaction-id then output-index) so that
+        // two daemons fed the same UTXO set produce identical selection.
+        sorted_utxos.sort_unstable_by_key(|a| (Reverse(a.amount), a.outpoint.transaction_id(), a.outpoint.index()));
 
         let change_address = if !use_existing_change_address {
             self.wallet()

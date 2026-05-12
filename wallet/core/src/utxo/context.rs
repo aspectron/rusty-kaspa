@@ -17,6 +17,7 @@ use crate::utxo::{
 use kaspa_consensus_client::UtxoEntry;
 use kaspa_hashes::Hash;
 use sorted_insert::SortedInsertBinaryByKey;
+use std::collections::BTreeMap;
 
 static UTXO_CONTEXT_ID_SEQUENCER: AtomicU64 = AtomicU64::new(0);
 fn next_utxo_context_id() -> Hash {
@@ -213,6 +214,31 @@ impl UtxoContext {
 
     pub fn addresses(&self) -> Arc<DashSet<Arc<Address>>> {
         self.context().addresses.clone()
+    }
+
+    /// Returns a per-address breakdown of sompi totals as
+    /// `(mature, pending)` tuples. Mature UTXOs feed the first
+    /// column; pending UTXOs (immature coinbase or user
+    /// transactions still under the maturity period) feed the
+    /// second. Addresses with no UTXOs under either bucket are
+    /// omitted. Output is ordered by [`Address`] to give callers
+    /// stable iteration without an extra sort.
+    pub fn address_balance_map(&self) -> BTreeMap<Address, (u64, u64)> {
+        let ctx = self.context();
+        let mut map: BTreeMap<Address, (u64, u64)> = BTreeMap::new();
+        for entry in ctx.mature.iter() {
+            if let Some(addr) = entry.address() {
+                let slot = map.entry(addr).or_insert((0, 0));
+                slot.0 = slot.0.saturating_add(entry.amount());
+            }
+        }
+        for entry in ctx.pending.values() {
+            if let Some(addr) = entry.address() {
+                let slot = map.entry(addr).or_insert((0, 0));
+                slot.1 = slot.1.saturating_add(entry.amount());
+            }
+        }
+        map
     }
 
     pub async fn clear(&self) -> Result<()> {

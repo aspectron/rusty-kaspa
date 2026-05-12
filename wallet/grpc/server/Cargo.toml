@@ -13,6 +13,7 @@ futures-util.workspace = true
 kaspa-addresses.workspace = true
 kaspa-consensus-core.workspace = true
 kaspa-rpc-core.workspace = true
+kaspa-txscript.workspace = true
 kaspa-wallet-core.workspace = true
 kaspa-wallet-grpc-core.workspace = true
 
