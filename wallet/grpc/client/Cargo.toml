@@ -1,0 +1,18 @@
+[package]
+name = "kaspa-wallet-grpc-client"
+rust-version.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition.workspace = true
+include.workspace = true
+
+[dependencies]
+kaspa-wallet-grpc-core.workspace = true
+
+tonic.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

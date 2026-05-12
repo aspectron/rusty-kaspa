@@ -3602,6 +3602,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "kaspa-wallet-grpc-client"
+version = "1.1.0-rc.3"
+dependencies = [
+ "kaspa-wallet-grpc-core",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
 name = "kaspa-wallet-grpc-core"
 version = "1.1.0"
 dependencies = [
