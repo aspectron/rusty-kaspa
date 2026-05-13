@@ -1,23 +1,23 @@
-# kaspa-wallet-daemon (`kaspawalletd`)
+# kaspa-wallet-daemon (`kaspawalletd` gRPC service)
 
-A Rust-native gRPC wallet daemon. Hosts a long-running [`kaspa-wallet-core`](../core/) wallet instance and exposes the [`kaspawalletd.proto`](../grpc/core/proto/kaspawalletd.proto) interface (12 RPCs) to local and remote clients.
+A Rust-native gRPC wallet daemon library. Hosts a long-running [`kaspa-wallet-core`](../core/) wallet instance and exposes the [`kaspawalletd.proto`](../grpc/core/proto/kaspawalletd.proto) interface (12 RPCs) to local and remote clients. The daemon runs in-process as the `start-daemon` subcommand of the [`kaspawallet`](../../kaspawallet/) binary; there is no separate daemon binary.
 
 Build:
 
 ```bash
-cargo build --release --package kaspa-wallet-daemon --bin kaspa-wallet-daemon
+cargo build --release -p kaspawallet
 ```
 
 Run (local-only default):
 
 ```bash
-kaspa-wallet-daemon \
+kaspawallet start-daemon \
     --password <password-file> \
     --name <wallet-name> \
     [--rpc-server <kaspad-wRPC-url> | --network-id <id>]
 ```
 
-See `kaspa-wallet-daemon --help` for the full flag set.
+See `kaspawallet start-daemon --help` for the full flag set.
 
 ---
 
@@ -88,7 +88,7 @@ Pick the row that matches your operator scenario.
 Daemon and clients on the same machine. No flags beyond the wallet setup.
 
 ```bash
-kaspa-wallet-daemon --password <password-file> --name <wallet>
+kaspawallet start-daemon --password <password-file> --name <wallet>
 ```
 
 Listens on `127.0.0.1:8082`. Only local processes can reach the daemon. Suitable for personal wallets, scripted local automation, and CI smoke tests.
@@ -98,7 +98,7 @@ Listens on `127.0.0.1:8082`. Only local processes can reach the daemon. Suitable
 The network layer provides confidentiality; the daemon adds caller authentication.
 
 ```bash
-kaspa-wallet-daemon \
+kaspawallet start-daemon \
     --password <password-file> \
     --name <wallet> \
     --listen 0.0.0.0:8082 \
@@ -122,7 +122,7 @@ Share the same token file with each authorized client. Rotating the token is a d
 TLS encrypts the wire; the bearer token authenticates callers.
 
 ```bash
-kaspa-wallet-daemon \
+kaspawallet start-daemon \
     --password <password-file> \
     --name <wallet> \
     --listen 0.0.0.0:8082 \
@@ -138,7 +138,7 @@ The certificate can be issued by Let's Encrypt or any CA the clients trust. For 
 Strongest model. Both ends are authenticated by certificate; the bearer token is optional (mTLS proves client identity by itself, but defense-in-depth keeps the token too).
 
 ```bash
-kaspa-wallet-daemon \
+kaspawallet start-daemon \
     --password <password-file> \
     --name <wallet> \
     --listen 0.0.0.0:8082 \

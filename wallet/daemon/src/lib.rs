@@ -216,9 +216,7 @@ fn build_auth_interceptor(auth_token: Option<String>) -> impl FnMut(Request<()>)
             return Ok(request);
         };
         let presented = request.metadata().get("authorization").and_then(|v| v.to_str().ok()).unwrap_or("");
-        if MetadataValue::try_from(expected.as_str()).is_ok()
-            && bool::from(presented.as_bytes().ct_eq(expected.as_bytes()))
-        {
+        if MetadataValue::try_from(expected.as_str()).is_ok() && bool::from(presented.as_bytes().ct_eq(expected.as_bytes())) {
             Ok(request)
         } else {
             Err(Status::unauthenticated("missing or invalid authorization token"))

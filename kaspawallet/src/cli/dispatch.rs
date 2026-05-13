@@ -300,9 +300,9 @@ pub(crate) fn require_password(
         return Ok(pw);
     }
     if !io::stdin().is_terminal() {
-        return Err(fail(format!(
-            "'{subcommand}' requires --password or --password-file (or run with stdin attached to a terminal)",
-        )));
+        return Err(fail(
+            format!("'{subcommand}' requires --password or --password-file (or run with stdin attached to a terminal)",),
+        ));
     }
     prompt_password_no_echo("Enter password for the key file: ")
 }
@@ -339,9 +339,9 @@ pub(crate) fn require_password_with_confirmation(
         return Ok(pw);
     }
     if !io::stdin().is_terminal() {
-        return Err(fail(format!(
-            "'{subcommand}' requires --password or --password-file (or run with stdin attached to a terminal)",
-        )));
+        return Err(fail(
+            format!("'{subcommand}' requires --password or --password-file (or run with stdin attached to a terminal)",),
+        ));
     }
     let first = prompt_password_no_echo("Enter password for the key file: ")?;
     let second = prompt_password_no_echo("Confirm password: ")?;
@@ -394,7 +394,7 @@ pub fn run_dump_unencrypted_data(args: DumpUnencryptedDataArgs, top: &NetworkFla
     if !args.yes {
         return fail("'dump-unencrypted-data' requires --yes to confirm");
     }
-    let password = match require_password(&args.password, &args.password_file,"dump-unencrypted-data") {
+    let password = match require_password(&args.password, &args.password_file, "dump-unencrypted-data") {
         Ok(p) => p,
         Err(e) => return e,
     };
@@ -493,7 +493,7 @@ pub fn run_sign(args: SignArgs, top: &NetworkFlags) -> ExitCode {
         Ok(s) => s,
         Err(e) => return e,
     };
-    let password = match require_password(&args.password, &args.password_file,"sign") {
+    let password = match require_password(&args.password, &args.password_file, "sign") {
         Ok(p) => p,
         Err(e) => return e,
     };
@@ -767,7 +767,7 @@ pub fn run_send(args: SendArgs, top: &NetworkFlags) -> ExitCode {
             }
         };
 
-        let password = match require_password(&args.password, &args.password_file,"send") {
+        let password = match require_password(&args.password, &args.password_file, "send") {
             Ok(p) => p,
             Err(e) => return e,
         };
@@ -845,7 +845,7 @@ pub fn run_bump_fee(args: BumpFeeArgs, top: &NetworkFlags) -> ExitCode {
             _ => return fail("'bump-fee' requires --txid"),
         };
 
-        let password = match require_password(&args.password, &args.password_file,"bump-fee") {
+        let password = match require_password(&args.password, &args.password_file, "bump-fee") {
             Ok(p) => p,
             Err(e) => return e,
         };

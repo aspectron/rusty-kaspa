@@ -27,7 +27,6 @@ tokio.workspace = true
 workflow-core.workspace = true
 workflow-log.workspace = true
 workflow-terminal.workspace = true
-clap.workspace = true
 futures-util.workspace = true
 
 [lints]
