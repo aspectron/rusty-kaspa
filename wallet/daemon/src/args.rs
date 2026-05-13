@@ -8,7 +8,7 @@ pub struct Args {
     pub name: Option<String>,
     pub rpc_server: Option<String>,
     pub network_id: Option<String>,
-    pub listen_address: SocketAddr,
+    pub listen: SocketAddr,
     pub tls_cert: Option<PathBuf>,
     pub tls_key: Option<PathBuf>,
     pub client_ca: Option<PathBuf>,
@@ -25,8 +25,8 @@ impl Args {
             name: matches.get_one::<String>("name").cloned(),
             rpc_server: matches.get_one::<String>("rpc-server").cloned(),
             network_id: matches.get_one::<String>("network-id").cloned(),
-            listen_address: matches
-                .get_one::<SocketAddr>("listen-address")
+            listen: matches
+                .get_one::<SocketAddr>("listen")
                 .cloned()
                 .unwrap_or_else(|| "127.0.0.1:8082".parse().unwrap()),
             tls_cert: matches.get_one::<PathBuf>("tls-cert").cloned(),
@@ -67,10 +67,10 @@ pub fn cli() -> Command {
                 .help("Network id to be connected via PNN."),
         )
         .arg(
-            Arg::new("listen-address")
-                .long("listen-address")
+            Arg::new("listen")
+                .long("listen")
                 .short('l')
-                .value_name("listen-address")
+                .value_name("listen")
                 .value_parser(clap::value_parser!(String))
                 .help("gRPC listening address with port."),
         )
@@ -97,7 +97,7 @@ pub fn cli() -> Command {
                        `authorization` metadata does not match `Bearer <token>`.",
         ))
         .arg(Arg::new("insecure").long("insecure").action(ArgAction::SetTrue).help(
-            "Allow a non-loopback --listen-address without TLS. Off by default; required to expose the \
+            "Allow a non-loopback --listen without TLS. Off by default; required to expose the \
                        daemon to a remote host over plain gRPC.",
         ))
 }
