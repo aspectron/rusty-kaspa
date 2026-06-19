@@ -295,6 +295,9 @@ pub enum Error {
     #[error("Legacy account is not initialized")]
     LegacyAccountNotInitialized,
 
+    #[error("payment secret is not supported for legacy accounts")]
+    LegacyAccountPaymentSecret,
+
     #[error("AssocPrvKeyDataIds required {0} but got {1:?}")]
     AssocPrvKeyDataIds(String, AssocPrvKeyDataIds),
 

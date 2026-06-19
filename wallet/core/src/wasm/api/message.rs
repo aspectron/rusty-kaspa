@@ -445,18 +445,19 @@ try_from! ( args: WalletCreateResponse, IWalletCreateResponse, {
 // ---
 
 // ---
-// NOTE: `legacy_accounts` are disabled in JS API
 declare! {
     IWalletOpenRequest,
     r#"
     /**
-     * 
+     *
      * @category Wallet API
      */
     export interface IWalletOpenRequest {
         walletSecret: string;
         filename?: string;
         accountDescriptors: boolean;
+        /** Enable legacy (KDX, kaspanet.io Web Wallet) account compatibility mode. */
+        legacyAccounts?: boolean;
     }
     "#,
 }
@@ -465,8 +466,9 @@ try_from! ( args: IWalletOpenRequest, WalletOpenRequest, {
     let wallet_secret = args.get_secret("walletSecret")?;
     let filename = args.try_get_string("filename")?;
     let account_descriptors = args.get_value("accountDescriptors")?.as_bool().unwrap_or(false);
+    let legacy_accounts = args.get_value("legacyAccounts")?.as_bool();
 
-    Ok(WalletOpenRequest { wallet_secret, filename, account_descriptors, legacy_accounts: None })
+    Ok(WalletOpenRequest { wallet_secret, filename, account_descriptors, legacy_accounts })
 });
 
 declare! {
@@ -1059,6 +1061,11 @@ declare! {
         prvKeyDataId:string;
         paymentSecret?:string;
         ecdsa?:boolean;
+    } | {
+        walletSecret: string;
+        type: "kaspa-legacy-standard";
+        accountName?:string;
+        prvKeyDataId:string;
     };
 
     //   |{
@@ -1099,8 +1106,17 @@ try_from! (args: IAccountsCreateRequest, AccountsCreateRequest, {
                 ecdsa: args.get_bool("ecdsa").unwrap_or(false),
             }
         }
+        crate::account::LEGACY_ACCOUNT_KIND => {
+            if args.try_get_secret("paymentSecret")?.is_some() {
+                return Err(Error::LegacyAccountPaymentSecret);
+            }
+            AccountCreateArgs::Legacy {
+                prv_key_data_id: args.try_get_prv_key_data_id("prvKeyDataId")?.ok_or(Error::custom("prvKeyDataId is required"))?,
+                account_name: args.try_get_string("accountName")?,
+            }
+        }
         _ => {
-            return Err(Error::custom("only BIP32/kaspa-keypair-standard accounts are currently supported"));
+            return Err(Error::custom("only BIP32/kaspa-legacy-standard/kaspa-keypair-standard accounts are currently supported"));
         }
     };
 
@@ -2335,3 +2351,69 @@ try_from! ( args: AccountsCommitRevealManualResponse, IAccountsCommitRevealManua
 });
 
 // ---
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod tests {
+    use super::*;
+    use js_sys::{Object, Reflect};
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    const PRV_KEY_DATA_ID_HEX: &str = "0102030405060708";
+
+    fn object(entries: &[(&str, JsValue)]) -> Object {
+        let object = Object::new();
+        for (key, value) in entries {
+            Reflect::set(&object, &JsValue::from_str(key), value).unwrap();
+        }
+        object
+    }
+
+    #[wasm_bindgen_test]
+    fn accounts_create_request_accepts_legacy_kind() {
+        let args = object(&[
+            ("walletSecret", JsValue::from_str("secret")),
+            ("type", JsValue::from_str(crate::account::LEGACY_ACCOUNT_KIND)),
+            ("prvKeyDataId", JsValue::from_str(PRV_KEY_DATA_ID_HEX)),
+            ("accountName", JsValue::from_str("legacy")),
+        ]);
+
+        let request = AccountsCreateRequest::try_from(args.unchecked_into::<IAccountsCreateRequest>()).unwrap();
+
+        match request.account_create_args {
+            AccountCreateArgs::Legacy { prv_key_data_id, account_name } => {
+                assert_eq!(prv_key_data_id.to_string(), PRV_KEY_DATA_ID_HEX);
+                assert_eq!(account_name.as_deref(), Some("legacy"));
+            }
+            other => panic!("expected legacy account create args, got {other:?}"),
+        }
+    }
+
+    #[wasm_bindgen_test]
+    fn accounts_create_request_rejects_legacy_payment_secret() {
+        let args = object(&[
+            ("walletSecret", JsValue::from_str("secret")),
+            ("type", JsValue::from_str(crate::account::LEGACY_ACCOUNT_KIND)),
+            ("prvKeyDataId", JsValue::from_str(PRV_KEY_DATA_ID_HEX)),
+            ("paymentSecret", JsValue::from_str("payment-secret")),
+        ]);
+
+        let result = AccountsCreateRequest::try_from(args.unchecked_into::<IAccountsCreateRequest>());
+
+        assert!(matches!(result, Err(Error::LegacyAccountPaymentSecret)), "unexpected result: {result:?}");
+    }
+
+    #[wasm_bindgen_test]
+    fn wallet_open_request_passes_legacy_accounts_flag() {
+        let open_request = |legacy_accounts: Option<bool>| {
+            let mut entries = vec![("walletSecret", JsValue::from_str("secret")), ("accountDescriptors", JsValue::TRUE)];
+            if let Some(flag) = legacy_accounts {
+                entries.push(("legacyAccounts", JsValue::from_bool(flag)));
+            }
+            WalletOpenRequest::try_from(object(&entries).unchecked_into::<IWalletOpenRequest>()).unwrap()
+        };
+
+        assert_eq!(open_request(Some(true)).legacy_accounts, Some(true));
+        assert_eq!(open_request(None).legacy_accounts, None);
+    }
+}
