@@ -29,5 +29,8 @@ workflow-terminal.workspace = true
 clap.workspace = true
 futures-util.workspace = true
 
+[dev-dependencies]
+tempfile.workspace = true
+
 [lints]
 workspace = true
