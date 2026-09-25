@@ -200,7 +200,7 @@ impl TryFrom<protoserialization::TransactionMessage> for RpcTransaction {
             subnetwork_id,
             gas: value.gas,
             payload: value.payload,
-            mass: 0,
+            storage_mass: 0,
             verbose_data: None,
         })
     }
@@ -216,6 +216,7 @@ impl TryFrom<protoserialization::TransactionInput> for RpcTransactionInput {
             signature_script: value.signature_script,
             sequence: value.sequence,
             sig_op_count,
+            compute_budget: 0,
             verbose_data: None,
         })
     }
@@ -229,6 +230,7 @@ impl TryFrom<protoserialization::TransactionOutput> for RpcTransactionOutput {
             value: value.value,
             script_public_key: value.script_public_key.ok_or(Status::invalid_argument("missing script public key"))?.try_into()?,
             verbose_data: None,
+            covenant: None,
         })
     }
 }

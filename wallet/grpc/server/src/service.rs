@@ -197,7 +197,7 @@ impl Service {
             change_address,
             account.sig_op_count(),
             account.minimum_signatures(),
-            PaymentDestination::PaymentOutputs(PaymentOutputs { outputs: vec![PaymentOutput { address: to, amount: output_amount }] }),
+            PaymentDestination::PaymentOutputs(PaymentOutputs { outputs: vec![PaymentOutput::new(to, output_amount)] }),
             Some(fee_rate),
             Fees::SenderPays(0), // FIXME: @zelenevn
             None,
