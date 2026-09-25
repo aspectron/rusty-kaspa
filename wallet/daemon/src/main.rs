@@ -17,9 +17,9 @@ use tonic::transport::Server;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     kaspa_core::log::init_logger(None, "");
-    let args = Args::parse();
+    let args = Args::parse()?;
 
-    let wallet = Arc::new(Wallet::try_new(Wallet::local_store()?, Some(Resolver::default()), None)?);
+    let wallet = Arc::new(Wallet::try_new(Wallet::local_store(args.location)?, Some(Resolver::default()), None)?);
     wallet.clone().wallet_open(args.password.into(), args.name, false, false).await?;
     info!("Wallet path: {}", wallet.store().location()?);
 

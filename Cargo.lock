@@ -4415,6 +4415,7 @@ dependencies = [
  "kaspa-wallet-grpc-core",
  "kaspa-wallet-grpc-server",
  "log",
+ "tempfile",
  "tokio",
  "tonic",
  "workflow-core",

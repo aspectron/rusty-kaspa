@@ -89,7 +89,7 @@ impl LocalStoreInner {
 
     async fn try_load(wallet_secret: &Secret, folder: &str, args: OpenArgs) -> Result<Self> {
         let filename = make_filename(&None, &args.filename);
-        let storage = Storage::try_new_with_folder(folder, &format!("{filename}.wallet"))?;
+        let storage = Storage::try_new_with_folder(folder, &filename)?;
 
         let wallet = WalletStorage::try_load(&storage).await?;
         let cache = Arc::new(RwLock::new(Cache::from_wallet(wallet, wallet_secret)?));
@@ -289,9 +289,10 @@ pub(crate) struct LocalStore {
 }
 
 impl LocalStore {
-    pub fn try_new(is_resident: bool) -> Result<Self> {
+    pub fn try_new(is_resident: bool, path: Option<PathBuf>) -> Result<Self> {
+        let location = if let Some(path) = path { Location::new(path.to_str().unwrap()) } else { Location::default() };
         Ok(Self {
-            location: Arc::new(Mutex::new(Some(Arc::new(Location::default())))),
+            location: Arc::new(Mutex::new(Some(Arc::new(location)))),
             inner: Arc::new(Mutex::new(None)),
             is_resident,
             batch: Arc::new(AtomicBool::new(false)),

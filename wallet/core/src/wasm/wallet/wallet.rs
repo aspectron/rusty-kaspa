@@ -147,7 +147,7 @@ impl Wallet {
     pub fn constructor(config: IWalletConfig) -> Result<Wallet> {
         let WalletCtorArgs { resident, network_id, encoding, url, resolver } = WalletCtorArgs::try_from(JsValue::from(config))?;
 
-        let store = Arc::new(LocalStore::try_new(resident)?);
+        let store = Arc::new(LocalStore::try_new(resident, None)?);
 
         let rpc_config = RpcConfig { url, resolver, encoding, network_id };
 
