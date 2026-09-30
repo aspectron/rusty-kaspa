@@ -12,7 +12,9 @@
 pub mod api;
 pub mod args;
 pub mod maps;
+
 pub use args::*;
+use std::path::PathBuf;
 
 use crate::account::ScanNotifier;
 use crate::api::traits::WalletApi;
@@ -123,18 +125,18 @@ pub struct Wallet {
 
 impl Default for Wallet {
     fn default() -> Self {
-        let storage = Wallet::local_store().expect("Unable to initialize local storage");
+        let storage = Wallet::local_store(None).expect("Unable to initialize local storage");
         Wallet::try_new(storage, None, None).unwrap()
     }
 }
 
 impl Wallet {
-    pub fn local_store() -> Result<Arc<dyn Interface>> {
-        Ok(Arc::new(LocalStore::try_new(false)?))
+    pub fn local_store(path: Option<PathBuf>) -> Result<Arc<dyn Interface>> {
+        Ok(Arc::new(LocalStore::try_new(false, path)?))
     }
 
     pub fn resident_store() -> Result<Arc<dyn Interface>> {
-        Ok(Arc::new(LocalStore::try_new(true)?))
+        Ok(Arc::new(LocalStore::try_new(true, None)?))
     }
 
     pub fn try_new(storage: Arc<dyn Interface>, resolver: Option<Resolver>, network_id: Option<NetworkId>) -> Result<Wallet> {
