@@ -231,3 +231,184 @@ fn test_v0_padding() {
         assert_eq!(text, s);
     }
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg(test)]
+mod legacy_account_wallet_api_tests {
+    use super::create_master_key_from_mnemonics;
+    use crate::api::traits::WalletApi;
+    use crate::imports::*;
+    use crate::storage::keydata::PrvKeyDataVariantKind;
+    use crate::wallet::args::{AccountCreateArgs, PrvKeyDataCreateArgs, WalletCreateArgs};
+    use kaspa_addresses::Prefix as AddressPrefix;
+    use kaspa_bip32::Prefix;
+    use kaspa_wallet_keys::derivation::gen0::{PubkeyDerivationManagerV0, WalletDerivationManagerV0};
+    use kaspa_wallet_keys::derivation::traits::WalletDerivationManagerTrait;
+
+    // A real KDX (gen0) v0 keydata mnemonic, decrypted in `test_v0_keydata` above.
+    const KDX_MNEMONIC: &str = "interest denial place quick stay suit token shadow side ski knife entire";
+    // Pinned gen0 receive addresses at indexes 0..5 for KDX_MNEMONIC. They match
+    // `AddressManager.deriveAddress` in the `@kaspa/wallet` package (`wallet/address-manager.ts`),
+    // the derivation behind the original KDX wallet, and the audited `WalletDerivationManagerV0`
+    // path checked below.
+    const KDX_GEN0_RECEIVE: [&str; 5] = [
+        "kaspa:qz3yj0ktpegt22u7ufzyanm27pkxyfsk7g3ejphhyt2kdz64cvndy57360kwk",
+        "kaspa:qrj6jkc40a3vsj67duq5lfjs6cxsxxtht7u2pjsk4u57vq6mhypm56w376v3c",
+        "kaspa:qzcu0x0tlu34jweej7wjp5ngnc363fydhzg4svzygtscdpa39f3z7fvlgukry",
+        "kaspa:qz58e9655tmc5tsxu9023qg6heaq4y4lfhsug63rhjt2p2x3ckkqk3m2h4jvk",
+        "kaspa:qqmn7xtwkf8gmddx3h6se5cft7pcr9n29qmca6p02x8jvfg604srx840wmhwr",
+    ];
+
+    // Independent reference: derive gen0 receive addresses straight from the mnemonic via
+    // the audited low-level derivation manager.
+    fn audited_gen0_receive_addresses(count: u32) -> Vec<String> {
+        let xprv = create_master_key_from_mnemonics(KDX_MNEMONIC).unwrap().to_string(Prefix::XPRV).to_string();
+        let hd = WalletDerivationManagerV0::from_master_xprv(&xprv, false, 0, None).unwrap();
+        (0..count)
+            .map(|i| {
+                let pubkey = hd.derive_receive_pubkey(i).unwrap();
+                PubkeyDerivationManagerV0::create_address(&pubkey, AddressPrefix::Mainnet, false).unwrap().to_string()
+            })
+            .collect()
+    }
+
+    async fn create_resident_wallet(wallet_secret: &Secret) -> Arc<Wallet> {
+        let store = Wallet::resident_store().unwrap();
+        let wallet = Arc::new(Wallet::try_new(store, None, Some(NetworkId::new(NetworkType::Mainnet))).unwrap());
+        wallet
+            .create_wallet(
+                wallet_secret,
+                WalletCreateArgs {
+                    title: None,
+                    filename: None,
+                    encryption_kind: EncryptionKind::XChaCha20Poly1305,
+                    user_hint: None,
+                    overwrite_wallet_storage: false,
+                },
+            )
+            .await
+            .unwrap();
+        wallet
+    }
+
+    async fn create_legacy_account(
+        wallet: &Arc<Wallet>,
+        wallet_secret: &Secret,
+        prv_key_data_id: PrvKeyDataId,
+    ) -> Result<Arc<dyn Account>> {
+        let guard = wallet.guard();
+        let guard = guard.lock().await;
+        wallet
+            .clone()
+            .create_account(wallet_secret, AccountCreateArgs::Legacy { prv_key_data_id, account_name: None }, false, &guard)
+            .await
+    }
+
+    /// A legacy (`kaspa-legacy-standard`) account created through the high-level `Wallet` API
+    /// (`create_account` with `AccountCreateArgs::Legacy`) derives the byte-identical gen0 receive
+    /// addresses produced by the audited gen0 derivation (`WalletDerivationManagerV0`) for the same
+    /// 12-word mnemonic.
+    #[tokio::test]
+    async fn legacy_account_reproduces_gen0_addresses() {
+        let wallet_secret = Secret::new(b"test-secret".to_vec());
+        let wallet = create_resident_wallet(&wallet_secret).await;
+
+        let prv_key_data_id = wallet
+            .clone()
+            .create_prv_key_data(
+                &wallet_secret,
+                PrvKeyDataCreateArgs::new(None, None, Secret::from(KDX_MNEMONIC), PrvKeyDataVariantKind::Mnemonic),
+            )
+            .await
+            .unwrap();
+
+        let account = create_legacy_account(&wallet, &wallet_secret, prv_key_data_id).await.unwrap();
+
+        let account_receive: Vec<String> = account
+            .clone()
+            .as_derivation_capable()
+            .unwrap()
+            .derivation()
+            .receive_address_manager()
+            .get_range_with_args(0..KDX_GEN0_RECEIVE.len() as u32, false)
+            .unwrap()
+            .iter()
+            .map(|address| address.to_string())
+            .collect();
+        let audited = audited_gen0_receive_addresses(KDX_GEN0_RECEIVE.len() as u32);
+
+        assert_eq!(account_receive, audited, "high-level legacy account receive[0..5] != audited gen0 receive[0..5]");
+        assert_eq!(audited, KDX_GEN0_RECEIVE, "audited gen0 receive[0..5] drifted from the pinned golden vectors");
+        assert_eq!(account.receive_address().unwrap().to_string(), KDX_GEN0_RECEIVE[0], "legacy account current receive address");
+    }
+
+    /// `accounts_ensure_default` with the legacy account kind creates a legacy account from the
+    /// supplied mnemonic, deriving the pinned gen0 receive address.
+    #[tokio::test]
+    async fn ensure_default_legacy_account_reproduces_gen0_address() {
+        let wallet_secret = Secret::new(b"test-secret".to_vec());
+        let wallet = create_resident_wallet(&wallet_secret).await;
+
+        let descriptor = wallet
+            .clone()
+            .accounts_ensure_default(wallet_secret, None, LEGACY_ACCOUNT_KIND.into(), Some(Secret::from(KDX_MNEMONIC)))
+            .await
+            .unwrap();
+
+        assert_eq!(descriptor.kind, AccountKind::from(LEGACY_ACCOUNT_KIND), "default account is not a legacy account");
+        let receive_0 = descriptor.receive_address.expect("legacy account descriptor carries a receive address").to_string();
+        assert_eq!(receive_0, KDX_GEN0_RECEIVE[0], "default legacy account receive[0] != pinned gen0 golden vector");
+    }
+
+    /// `accounts_ensure_default` rejects a payment secret for the legacy account kind without
+    /// creating any key data.
+    #[tokio::test]
+    async fn ensure_default_legacy_account_rejects_payment_secret() {
+        let wallet_secret = Secret::new(b"test-secret".to_vec());
+        let wallet = create_resident_wallet(&wallet_secret).await;
+
+        let result = wallet
+            .clone()
+            .accounts_ensure_default(
+                wallet_secret,
+                Some(Secret::from("payment-secret")),
+                LEGACY_ACCOUNT_KIND.into(),
+                Some(Secret::from(KDX_MNEMONIC)),
+            )
+            .await;
+
+        assert!(matches!(result, Err(Error::LegacyAccountPaymentSecret)), "unexpected result: {result:?}");
+        assert!(wallet.clone().prv_key_data_enumerate().await.unwrap().is_empty(), "rejected call left key data in the store");
+    }
+
+    /// Creating a legacy account on key data that was encrypted with a payment secret is rejected
+    /// with the dedicated error, without storing an account.
+    #[tokio::test]
+    async fn legacy_account_rejects_payment_secret_encrypted_key_data() {
+        let wallet_secret = Secret::new(b"test-secret".to_vec());
+        let wallet = create_resident_wallet(&wallet_secret).await;
+
+        let prv_key_data_id = wallet
+            .clone()
+            .create_prv_key_data(
+                &wallet_secret,
+                PrvKeyDataCreateArgs::new(
+                    None,
+                    Some(Secret::from("payment-secret")),
+                    Secret::from(KDX_MNEMONIC),
+                    PrvKeyDataVariantKind::Mnemonic,
+                ),
+            )
+            .await
+            .unwrap();
+
+        let result = create_legacy_account(&wallet, &wallet_secret, prv_key_data_id).await;
+
+        assert!(
+            matches!(result, Err(Error::LegacyAccountPaymentSecret)),
+            "unexpected result: {:?}",
+            result.map(|account| *account.id())
+        );
+        assert!(wallet.clone().accounts_enumerate().await.unwrap().is_empty(), "rejected call stored an account");
+    }
+}

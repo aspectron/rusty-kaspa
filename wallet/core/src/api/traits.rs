@@ -367,9 +367,10 @@ pub trait WalletApi: Send + Sync + AnySync {
     /// Ensure that a default account exists. If the default account does not exist,
     /// this call will create a new private key and an associated account and return
     /// an [`AccountDescriptor`] for it. A custom mnemonic phrase can be supplied
-    /// for the private key. This function currently supports only BIP32 accounts.
-    /// If a `payment_secret` is supplied, the mnemonic phrase will be created
-    /// with a BIP39 passphrase.
+    /// for the private key. This function currently supports BIP32 and legacy
+    /// (`kaspa-legacy-standard`) accounts. For BIP32 accounts, if a `payment_secret`
+    /// is supplied, the mnemonic phrase will be created with a BIP39 passphrase.
+    /// Legacy accounts do not support a `payment_secret`; supplying one is an error.
     async fn accounts_ensure_default_call(
         self: Arc<Self>,
         request: AccountsEnsureDefaultRequest,

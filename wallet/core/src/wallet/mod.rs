@@ -872,6 +872,12 @@ impl Wallet {
             .await?
             .ok_or_else(|| Error::PrivateKeyNotFound(prv_key_data_id))?;
 
+        // Legacy accounts decrypt their key data without a payment secret, so key data
+        // encrypted with one cannot back them.
+        if prv_key_data.payload.is_encrypted() {
+            return Err(Error::LegacyAccountPaymentSecret);
+        }
+
         let account: Arc<dyn Account> = Arc::new(legacy::Legacy::try_new(self, account_name, prv_key_data.id).await?);
         if let Ok(legacy_account) = account.clone().as_legacy_account() {
             legacy_account.create_private_context(wallet_secret, None, None).await?;
@@ -1725,8 +1731,15 @@ impl Wallet {
         mnemonic_phrase: Option<&Secret>,
         guard: &WalletGuard<'_>,
     ) -> Result<AccountDescriptor> {
-        if kind != BIP32_ACCOUNT_KIND {
+        if kind != BIP32_ACCOUNT_KIND && kind != LEGACY_ACCOUNT_KIND {
             return Err(Error::custom("Account kind is not supported"));
+        }
+
+        // Legacy accounts are created and reopened by decrypting their key data
+        // without a payment secret, so key data encrypted with one cannot back them.
+        // Reject it here, before the store enters batch mode below.
+        if kind == LEGACY_ACCOUNT_KIND && payment_secret.is_some() {
+            return Err(Error::LegacyAccountPaymentSecret);
         }
 
         let account = self.store().as_account_store()?.iter(None).await?.next().await;
@@ -1748,7 +1761,11 @@ impl Wallet {
             self.store().batch().await?;
             let prv_key_data_id = self.clone().create_prv_key_data(wallet_secret, prv_key_data_args).await?;
 
-            let account_create_args = AccountCreateArgs::new_bip32(prv_key_data_id, payment_secret.cloned(), None, None);
+            let account_create_args = if kind == LEGACY_ACCOUNT_KIND {
+                AccountCreateArgs::new_legacy(prv_key_data_id, None)
+            } else {
+                AccountCreateArgs::new_bip32(prv_key_data_id, payment_secret.cloned(), None, None)
+            };
 
             let account = self.clone().create_account(wallet_secret, account_create_args, false, guard).await?;
 
